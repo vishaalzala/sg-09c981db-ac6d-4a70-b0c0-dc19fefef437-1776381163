@@ -63,7 +63,7 @@ export const jobService = {
     if (data) {
       await supabase.from("job_status_history").insert({
         job_id: data.id,
-        status: data.status,
+        to_status: data.status,
         changed_by: job.created_by,
         notes: "Job created",
       });
@@ -85,6 +85,15 @@ export const jobService = {
   },
 
   async updateJobStatus(id: string, status: string, userId: string, notes?: string) {
+    // Get current status first
+    const { data: currentJob } = await supabase
+      .from("jobs")
+      .select("status")
+      .eq("id", id)
+      .single();
+
+    const from_status = currentJob?.status;
+
     const { data, error } = await supabase
       .from("jobs")
       .update({ status, updated_at: new Date().toISOString() })
@@ -97,7 +106,8 @@ export const jobService = {
     // Add status history
     await supabase.from("job_status_history").insert({
       job_id: id,
-      status,
+      from_status,
+      to_status: status,
       changed_by: userId,
       notes: notes || `Status changed to ${status}`,
     });
