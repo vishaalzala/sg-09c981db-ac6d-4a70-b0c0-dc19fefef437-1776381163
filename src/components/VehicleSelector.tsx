@@ -94,6 +94,7 @@ export function VehicleSelector({
         wof_expiry: null,
         rego_expiry: null,
         service_due_date: null,
+        service_due_odometer: null,
         last_service_odometer: null,
         is_courtesy_vehicle: false,
         deleted_at: null,
