@@ -24,8 +24,8 @@ Core requirements:
 - Audit logging architecture
 
 ## Checklist
-- [ ] Create companies and branches tables with proper hierarchy
-- [ ] Create users, roles, permissions tables for RBAC system
+- [x] Create companies and branches tables with proper hierarchy
+- [x] Create users, roles, permissions tables for RBAC system
 - [ ] Create subscription_plans, company_subscriptions, addon_catalog, company_addons, feature_entitlements tables
 - [ ] Create usage_records and billing_events tables for metered billing
 - [ ] Create customers, customer_contacts, customer_notes, customer_addresses, vehicles, vehicle_files tables
