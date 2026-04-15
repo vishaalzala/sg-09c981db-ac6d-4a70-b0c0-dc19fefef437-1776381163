@@ -7,22 +7,17 @@ type InventoryMovement = Tables<"inventory_movements">;
 type StockAdjustment = Tables<"stock_adjustments">;
 
 export const inventoryService = {
-  async getInventoryItems(companyId: string, branchId?: string) {
-    let query = supabase
+  async getInventoryItems(companyId: string) {
+    const { data, error } = await supabase
       .from("inventory_items")
       .select(`
         *,
         supplier:suppliers!inventory_items_supplier_id_fkey(id, name)
       `)
       .eq("company_id", companyId)
-      .is("deleted_at", null)
-      .order("item_name");
+      .eq("is_active", true)
+      .order("description");
 
-    if (branchId) {
-      query = query.eq("branch_id", branchId);
-    }
-
-    const { data, error } = await query;
     if (error) throw error;
     return data || [];
   },
@@ -73,22 +68,6 @@ export const inventoryService = {
       .single();
 
     if (error) throw error;
-
-    // Update stock level
-    const { data: item } = await supabase
-      .from("inventory_items")
-      .select("quantity_on_hand")
-      .eq("id", movement.inventory_item_id)
-      .single();
-
-    if (item) {
-      const newQuantity = (item.quantity_on_hand || 0) + movement.quantity_change;
-      await supabase
-        .from("inventory_items")
-        .update({ quantity_on_hand: newQuantity })
-        .eq("id", movement.inventory_item_id);
-    }
-
     return data;
   },
 
@@ -106,7 +85,7 @@ export const inventoryService = {
   async deleteInventoryItem(id: string) {
     const { error } = await supabase
       .from("inventory_items")
-      .update({ deleted_at: new Date().toISOString() })
+      .update({ is_active: false })
       .eq("id", id);
 
     if (error) throw error;

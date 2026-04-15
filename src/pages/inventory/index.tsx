@@ -35,7 +35,8 @@ export default function InventoryPage() {
   }
 
   const lowStockItems = items.filter(item => 
-    (item.quantity_on_hand || 0) <= (item.reorder_point || 0)
+    // Currently stock is tracked via movements, defaulting to 0 for MVP list view
+    (0) <= (item.reorder_level || 0)
   );
 
   return (
@@ -91,8 +92,8 @@ export default function InventoryPage() {
               <div className="space-y-3">
                 {items.map((item) => {
                   const supplier = Array.isArray(item.supplier) ? item.supplier[0] : item.supplier;
-                  const isLowStock = (item.quantity_on_hand || 0) <= (item.reorder_point || 0);
-                  const stockLevel = item.quantity_on_hand || 0;
+                  const isLowStock = (0) <= (item.reorder_level || 0);
+                  const stockLevel = 0; // Will be calculated from movements
 
                   return (
                     <div
@@ -106,7 +107,7 @@ export default function InventoryPage() {
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1 space-y-2">
                           <div className="flex items-center gap-2">
-                            <span className="font-semibold">{item.item_name}</span>
+                            <span className="font-semibold">{item.description || "Unnamed Item"}</span>
                             {isLowStock && (
                               <Badge variant="outline" className="text-warning border-warning">
                                 <TrendingDown className="h-3 w-3 mr-1" />
@@ -115,8 +116,8 @@ export default function InventoryPage() {
                             )}
                           </div>
 
-                          {item.sku && (
-                            <p className="text-sm text-muted-foreground">SKU: {item.sku}</p>
+                          {item.part_number && (
+                            <p className="text-sm text-muted-foreground">Part No: {item.part_number}</p>
                           )}
 
                           {supplier && (
@@ -126,8 +127,8 @@ export default function InventoryPage() {
                             </div>
                           )}
 
-                          {item.location && (
-                            <p className="text-sm">Location: {item.location}</p>
+                          {item.category && (
+                            <p className="text-sm">Category: {item.category}</p>
                           )}
                         </div>
 
@@ -142,15 +143,15 @@ export default function InventoryPage() {
                             </p>
                           </div>
 
-                          {item.unit_price && (
+                          {item.sell_price && (
                             <p className="text-sm text-muted-foreground">
-                              ${item.unit_price.toFixed(2)} / {item.unit_of_measure || "unit"}
+                              ${item.sell_price.toFixed(2)}
                             </p>
                           )}
 
-                          {item.reorder_point && (
+                          {item.reorder_level && (
                             <p className="text-xs text-muted-foreground">
-                              Reorder at: {item.reorder_point}
+                              Reorder at: {item.reorder_level}
                             </p>
                           )}
                         </div>
