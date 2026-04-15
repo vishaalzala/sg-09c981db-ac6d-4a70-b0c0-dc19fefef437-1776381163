@@ -10,7 +10,7 @@ type InspectionEquipment = Tables<"inspection_equipment">;
 
 export const wofService = {
   async getInspections(companyId: string, filters?: { status?: string; dateFrom?: string; dateTo?: string }) {
-    let query = supabase
+    let query: any = supabase
       .from("wof_inspections")
       .select(`
         *,
@@ -22,7 +22,7 @@ export const wofService = {
       .order("inspection_date", { ascending: false });
 
     if (filters?.status) {
-      query = query.eq("result" as any, filters.status);
+      query = query.eq("result", filters.status);
     }
     if (filters?.dateFrom) {
       query = query.gte("inspection_date", filters.dateFrom);
