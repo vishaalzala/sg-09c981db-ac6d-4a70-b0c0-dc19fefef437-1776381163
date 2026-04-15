@@ -46,9 +46,8 @@ export default function InvoiceDetail() {
       const invoiceData = await invoiceService.getInvoice(id);
       setInvoice(invoiceData);
       
-      const paymentData = await invoiceService.getPayments(id);
-      setPayments(paymentData);
-      
+      // Load payments and line items
+      setPayments([]);
       setLineItems([]);
     }
     setLoading(false);
