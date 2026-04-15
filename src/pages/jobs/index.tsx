@@ -1,0 +1,157 @@
+import { useState, useEffect } from "react";
+import { AppLayout } from "@/components/AppLayout";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Plus, Wrench, User, Car, Calendar } from "lucide-react";
+import { StatusBadge } from "@/components/StatusBadge";
+import { jobService } from "@/services/jobService";
+import { companyService } from "@/services/companyService";
+import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { EmptyState } from "@/components/EmptyState";
+
+export default function JobsPage() {
+  const [companyId, setCompanyId] = useState<string>("");
+  const [loading, setLoading] = useState(true);
+  const [jobs, setJobs] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState("all");
+
+  useEffect(() => {
+    loadData();
+  }, [activeTab]);
+
+  const loadData = async () => {
+    setLoading(true);
+    const company = await companyService.getCurrentCompany();
+    if (company) {
+      setCompanyId(company.id);
+      const status = activeTab === "all" ? undefined : activeTab;
+      const data = await jobService.getJobs(company.id, undefined, status);
+      setJobs(data);
+    }
+    setLoading(false);
+  };
+
+  if (loading) {
+    return <LoadingSpinner />;
+  }
+
+  const filterJobsByStatus = (status?: string) => {
+    if (!status || status === "all") return jobs;
+    return jobs.filter(j => j.status === status);
+  };
+
+  return (
+    <AppLayout companyId={companyId} companyName="AutoTech Workshop" userName="Service Manager">
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="font-heading text-3xl font-bold">Jobs</h1>
+            <p className="text-muted-foreground mt-1">
+              Manage workshop jobs and repairs
+            </p>
+          </div>
+          <Button onClick={() => window.location.href = "/jobs/new"}>
+            <Plus className="h-4 w-4 mr-2" />
+            New Job
+          </Button>
+        </div>
+
+        {/* Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList>
+            <TabsTrigger value="all">All Jobs</TabsTrigger>
+            <TabsTrigger value="in_progress">In Progress</TabsTrigger>
+            <TabsTrigger value="waiting_approval">Waiting Approval</TabsTrigger>
+            <TabsTrigger value="waiting_parts">Waiting Parts</TabsTrigger>
+            <TabsTrigger value="ready_for_pickup">Ready for Pickup</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value={activeTab} className="mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Jobs List</CardTitle>
+                <CardDescription>
+                  {activeTab === "all" ? "All jobs" : `Jobs with status: ${activeTab.replace(/_/g, " ")}`}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {filterJobsByStatus(activeTab === "all" ? undefined : activeTab).length === 0 ? (
+                  <EmptyState
+                    icon={Wrench}
+                    title="No jobs"
+                    description={`No jobs found${activeTab !== "all" ? ` with status: ${activeTab.replace(/_/g, " ")}` : ""}`}
+                    action={{
+                      label: "Create Job",
+                      onClick: () => window.location.href = "/jobs/new",
+                    }}
+                  />
+                ) : (
+                  <div className="space-y-3">
+                    {filterJobsByStatus(activeTab === "all" ? undefined : activeTab).map((job) => {
+                      const customer = Array.isArray(job.customer) ? job.customer[0] : job.customer;
+                      const vehicle = Array.isArray(job.vehicle) ? job.vehicle[0] : job.vehicle;
+
+                      return (
+                        <div
+                          key={job.id}
+                          className="p-4 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
+                          onClick={() => window.location.href = `/jobs/${job.id}`}
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1 space-y-2">
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold">{job.order_number}</span>
+                                <StatusBadge status={job.status} type="job" />
+                              </div>
+
+                              <div className="font-medium">{job.job_title}</div>
+
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <User className="h-3 w-3" />
+                                <span>{customer?.name}</span>
+                              </div>
+
+                              <div className="flex items-center gap-2 text-sm">
+                                <Car className="h-3 w-3 text-muted-foreground" />
+                                <span>
+                                  {vehicle?.registration_number} - {vehicle?.make} {vehicle?.model}
+                                </span>
+                              </div>
+
+                              {job.short_description && (
+                                <p className="text-sm text-muted-foreground">
+                                  {job.short_description}
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="text-right space-y-2">
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <Calendar className="h-3 w-3" />
+                                <span>
+                                  {new Date(job.created_at).toLocaleDateString()}
+                                </span>
+                              </div>
+
+                              {job.estimated_total && (
+                                <div className="font-semibold text-primary">
+                                  ${job.estimated_total.toFixed(2)}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
+    </AppLayout>
+  );
+}
