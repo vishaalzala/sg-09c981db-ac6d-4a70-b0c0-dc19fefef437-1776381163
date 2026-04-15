@@ -22,7 +22,7 @@ export const wofService = {
       .order("inspection_date", { ascending: false });
 
     if (filters?.status) {
-      query = query.eq("status", filters.status);
+      query = query.eq("result" as any, filters.status);
     }
     if (filters?.dateFrom) {
       query = query.gte("inspection_date", filters.dateFrom);

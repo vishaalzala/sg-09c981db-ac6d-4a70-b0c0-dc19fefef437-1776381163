@@ -178,7 +178,7 @@ export default function WofPage() {
                               <div className="flex-1 space-y-2">
                                 <div className="flex items-center gap-2">
                                   <span className="font-semibold">{vehicle?.registration_number}</span>
-                                  <StatusBadge type="wof" status={inspection.status || "pending"} />
+                                  <StatusBadge type="wof" status={inspection.result || "pending"} />
                                 </div>
 
                                 <p className="text-sm">{customer?.name}</p>
@@ -197,9 +197,9 @@ export default function WofPage() {
                                 <p className="text-sm font-medium">
                                   {new Date(inspection.inspection_date).toLocaleDateString()}
                                 </p>
-                                {inspection.status && (
-                                  <Badge variant={inspection.status === "passed" ? "outline" : "destructive"}>
-                                    {inspection.status.toUpperCase()}
+                                {inspection.result && (
+                                  <Badge variant={inspection.result === "passed" ? "outline" : "destructive"}>
+                                    {inspection.result.toUpperCase()}
                                   </Badge>
                                 )}
                               </div>
