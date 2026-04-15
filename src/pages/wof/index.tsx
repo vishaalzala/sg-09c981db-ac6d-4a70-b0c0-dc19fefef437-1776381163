@@ -51,9 +51,9 @@ export default function WofPage() {
     return <LoadingSpinner />;
   }
 
-  const pendingInspections = inspections.filter(i => i.status === "pending" || i.status === "in_progress");
-  const failedInspections = inspections.filter(i => i.status === "failed");
-  const passedInspections = inspections.filter(i => i.status === "passed");
+  const pendingInspections = inspections.filter(i => i.result === "pending" || !i.result);
+  const failedInspections = inspections.filter(i => i.result === "fail");
+  const passedInspections = inspections.filter(i => i.result === "pass");
   const expiringCertifications = certifications.filter(c => {
     const daysToExpiry = Math.ceil((new Date(c.expiry_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
     return daysToExpiry <= 60 && daysToExpiry > 0;
@@ -178,7 +178,7 @@ export default function WofPage() {
                               <div className="flex-1 space-y-2">
                                 <div className="flex items-center gap-2">
                                   <span className="font-semibold">{vehicle?.registration_number}</span>
-                                  <StatusBadge type="wof" status={inspection.status} />
+                                  <StatusBadge type="wof" status={inspection.result || "pending"} />
                                 </div>
 
                                 <p className="text-sm">{customer?.name}</p>

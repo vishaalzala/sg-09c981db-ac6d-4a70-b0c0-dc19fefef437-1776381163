@@ -22,7 +22,7 @@ export const wofService = {
       .order("inspection_date", { ascending: false });
 
     if (filters?.status) {
-      query = query.eq("status", filters.status);
+      query = query.eq("result", filters.status);
     }
     if (filters?.dateFrom) {
       query = query.gte("inspection_date", filters.dateFrom);
@@ -136,7 +136,13 @@ export const wofService = {
   }) {
     const { data, error } = await supabase
       .from("wof_compliance_logs")
-      .insert(log)
+      .insert({
+        company_id: log.company_id,
+        wof_inspection_id: log.inspection_id,
+        log_type: log.event_type,
+        after_data: log.event_data,
+        changed_by: log.performed_by,
+      })
       .select()
       .single();
 

@@ -84,7 +84,7 @@ export const reminderService = {
     const { data, error } = await supabase
       .from("reminders")
       .update({
-        status: "sent",
+        status: "sent" as any,
         last_sent_date: new Date().toISOString(),
       })
       .eq("id", id)

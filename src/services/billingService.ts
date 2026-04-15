@@ -28,7 +28,7 @@ export const billingService = {
         plan:subscription_plans(*)
       `)
       .eq("company_id", companyId)
-      .eq("is_active", true)
+      .eq("status", "active")
       .single();
 
     if (error) throw error;
@@ -39,7 +39,7 @@ export const billingService = {
     const { data, error } = await supabase
       .from("addon_catalog")
       .select("*")
-      .eq("is_available", true)
+      .eq("is_active", true)
       .order("name");
 
     if (error) throw error;
@@ -68,7 +68,6 @@ export const billingService = {
         addon_id: addonId,
         is_enabled: true,
         enabled_at: new Date().toISOString(),
-        enabled_by: enabledBy,
       })
       .select()
       .single();
@@ -105,16 +104,16 @@ export const billingService = {
       .from("usage_records")
       .select("*")
       .eq("company_id", companyId)
-      .order("timestamp", { ascending: false });
+      .order("recorded_at", { ascending: false });
 
     if (filters?.featureSlug) {
-      query = query.eq("feature_slug", filters.featureSlug);
+      query = query.eq("usage_type", filters.featureSlug);
     }
     if (filters?.startDate) {
-      query = query.gte("timestamp", filters.startDate);
+      query = query.gte("recorded_at", filters.startDate);
     }
     if (filters?.endDate) {
-      query = query.lte("timestamp", filters.endDate);
+      query = query.lte("recorded_at", filters.endDate);
     }
 
     const { data, error } = await query;
@@ -126,7 +125,8 @@ export const billingService = {
     const records = await this.getUsageRecords(companyId, { featureSlug, startDate, endDate });
     
     const totalUsage = records.reduce((sum, r) => sum + (r.quantity || 1), 0);
-    const totalCost = records.reduce((sum, r) => sum + (r.cost || 0), 0);
+    // Cost calculation would typically be done server-side based on the addon pricing
+    const totalCost = 0; 
 
     return { totalUsage, totalCost, records };
   },

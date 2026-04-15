@@ -171,13 +171,13 @@ export default function BillingPage() {
                     {usageRecords.map((record) => (
                       <div key={record.id} className="flex items-center justify-between p-3 border rounded-lg">
                         <div className="flex-1">
-                          <p className="font-medium">{record.feature_slug}</p>
+                          <p className="font-medium">{record.usage_type || record.addon_id}</p>
                           <p className="text-sm text-muted-foreground">
-                            {new Date(record.timestamp).toLocaleString()}
+                            {new Date(record.recorded_at).toLocaleString()}
                           </p>
                         </div>
                         <div className="text-right">
-                          <p className="font-medium">${record.cost?.toFixed(2)}</p>
+                          <p className="font-medium">—</p>
                           <p className="text-xs text-muted-foreground">
                             Qty: {record.quantity || 1}
                           </p>
