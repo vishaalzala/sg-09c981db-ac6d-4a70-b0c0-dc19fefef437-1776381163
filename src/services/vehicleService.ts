@@ -10,7 +10,7 @@ export const vehicleService = {
       .from("vehicles")
       .select(`
         id, 
-        rego, 
+        registration_number, 
         make, 
         model, 
         year,
@@ -18,8 +18,8 @@ export const vehicleService = {
       `)
       .eq("company_id", companyId)
       .is("deleted_at", null)
-      .or(`rego.ilike.%${query}%,vin.ilike.%${query}%,make.ilike.%${query}%,model.ilike.%${query}%`)
-      .order("rego")
+      .or(`registration_number.ilike.%${query}%,vin.ilike.%${query}%,make.ilike.%${query}%,model.ilike.%${query}%`)
+      .order("registration_number")
       .limit(limit);
 
     return data || [];
@@ -47,7 +47,7 @@ export const vehicleService = {
       .select("*")
       .eq("customer_id", customerId)
       .is("deleted_at", null)
-      .order("rego");
+      .order("registration_number");
 
     return data || [];
   },

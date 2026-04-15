@@ -46,7 +46,7 @@ export const companyService = {
         addon:addon_catalog(*)
       `)
       .eq("company_id", companyId)
-      .eq("is_active", true);
+      .eq("is_enabled", true);
 
     return data || [];
   },
@@ -56,7 +56,7 @@ export const companyService = {
       .from("feature_entitlements")
       .select("id")
       .eq("company_id", companyId)
-      .eq("feature_slug", featureSlug)
+      .eq("feature_name", featureSlug)
       .eq("is_enabled", true)
       .single();
 

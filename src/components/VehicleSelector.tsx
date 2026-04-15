@@ -80,7 +80,7 @@ export function VehicleSelector({
       const newVehicle = await vehicleService.createVehicle({
         company_id: companyId,
         customer_id: customerId,
-        rego: newVehicleRego,
+        registration_number: newVehicleRego,
         make: newVehicleMake || null,
         model: newVehicleModel || null,
         year: newVehicleYear ? parseInt(newVehicleYear) : null,
@@ -97,6 +97,12 @@ export function VehicleSelector({
         last_service_odometer: null,
         is_courtesy_vehicle: false,
         deleted_at: null,
+        carjam_data: null,
+        carjam_last_fetched: null,
+        notes: null,
+        created_by: null,
+        last_service_date: null,
+        odometer_unit: "km",
       });
 
       handleSelect(newVehicle);
@@ -125,7 +131,7 @@ export function VehicleSelector({
             {selectedVehicle ? (
               <span className="flex items-center gap-2">
                 <Car className="h-4 w-4" />
-                {selectedVehicle.rego} - {selectedVehicle.make} {selectedVehicle.model}
+                {selectedVehicle.registration_number || selectedVehicle.rego} - {selectedVehicle.make} {selectedVehicle.model}
               </span>
             ) : (
               placeholder
@@ -174,7 +180,7 @@ export function VehicleSelector({
                       )}
                     />
                     <div className="flex-1">
-                      <p className="font-medium">{vehicle.rego}</p>
+                      <p className="font-medium">{vehicle.registration_number || vehicle.rego}</p>
                       <p className="text-xs text-muted-foreground">
                         {vehicle.make} {vehicle.model} {vehicle.year}
                       </p>

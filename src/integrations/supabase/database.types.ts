@@ -4119,7 +4119,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      merge_customers: {
+        Args: { source_customer_id: string; target_customer_id: string }
+        Returns: Json
+      }
+      move_vehicle: {
+        Args: {
+          moved_by_user_id: string
+          new_customer_id: string
+          vehicle_id: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never

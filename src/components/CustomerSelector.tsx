@@ -70,6 +70,17 @@ export function CustomerSelector({ value, onChange, companyId, placeholder = "Se
         source_of_business: null,
         marketing_consent: false,
         deleted_at: null,
+        customer_number: null,
+        fleet_billing_contact: null,
+        is_fleet_account: false,
+        notes: null,
+        physical_address: null,
+        physical_city: null,
+        physical_postal_code: null,
+        postal_address: null,
+        postal_city: null,
+        postal_postal_code: null,
+        created_by: null,
       });
 
       handleSelect(newCustomer);

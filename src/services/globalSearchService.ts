@@ -39,7 +39,7 @@ export const globalSearchService = {
       .from("vehicles")
       .select(`
         id, 
-        rego, 
+        registration_number, 
         make, 
         model, 
         year,
@@ -47,15 +47,18 @@ export const globalSearchService = {
       `)
       .eq("company_id", companyId)
       .is("deleted_at", null)
-      .or(`rego.ilike.%${searchTerm}%,vin.ilike.%${searchTerm}%`)
+      .or(`registration_number.ilike.%${searchTerm}%,vin.ilike.%${searchTerm}%`)
       .limit(5);
 
     vehicles?.forEach(v => {
+      // Safely access customer name whether it's an object or array
+      const custName = Array.isArray(v.customer) ? v.customer[0]?.name : v.customer?.name;
+      
       results.push({
         type: "vehicle",
         id: v.id,
-        title: `${v.rego} - ${v.make} ${v.model}`,
-        subtitle: v.customer?.name || "",
+        title: `${v.registration_number} - ${v.make || ''} ${v.model || ''}`,
+        subtitle: custName || "",
         metadata: v.year?.toString() || "Vehicle",
       });
     });
@@ -69,7 +72,7 @@ export const globalSearchService = {
         job_title,
         status,
         customer:customers!jobs_customer_id_fkey(name),
-        vehicle:vehicles!jobs_vehicle_id_fkey(rego)
+        vehicle:vehicles!jobs_vehicle_id_fkey(registration_number)
       `)
       .eq("company_id", companyId)
       .is("deleted_at", null)
@@ -77,12 +80,15 @@ export const globalSearchService = {
       .limit(5);
 
     jobs?.forEach(j => {
+      const custName = Array.isArray(j.customer) ? j.customer[0]?.name : j.customer?.name;
+      const vehRego = Array.isArray(j.vehicle) ? j.vehicle[0]?.registration_number : j.vehicle?.registration_number;
+      
       results.push({
         type: "job",
         id: j.id,
-        title: `${j.order_number} - ${j.job_title}`,
-        subtitle: `${j.customer?.name || ""} - ${j.vehicle?.rego || ""}`,
-        metadata: j.status,
+        title: `${j.order_number || ''} - ${j.job_title}`,
+        subtitle: `${custName || ""} - ${vehRego || ""}`,
+        metadata: j.status || "",
       });
     });
 
