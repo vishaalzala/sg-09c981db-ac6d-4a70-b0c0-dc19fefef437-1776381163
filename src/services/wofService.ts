@@ -142,7 +142,7 @@ export const wofService = {
         log_type: log.event_type,
         after_data: log.event_data,
         changed_by: log.performed_by,
-      })
+      } as any)
       .select()
       .single();
 

@@ -84,9 +84,9 @@ export const reminderService = {
     const { data, error } = await supabase
       .from("reminders")
       .update({
-        status: "sent" as any,
+        status: "sent",
         last_sent_date: new Date().toISOString(),
-      })
+      } as any)
       .eq("id", id)
       .select()
       .single();
@@ -98,7 +98,7 @@ export const reminderService = {
   async markAsCompleted(id: string) {
     const { data, error } = await supabase
       .from("reminders")
-      .update({ status: "completed" })
+      .update({ status: "completed" } as any)
       .eq("id", id)
       .select()
       .single();

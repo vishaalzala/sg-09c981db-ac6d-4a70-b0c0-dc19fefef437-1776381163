@@ -61,7 +61,7 @@ export default function WofPage() {
 
   return (
     <AppLayout companyId={companyId} companyName="AutoTech Workshop" userName="WOF Inspector">
-      <FeatureGate feature="wof_compliance" hasAccess={hasWofAccess}>
+      <FeatureGate feature="wof_compliance" isEnabled={hasWofAccess}>
         <div className="space-y-6">
           {/* Header */}
           <div className="flex items-center justify-between">
