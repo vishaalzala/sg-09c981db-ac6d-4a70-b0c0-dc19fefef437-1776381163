@@ -159,22 +159,22 @@ export default function JobDetail() {
                     <Wrench className="h-4 w-4 mt-1 text-muted-foreground" />
                     <div>
                       <p className="text-muted-foreground">Technician</p>
-                      <p className="font-medium">{job.assigned_technician_id || "Unassigned"}</p>
+                      <p className="font-medium">{(job as any).assigned_technician_id || "Unassigned"}</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
                     <Package className="h-4 w-4 mt-1 text-muted-foreground" />
                     <div>
                       <p className="text-muted-foreground">Odometer</p>
-                      <p className="font-medium">{job.odometer_reading ? `${job.odometer_reading.toLocaleString()} km` : "—"}</p>
+                      <p className="font-medium">{(job as any).odometer ? `${(job as any).odometer.toLocaleString()} km` : "—"}</p>
                     </div>
                   </div>
                 </div>
 
-                {job.job_description && (
+                {(job as any).description && (
                   <div className="pt-4 border-t">
                     <p className="text-sm text-muted-foreground mb-2">Description</p>
-                    <p className="text-sm whitespace-pre-wrap">{job.job_description}</p>
+                    <p className="text-sm whitespace-pre-wrap">{(job as any).description}</p>
                   </div>
                 )}
               </CardContent>
