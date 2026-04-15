@@ -21,6 +21,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { supabase } from "@/integrations/supabase/client";
 import { companyService } from "@/services/companyService";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { cn } from "@/lib/utils";
 
 export default function Dashboard() {
   const [companyId, setCompanyId] = useState<string>("");
