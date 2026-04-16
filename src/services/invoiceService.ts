@@ -46,10 +46,10 @@ export const invoiceService = {
     return data;
   },
 
-  async createInvoice(invoice: InvoiceInsert) {
+  async createInvoice(invoice: Partial<Invoice>) {
     const { data, error } = await supabase
       .from("invoices")
-      .insert(invoice)
+      .insert(invoice as any)
       .select()
       .single();
 

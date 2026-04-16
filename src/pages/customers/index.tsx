@@ -24,27 +24,54 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useToast } from "@/components/ui/use-toast";
 
-export default function CustomersPage() {
-  const [companyId, setCompanyId] = useState<string>("");
+export default function Customers() {
+  const { toast } = useToast();
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
   const [customers, setCustomers] = useState<any[]>([]);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [newCustomer, setNewCustomer] = useState({
+    full_name: "",
+    email: "",
+    mobile: "",
+    phone: "",
+    is_company: false,
+    company_name: "",
+    postal_address: "",
+    physical_address: "",
+  });
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  useEffect(() => {
-    if (companyId && searchQuery) {
-      searchCustomers();
+  const handleAddCustomer = async () => {
+    if (!newCustomer.full_name) {
+      toast({ title: "Error", description: "Name is required", variant: "destructive" });
+      return;
     }
-  }, [searchQuery, companyId]);
+
+    setIsSubmitting(true);
+    try {
+      const company = await companyService.getCurrentCompany();
+      if (!company) throw new Error("No company context found");
+
+      await customerService.createCustomer({
+        ...newCustomer,
+        company_id: company.id,
+      } as any);
+
+      toast({ title: "Success", description: "Customer created successfully" });
+      setShowAddDialog(false);
+      loadData();
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const loadData = async () => {
     const company = await companyService.getCurrentCompany();
     if (company) {
-      setCompanyId(company.id);
       // Load recent customers by default
       const results = await customerService.searchCustomers("", company.id, 50);
       setCustomers(results);

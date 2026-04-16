@@ -36,10 +36,10 @@ export const customerService = {
     return data;
   },
 
-  async createCustomer(customer: Omit<Customer, "id" | "created_at" | "updated_at">) {
+  async createCustomer(customer: Partial<Customer>) {
     const { data, error } = await supabase
       .from("customers")
-      .insert(customer)
+      .insert(customer as any)
       .select()
       .single();
 
