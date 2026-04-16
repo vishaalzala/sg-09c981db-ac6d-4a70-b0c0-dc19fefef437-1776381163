@@ -1170,6 +1170,63 @@ export type Database = {
           },
         ]
       }
+      discounts: {
+        Row: {
+          applied_at: string | null
+          applied_by: string | null
+          company_id: string
+          created_at: string | null
+          discount_amount: number
+          discount_type: string
+          discount_value: number
+          entity_id: string
+          entity_type: string
+          id: string
+          reason: string | null
+        }
+        Insert: {
+          applied_at?: string | null
+          applied_by?: string | null
+          company_id: string
+          created_at?: string | null
+          discount_amount: number
+          discount_type: string
+          discount_value: number
+          entity_id: string
+          entity_type: string
+          id?: string
+          reason?: string | null
+        }
+        Update: {
+          applied_at?: string | null
+          applied_by?: string | null
+          company_id?: string
+          created_at?: string | null
+          discount_amount?: number
+          discount_type?: string
+          discount_value?: number
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discounts_applied_by_fkey"
+            columns: ["applied_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discounts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_history: {
         Row: {
           action: string
@@ -1950,6 +2007,9 @@ export type Database = {
           created_by: string | null
           customer_id: string | null
           deleted_at: string | null
+          discount_amount: number | null
+          discount_type: string | null
+          discount_value: number | null
           due_date: string | null
           id: string
           invoice_date: string
@@ -1976,6 +2036,9 @@ export type Database = {
           created_by?: string | null
           customer_id?: string | null
           deleted_at?: string | null
+          discount_amount?: number | null
+          discount_type?: string | null
+          discount_value?: number | null
           due_date?: string | null
           id?: string
           invoice_date?: string
@@ -2002,6 +2065,9 @@ export type Database = {
           created_by?: string | null
           customer_id?: string | null
           deleted_at?: string | null
+          discount_amount?: number | null
+          discount_type?: string | null
+          discount_value?: number | null
           due_date?: string | null
           id?: string
           invoice_date?: string
@@ -2537,13 +2603,20 @@ export type Database = {
           customer_visible_notes: string | null
           deleted_at: string | null
           description: string | null
+          email_sent: boolean | null
           estimated_finish_time: string | null
           estimated_work_hours: number | null
+          finished_at: string | null
+          finished_odometer: number | null
+          follow_up: string | null
           id: string
           internal_notes: string | null
           invoice_to_third_party: boolean | null
           job_number: string | null
           job_title: string
+          next_service_date: string | null
+          next_service_kms: number | null
+          next_service_note: string | null
           notes: string | null
           odometer: number | null
           order_number: string | null
@@ -2554,6 +2627,7 @@ export type Database = {
           qc_completed_by: string | null
           signed_off_at: string | null
           signed_off_by: string | null
+          sms_sent: boolean | null
           source_of_business: string | null
           start_time: string | null
           status: string | null
@@ -2562,6 +2636,8 @@ export type Database = {
           third_party_name: string | null
           updated_at: string | null
           vehicle_id: string | null
+          wheel_alignment_due: string | null
+          wof_due_date: string | null
         }
         Insert: {
           approved_at?: string | null
@@ -2577,13 +2653,20 @@ export type Database = {
           customer_visible_notes?: string | null
           deleted_at?: string | null
           description?: string | null
+          email_sent?: boolean | null
           estimated_finish_time?: string | null
           estimated_work_hours?: number | null
+          finished_at?: string | null
+          finished_odometer?: number | null
+          follow_up?: string | null
           id?: string
           internal_notes?: string | null
           invoice_to_third_party?: boolean | null
           job_number?: string | null
           job_title: string
+          next_service_date?: string | null
+          next_service_kms?: number | null
+          next_service_note?: string | null
           notes?: string | null
           odometer?: number | null
           order_number?: string | null
@@ -2594,6 +2677,7 @@ export type Database = {
           qc_completed_by?: string | null
           signed_off_at?: string | null
           signed_off_by?: string | null
+          sms_sent?: boolean | null
           source_of_business?: string | null
           start_time?: string | null
           status?: string | null
@@ -2602,6 +2686,8 @@ export type Database = {
           third_party_name?: string | null
           updated_at?: string | null
           vehicle_id?: string | null
+          wheel_alignment_due?: string | null
+          wof_due_date?: string | null
         }
         Update: {
           approved_at?: string | null
@@ -2617,13 +2703,20 @@ export type Database = {
           customer_visible_notes?: string | null
           deleted_at?: string | null
           description?: string | null
+          email_sent?: boolean | null
           estimated_finish_time?: string | null
           estimated_work_hours?: number | null
+          finished_at?: string | null
+          finished_odometer?: number | null
+          follow_up?: string | null
           id?: string
           internal_notes?: string | null
           invoice_to_third_party?: boolean | null
           job_number?: string | null
           job_title?: string
+          next_service_date?: string | null
+          next_service_kms?: number | null
+          next_service_note?: string | null
           notes?: string | null
           odometer?: number | null
           order_number?: string | null
@@ -2634,6 +2727,7 @@ export type Database = {
           qc_completed_by?: string | null
           signed_off_at?: string | null
           signed_off_by?: string | null
+          sms_sent?: boolean | null
           source_of_business?: string | null
           start_time?: string | null
           status?: string | null
@@ -2642,6 +2736,8 @@ export type Database = {
           third_party_name?: string | null
           updated_at?: string | null
           vehicle_id?: string | null
+          wheel_alignment_due?: string | null
+          wof_due_date?: string | null
         }
         Relationships: [
           {
@@ -3391,6 +3487,9 @@ export type Database = {
           decline_reason: string | null
           deleted_at: string | null
           description: string | null
+          discount_amount: number | null
+          discount_type: string | null
+          discount_value: number | null
           expiry_date: string | null
           id: string
           job_id: string | null
@@ -3416,6 +3515,9 @@ export type Database = {
           decline_reason?: string | null
           deleted_at?: string | null
           description?: string | null
+          discount_amount?: number | null
+          discount_type?: string | null
+          discount_value?: number | null
           expiry_date?: string | null
           id?: string
           job_id?: string | null
@@ -3441,6 +3543,9 @@ export type Database = {
           decline_reason?: string | null
           deleted_at?: string | null
           description?: string | null
+          discount_amount?: number | null
+          discount_type?: string | null
+          discount_value?: number | null
           expiry_date?: string | null
           id?: string
           job_id?: string | null
@@ -3912,6 +4017,98 @@ export type Database = {
           name?: string
         }
         Relationships: []
+      }
+      sales_opportunities: {
+        Row: {
+          company_id: string
+          converted_at: string | null
+          converted_to_id: string | null
+          converted_to_type: string | null
+          created_at: string | null
+          created_by: string | null
+          customer_id: string | null
+          deleted_at: string | null
+          description: string | null
+          estimated_value: number | null
+          id: string
+          priority: string | null
+          source_id: string | null
+          source_type: string | null
+          status: string | null
+          title: string
+          updated_at: string | null
+          vehicle_id: string | null
+        }
+        Insert: {
+          company_id: string
+          converted_at?: string | null
+          converted_to_id?: string | null
+          converted_to_type?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          customer_id?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          estimated_value?: number | null
+          id?: string
+          priority?: string | null
+          source_id?: string | null
+          source_type?: string | null
+          status?: string | null
+          title: string
+          updated_at?: string | null
+          vehicle_id?: string | null
+        }
+        Update: {
+          company_id?: string
+          converted_at?: string | null
+          converted_to_id?: string | null
+          converted_to_type?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          customer_id?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          estimated_value?: number | null
+          id?: string
+          priority?: string | null
+          source_id?: string | null
+          source_type?: string | null
+          status?: string | null
+          title?: string
+          updated_at?: string | null
+          vehicle_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_opportunities_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_opportunities_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_opportunities_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_opportunities_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       social_accounts: {
         Row: {
