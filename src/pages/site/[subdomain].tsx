@@ -149,9 +149,6 @@ export default function PublicWebsite() {
         courtesy_vehicle_required: false,
         pickup_time: null,
         created_by: null,
-        cancelled_at: null,
-        cancelled_by: null,
-        cancellation_reason: null,
       });
 
       // Track analytics
