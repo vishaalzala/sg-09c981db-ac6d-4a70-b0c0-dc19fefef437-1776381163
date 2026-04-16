@@ -61,21 +61,26 @@ export default function HomePage() {
       </nav>
 
       {/* Hero Section */}
-      <section className="container mx-auto px-6 py-24 text-center">
-        <h1 className="text-6xl font-heading font-bold mb-6">
-          Complete Workshop Management<br/>for New Zealand
-        </h1>
-        <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-          Run your automotive workshop with confidence. From bookings to WOF compliance, 
-          everything you need in one powerful platform.
-        </p>
-        <div className="flex gap-4 justify-center">
-          <Button size="lg" onClick={() => router.push("/login")}>
-            Start Free Trial <ArrowRight className="ml-2 h-5 w-5" />
-          </Button>
-          <Button size="lg" variant="outline" onClick={() => router.push("/contact")}>
-            Book a Demo
-          </Button>
+      <section className="relative py-20 px-6 bg-gradient-to-br from-primary/5 via-background to-accent/5">
+        <div className="container mx-auto max-w-6xl text-center">
+          <h1 className="font-heading text-5xl lg:text-6xl font-bold mb-6">
+            Complete Workshop Management<br />for NZ & Australia
+          </h1>
+          <p className="text-xl text-muted-foreground mb-8 max-w-3xl mx-auto">
+            Manage customers, vehicles, jobs, quotes, invoices, WOF compliance, and more in one powerful platform.
+          </p>
+          <div className="flex gap-4 justify-center">
+            <Link href="/signup">
+              <Button size="lg" className="text-lg px-8">
+                Start Free Trial
+              </Button>
+            </Link>
+            <Link href="/login">
+              <Button size="lg" variant="outline" className="text-lg px-8">
+                Sign In
+              </Button>
+            </Link>
+          </div>
         </div>
       </section>
 
