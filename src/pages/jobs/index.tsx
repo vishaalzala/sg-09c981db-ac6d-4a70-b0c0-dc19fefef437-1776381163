@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CustomerSelector } from "@/components/CustomerSelector";
 import { VehicleSelector } from "@/components/VehicleSelector";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 
 export default function JobsPage() {
   const [companyId, setCompanyId] = useState<string>("");
