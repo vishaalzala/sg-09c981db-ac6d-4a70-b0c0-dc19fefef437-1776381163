@@ -71,6 +71,21 @@ export default function InvoiceDetail() {
         created_by: null
       } as any);
 
+      // Copy line items
+      if (lineItems && lineItems.length > 0) {
+        for (const item of lineItems) {
+          await invoiceService.addLineItem({
+            invoice_id: copy.id,
+            item_type: item.item_type,
+            description: item.description,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            total: item.total,
+            is_taxable: item.is_taxable
+          } as any);
+        }
+      }
+
       toast({ title: "Invoice Copied", description: "A copy of this invoice has been created" });
       router.push(`/invoices/${copy.id}`);
     } catch (error: any) {
@@ -99,6 +114,21 @@ export default function InvoiceDetail() {
         created_by: null
       } as any);
 
+      // Copy line items with negative amounts
+      if (lineItems && lineItems.length > 0) {
+        for (const item of lineItems) {
+          await invoiceService.addLineItem({
+            invoice_id: credit.id,
+            item_type: item.item_type,
+            description: item.description,
+            quantity: -item.quantity,
+            unit_price: item.unit_price,
+            total: -item.total,
+            is_taxable: item.is_taxable
+          } as any);
+        }
+      }
+
       toast({ title: "Credit Note Created", description: "Credit note has been created for this invoice" });
       router.push(`/invoices/${credit.id}`);
     } catch (error: any) {
@@ -117,14 +147,27 @@ export default function InvoiceDetail() {
         company_id: invoice.company_id,
         customer_id: invoice.customer_id,
         vehicle_id: invoice.vehicle_id,
-        title: `Job from Invoice #${invoice.invoice_number}`,
-        description: invoice.notes || "Additional work required",
+        job_title: `Job from Invoice #${invoice.invoice_number}`,
+        short_description: invoice.notes || "Additional work required",
         status: "booked",
-        priority: "normal",
         created_by: null
       } as any);
 
-      toast({ title: "Job Created", description: "A new job has been created from this invoice" });
+      // Copy line items to job
+      if (lineItems && lineItems.length > 0) {
+        for (const item of lineItems) {
+          await jobService.addLineItem({
+            job_id: job.id,
+            item_type: item.item_type,
+            description: item.description,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            total: item.total
+          } as any);
+        }
+      }
+
+      toast({ title: "Job Created", description: "A new job has been created from this invoice with all line items" });
       router.push(`/jobs/${job.id}`);
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });

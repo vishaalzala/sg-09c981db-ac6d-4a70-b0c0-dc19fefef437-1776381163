@@ -36,7 +36,7 @@ export default function LoginPage() {
         if (profile?.role === "super_admin") {
           router.push("/admin");
         } else {
-          router.push("/app");
+          router.push("/dashboard");
         }
       }
     } catch (error: any) {

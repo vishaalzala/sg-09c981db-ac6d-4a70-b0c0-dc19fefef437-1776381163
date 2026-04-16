@@ -82,7 +82,20 @@ export default function QuoteDetail() {
         created_by: null
       } as any);
 
-      // Copy line items (placeholder - would need actual line items)
+      // Copy line items
+      if (lineItems && lineItems.length > 0) {
+        for (const item of lineItems) {
+          await invoiceService.addLineItem({
+            invoice_id: invoice.id,
+            item_type: item.item_type,
+            description: item.description,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            total: item.total,
+            is_taxable: item.is_taxable
+          } as any);
+        }
+      }
       
       // Update quote status
       await quoteService.updateQuote(quote.id, { status: "converted" } as any);
@@ -106,12 +119,25 @@ export default function QuoteDetail() {
         customer_id: quote.customer_id,
         vehicle_id: quote.vehicle_id,
         quote_id: quote.id,
-        title: `Job from Quote #${quote.quote_number}`,
-        description: quote.notes || "",
+        job_title: `Job from Quote #${quote.quote_number}`,
+        short_description: quote.notes || "",
         status: "booked",
-        priority: "normal",
         created_by: null
       } as any);
+
+      // Copy line items as job line items
+      if (lineItems && lineItems.length > 0) {
+        for (const item of lineItems) {
+          await jobService.addLineItem({
+            job_id: job.id,
+            item_type: item.item_type,
+            description: item.description,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            total: item.total
+          } as any);
+        }
+      }
 
       // Update quote status
       await quoteService.updateQuote(quote.id, { status: "approved" } as any);

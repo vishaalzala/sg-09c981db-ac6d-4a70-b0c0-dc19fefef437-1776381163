@@ -115,7 +115,7 @@ export const jobService = {
     return data;
   },
 
-  async addLineItem(lineItem: Omit<JobLineItem, "id" | "created_at">) {
+  async addLineItem(lineItem: any) {
     const { data, error } = await supabase
       .from("job_line_items")
       .insert(lineItem)
