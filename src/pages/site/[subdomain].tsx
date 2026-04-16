@@ -145,7 +145,7 @@ export default function PublicWebsite() {
         status: "pending",
         approval_limit: bookingForm.approval_limit ? parseFloat(bookingForm.approval_limit) : null,
         branch_id: null,
-        assigned_technician_id: null,
+        assigned_mechanic_id: null,
         courtesy_vehicle_required: false,
         pickup_time: null,
         created_by: null,
