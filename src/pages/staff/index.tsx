@@ -48,7 +48,7 @@ export default function StaffManagement() {
       setCompanyId(company.id);
       
       // Load staff from users table
-      const { data: staffData } = await supabase
+      const staffQuery: any = supabase
         .from("users")
         .select(`
           *,
@@ -57,6 +57,8 @@ export default function StaffManagement() {
         `)
         .eq("company_id", company.id)
         .order("full_name");
+        
+      const { data: staffData } = await staffQuery;
       
       setStaff(staffData || []);
 
@@ -65,8 +67,8 @@ export default function StaffManagement() {
       todayStart.setHours(0, 0, 0, 0);
       
       const timesheetData = await timesheetService.getTimesheets(company.id, {
-        startDate: todayStart.toISOString(),
-        endDate: new Date().toISOString()
+        dateFrom: todayStart.toISOString(),
+        dateTo: new Date().toISOString()
       });
       
       setTimesheets(timesheetData || []);

@@ -19,7 +19,7 @@ export default function SocialMediaDashboard() {
       const company = await companyService.getCurrentCompany();
       if (company) {
         setCompanyId(company.id);
-        const hasAccess = await companyService.checkFeatureEntitlement(company.id, "social_media");
+        const hasAccess = await companyService.checkFeatureEntitlement(company.id, "marketing_social");
         setHasSocialAccess(hasAccess);
       }
       setLoading(false);
@@ -31,7 +31,7 @@ export default function SocialMediaDashboard() {
 
   return (
     <AppLayout companyId={companyId} companyName="AutoTech Workshop" userName="Manager">
-      <FeatureGate feature="social_media" isEnabled={hasSocialAccess}>
+      <FeatureGate feature="marketing_social" isEnabled={hasSocialAccess}>
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
