@@ -18,7 +18,7 @@ import type { Tables } from "@/integrations/supabase/types";
 import { PaymentModal } from "@/components/PaymentModal";
 import { jobService } from "@/services/jobService";
 import { Separator } from "@/components/ui/separator";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 
 type Invoice = Tables<"invoices">;
 

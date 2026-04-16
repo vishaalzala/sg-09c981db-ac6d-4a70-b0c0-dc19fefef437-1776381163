@@ -72,9 +72,9 @@ export default function QuoteDetail() {
         due_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
         notes: quote.notes || "",
         status: "draft",
-        subtotal: quote.subtotal,
-        tax: quote.tax,
-        total: quote.total,
+        subtotal: (quote as any).subtotal || 0,
+        tax: (quote as any).tax || 0,
+        total: (quote as any).total || 0,
         created_by: null
       } as any);
 

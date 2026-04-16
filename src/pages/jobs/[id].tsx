@@ -18,6 +18,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { cn } from "@/lib/utils";
 import type { Tables } from "@/integrations/supabase/types";
 import { invoiceService } from "@/services/invoiceService";
+import { useToast } from "@/hooks/use-toast";
 
 type Job = Tables<"jobs">;
 
@@ -27,6 +28,7 @@ export default function JobDetail() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [job, setJob] = useState<any>(null);
+  const [lineItems, setLineItems] = useState<any[]>([]);
   const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
