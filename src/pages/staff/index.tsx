@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { companyService } from "@/services/companyService";
 import { timesheetService } from "@/services/timesheetService";
+import { supabase } from "@/integrations/supabase/client";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { EmptyState } from "@/components/EmptyState";
 import { 
@@ -47,7 +48,7 @@ export default function StaffManagement() {
       setCompanyId(company.id);
       
       // Load staff from users table
-      const { data: staffData } = await companyService.supabase
+      const { data: staffData } = await supabase
         .from("users")
         .select(`
           *,
@@ -63,13 +64,12 @@ export default function StaffManagement() {
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
       
-      const timesheetData = await timesheetService.getTimesheetsByDateRange(
-        company.id,
-        todayStart.toISOString(),
-        new Date().toISOString()
-      );
+      const timesheetData = await timesheetService.getTimesheets(company.id, {
+        startDate: todayStart.toISOString(),
+        endDate: new Date().toISOString()
+      });
       
-      setTimesheets(timesheetData);
+      setTimesheets(timesheetData || []);
     }
     setLoading(false);
   };
@@ -86,7 +86,7 @@ export default function StaffManagement() {
 
   const handleClockOut = async (entryId: string, userId: string) => {
     try {
-      await timesheetService.clockOut(companyId, entryId);
+      await timesheetService.clockOut(entryId);
       toast({ title: "Clocked Out", description: "Time tracking stopped." });
       loadData();
     } catch (error: any) {
