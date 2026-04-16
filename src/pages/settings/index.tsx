@@ -15,6 +15,7 @@ import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { billingService } from "@/services/billingService";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { Badge } from "@/components/ui/badge";
 
 export default function SettingsPage() {
   const [companyId, setCompanyId] = useState("");
@@ -249,6 +250,39 @@ export default function SettingsPage() {
                 <Button onClick={() => window.location.href = "/billing"}>
                   View Billing Details
                 </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="mt-6">
+              <CardHeader>
+                <CardTitle>Add-ons & Features</CardTitle>
+                <CardDescription>Enable paid add-ons to unlock additional features</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {addons.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No add-ons available</p>
+                ) : (
+                  addons.map((addon) => (
+                    <div key={addon.id} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3">
+                          <h3 className="font-semibold">{addon.name}</h3>
+                          <Badge variant={enabledAddons.includes(addon.id) ? "default" : "outline"}>
+                            {enabledAddons.includes(addon.id) ? "Enabled" : "Disabled"}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-1">{addon.description}</p>
+                        {addon.pricing_model === "monthly" && (
+                          <p className="text-sm font-medium mt-2">${addon.monthly_price}/month</p>
+                        )}
+                      </div>
+                      <Switch
+                        checked={enabledAddons.includes(addon.id)}
+                        onCheckedChange={(checked) => toggleAddon(addon.id, checked)}
+                      />
+                    </div>
+                  ))
+                )}
               </CardContent>
             </Card>
           </TabsContent>

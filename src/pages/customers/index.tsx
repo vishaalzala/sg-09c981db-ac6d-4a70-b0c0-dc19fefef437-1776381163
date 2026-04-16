@@ -25,6 +25,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export default function Customers() {
   const { toast } = useToast();
@@ -70,6 +73,10 @@ export default function Customers() {
       setIsSubmitting(false);
     }
   };
+
+  useEffect(() => {
+    loadData();
+  }, []);
 
   const loadData = async () => {
     const company = await companyService.getCurrentCompany();
@@ -224,6 +231,108 @@ export default function Customers() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Add Customer Dialog */}
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Add New Customer</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="is_company"
+                checked={newCustomer.is_company}
+                onCheckedChange={(checked) => setNewCustomer({ ...newCustomer, is_company: checked as boolean })}
+              />
+              <Label htmlFor="is_company">This is a company/business</Label>
+            </div>
+
+            {newCustomer.is_company && (
+              <div className="space-y-2">
+                <Label htmlFor="company_name">Company Name</Label>
+                <Input
+                  id="company_name"
+                  value={newCustomer.company_name}
+                  onChange={(e) => setNewCustomer({ ...newCustomer, company_name: e.target.value })}
+                  placeholder="ABC Workshop Ltd"
+                />
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="full_name">Contact Name *</Label>
+              <Input
+                id="full_name"
+                value={newCustomer.full_name}
+                onChange={(e) => setNewCustomer({ ...newCustomer, full_name: e.target.value })}
+                placeholder="John Smith"
+                required
+              />
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={newCustomer.email}
+                  onChange={(e) => setNewCustomer({ ...newCustomer, email: e.target.value })}
+                  placeholder="john@example.com"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="mobile">Mobile</Label>
+                <Input
+                  id="mobile"
+                  value={newCustomer.mobile}
+                  onChange={(e) => setNewCustomer({ ...newCustomer, mobile: e.target.value })}
+                  placeholder="021 123 4567"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="phone">Phone</Label>
+              <Input
+                id="phone"
+                value={newCustomer.phone}
+                onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })}
+                placeholder="09 123 4567"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="physical_address">Physical Address</Label>
+              <Input
+                id="physical_address"
+                value={newCustomer.physical_address}
+                onChange={(e) => setNewCustomer({ ...newCustomer, physical_address: e.target.value })}
+                placeholder="123 Main Street, Auckland"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="postal_address">Postal Address (if different)</Label>
+              <Input
+                id="postal_address"
+                value={newCustomer.postal_address}
+                onChange={(e) => setNewCustomer({ ...newCustomer, postal_address: e.target.value })}
+                placeholder="PO Box 1234, Auckland"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddDialog(false)} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddCustomer} disabled={isSubmitting}>
+              {isSubmitting ? "Creating..." : "Create Customer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }
