@@ -19,6 +19,8 @@ import { PaymentModal } from "@/components/PaymentModal";
 import { jobService } from "@/services/jobService";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
+import { Copy, CreditCard, FileText, Printer, Send, Plus, Percent } from "lucide-react";
+import { DiscountModal } from "@/components/DiscountModal";
 
 type Invoice = Tables<"invoices">;
 
@@ -31,6 +33,7 @@ export default function InvoiceDetail() {
   const [payments, setPayments] = useState<any[]>([]);
   const [lineItems, setLineItems] = useState<any[]>([]);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showDiscountModal, setShowDiscountModal] = useState(false);
   const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
@@ -145,6 +148,10 @@ export default function InvoiceDetail() {
             <p className="text-muted-foreground">Customer: {(invoice as any).customer_name || "N/A"}</p>
           </div>
           <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setShowDiscountModal(true)} disabled={processing}>
+              <Percent className="h-4 w-4 mr-2" />
+              Discount
+            </Button>
             <Button variant="outline" onClick={handleCopyInvoice} disabled={processing}>
               <Copy className="h-4 w-4 mr-2" />
               Copy
@@ -221,6 +228,22 @@ export default function InvoiceDetail() {
           totalPaid={totalPaid}
           onPaymentComplete={() => {
             setShowPaymentModal(false);
+            loadData();
+          }}
+        />
+      )}
+
+      {/* Discount Modal */}
+      {showDiscountModal && (
+        <DiscountModal
+          isOpen={showDiscountModal}
+          onClose={() => setShowDiscountModal(false)}
+          entityType="invoice"
+          entityId={invoice.id}
+          companyId={invoice.company_id}
+          subtotal={invoice.subtotal || 0}
+          onDiscountApplied={() => {
+            setShowDiscountModal(false);
             loadData();
           }}
         />

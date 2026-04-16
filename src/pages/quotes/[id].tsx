@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
   ArrowLeft, Edit, Printer, FileText, CheckCircle2, XCircle,
-  Clock, User, Car, Calendar, DollarSign, Copy, Wrench, ArrowRight, Send, Trash2, Check, X
+  Clock, User, Car, Calendar, DollarSign, Copy, Wrench, ArrowRight, Send, Trash2, Check, X, Percent, TrendingUp
 } from "lucide-react";
 import { quoteService } from "@/services/quoteService";
 import { companyService } from "@/services/companyService";
@@ -19,6 +19,8 @@ import type { Tables } from "@/integrations/supabase/types";
 import { useToast } from "@/hooks/use-toast";
 import { invoiceService } from "@/services/invoiceService";
 import { jobService } from "@/services/jobService";
+import { DiscountModal } from "@/components/DiscountModal";
+import { SalesOpportunityModal } from "@/components/SalesOpportunityModal";
 
 type Quote = Tables<"quotes">;
 
@@ -33,6 +35,8 @@ export default function QuoteDetail() {
   const [loading, setLoading] = useState(true);
   const [companyId, setCompanyId] = useState("");
   const [converting, setConverting] = useState(false);
+  const [showDiscountModal, setShowDiscountModal] = useState(false);
+  const [showOpportunityModal, setShowOpportunityModal] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -167,24 +171,22 @@ export default function QuoteDetail() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline">
-              <Printer className="h-4 w-4 mr-2" />
-              Print
+            <Button variant="outline" onClick={() => setShowDiscountModal(true)} disabled={converting}>
+              <Percent className="h-4 w-4 mr-2" />
+              Discount
             </Button>
-            <Button variant="outline" onClick={() => router.push(`/quotes/${id}/edit`)}>
-              <Edit className="h-4 w-4 mr-2" />
-              Edit
+            <Button variant="outline" onClick={() => setShowOpportunityModal(true)} disabled={converting}>
+              <TrendingUp className="h-4 w-4 mr-2" />
+              Add Opportunity
             </Button>
-            <Button variant="outline">
-              <Copy className="h-4 w-4 mr-2" />
-              Duplicate
+            <Button variant="outline" onClick={handleConvertToJob} disabled={converting || quote.status === "converted"}>
+              <ArrowRight className="h-4 w-4 mr-2" />
+              Convert to Job
             </Button>
-            {quote.status === "pending" && (
-              <Button>
-                <Wrench className="h-4 w-4 mr-2" />
-                Convert to Job
-              </Button>
-            )}
+            <Button onClick={handleConvertToInvoice} disabled={converting || quote.status === "converted"}>
+              <ArrowRight className="h-4 w-4 mr-2" />
+              Convert to Invoice
+            </Button>
           </div>
         </div>
 
@@ -357,6 +359,39 @@ export default function QuoteDetail() {
           </div>
         </div>
       </div>
+
+      {/* Discount Modal */}
+      {showDiscountModal && (
+        <DiscountModal
+          isOpen={showDiscountModal}
+          onClose={() => setShowDiscountModal(false)}
+          entityType="quote"
+          entityId={quote.id}
+          companyId={quote.company_id}
+          subtotal={(quote as any).subtotal || 0}
+          onDiscountApplied={() => {
+            setShowDiscountModal(false);
+            loadData();
+          }}
+        />
+      )}
+
+      {/* Sales Opportunity Modal */}
+      {showOpportunityModal && (
+        <SalesOpportunityModal
+          isOpen={showOpportunityModal}
+          onClose={() => setShowOpportunityModal(false)}
+          companyId={quote.company_id}
+          customerId={quote.customer_id}
+          vehicleId={quote.vehicle_id}
+          sourceType="quote"
+          sourceId={quote.id}
+          onSaved={() => {
+            setShowOpportunityModal(false);
+            toast({ title: "Opportunity Added", description: "Sales opportunity has been created" });
+          }}
+        />
+      )}
     </AppLayout>
   );
 }
