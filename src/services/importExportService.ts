@@ -50,7 +50,7 @@ export const importExportService = {
   },
 
   async exportToCSV(companyId: string, entityType: string, filters?: any) {
-    let query = supabase.from(entityType).select("*").eq("company_id", companyId);
+    let query: any = supabase.from(entityType as any).select("*").eq("company_id", companyId);
 
     if (filters?.dateFrom) {
       query = query.gte("created_at", filters.dateFrom);
