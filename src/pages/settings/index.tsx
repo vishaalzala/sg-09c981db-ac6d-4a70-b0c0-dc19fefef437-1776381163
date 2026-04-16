@@ -14,6 +14,7 @@ import { companyService } from "@/services/companyService";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { billingService } from "@/services/billingService";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function SettingsPage() {
   const [companyId, setCompanyId] = useState("");
