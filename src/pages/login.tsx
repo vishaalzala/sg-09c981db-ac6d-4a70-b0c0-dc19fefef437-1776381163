@@ -8,6 +8,7 @@ import { Wrench, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";
 import { authService } from "@/services/authService";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -29,12 +30,14 @@ export default function LoginPage() {
       await authService.signIn(email, password);
       
       // Check user role and redirect
-      const profile = await authService.getCurrentUserProfile();
-      
-      if (profile?.role === "super_admin") {
-        router.push("/admin");
-      } else {
-        router.push("/app");
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+        if (profile?.role === "super_admin") {
+          router.push("/admin");
+        } else {
+          router.push("/app");
+        }
       }
     } catch (error: any) {
       toast({ title: "Login Failed", description: error.message, variant: "destructive" });
