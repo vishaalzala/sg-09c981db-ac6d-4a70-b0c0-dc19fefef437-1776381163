@@ -19,6 +19,8 @@ import { cn } from "@/lib/utils";
 import type { Tables } from "@/integrations/supabase/types";
 import { invoiceService } from "@/services/invoiceService";
 import { useToast } from "@/hooks/use-toast";
+import { JobFinishModal } from "@/components/JobFinishModal";
+import { CheckCircle } from "lucide-react";
 
 type Job = Tables<"jobs">;
 
@@ -30,6 +32,7 @@ export default function JobDetail() {
   const [job, setJob] = useState<any>(null);
   const [lineItems, setLineItems] = useState<any[]>([]);
   const [generating, setGenerating] = useState(false);
+  const [showFinishModal, setShowFinishModal] = useState(false);
 
   useEffect(() => {
     if (id) loadData();
@@ -91,6 +94,10 @@ export default function JobDetail() {
             <p className="text-muted-foreground">Customer: {(job as any).customer_name || "N/A"}</p>
           </div>
           <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setShowFinishModal(true)} disabled={job.status === "completed" || job.status === "invoiced"}>
+              <CheckCircle className="h-4 w-4 mr-2" />
+              Finish Job
+            </Button>
             <Button onClick={handleGenerateInvoice} disabled={generating || job.status === "invoiced"}>
               <FileText className="h-4 w-4 mr-2" />
               Generate Invoice
@@ -118,6 +125,26 @@ export default function JobDetail() {
           </CardContent>
         </Card>
       </div>
+
+      {showFinishModal && (
+        <JobFinishModal
+          isOpen={showFinishModal}
+          onClose={() => setShowFinishModal(false)}
+          jobId={job.id}
+          customerId={job.customer_id}
+          vehicleId={job.vehicle_id}
+          companyId={job.company_id}
+          currentOdometer={job.odometer || 0}
+          onFinishComplete={() => {
+            setShowFinishModal(false);
+            loadData();
+          }}
+          onFinishAndPay={() => {
+            setShowFinishModal(false);
+            handleGenerateInvoice(); // Auto-generates invoice and routes to it for payment
+          }}
+        />
+      )}
     </AppLayout>
   );
 }

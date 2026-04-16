@@ -78,7 +78,7 @@ export function JobFinishModal({
             due_date: nextServiceDate,
             status: "pending",
             is_recurring: false
-          })
+          } as any)
         );
       }
 
@@ -92,7 +92,7 @@ export function JobFinishModal({
             due_date: wheelAlignmentDue,
             status: "pending",
             is_recurring: false
-          })
+          } as any)
         );
       }
 
@@ -106,7 +106,7 @@ export function JobFinishModal({
             due_date: wofDueDate,
             status: "pending",
             is_recurring: false
-          })
+          } as any)
         );
       }
 
