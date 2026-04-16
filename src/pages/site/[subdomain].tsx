@@ -143,7 +143,6 @@ export default function PublicWebsite() {
         description: bookingForm.issue,
         notes: bookingForm.notes ? `Source: Website\n\n${bookingForm.notes}` : "Source: Website",
         status: "pending",
-        source: "website",
         approval_limit: bookingForm.approval_limit ? parseFloat(bookingForm.approval_limit) : null,
         branch_id: null,
         assigned_technician_id: null,
