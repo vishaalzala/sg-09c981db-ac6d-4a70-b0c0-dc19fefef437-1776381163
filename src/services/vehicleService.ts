@@ -52,10 +52,10 @@ export const vehicleService = {
     return data || [];
   },
 
-  async createVehicle(vehicle: Omit<Vehicle, "id" | "created_at" | "updated_at">) {
+  async createVehicle(vehicle: Partial<Vehicle>) {
     const { data, error } = await supabase
       .from("vehicles")
-      .insert(vehicle)
+      .insert(vehicle as any)
       .select()
       .single();
 
