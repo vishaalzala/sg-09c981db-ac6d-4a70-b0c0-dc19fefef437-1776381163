@@ -76,7 +76,6 @@ export function JobFinishModal({
             vehicle_id: vehicleId,
             reminder_type: "service_due",
             due_date: nextServiceDate,
-            notes: nextServiceNote || "Service due",
             status: "pending",
             is_recurring: false
           })
@@ -91,7 +90,6 @@ export function JobFinishModal({
             vehicle_id: vehicleId,
             reminder_type: "wheel_alignment_due",
             due_date: wheelAlignmentDue,
-            notes: "Wheel alignment due",
             status: "pending",
             is_recurring: false
           })
@@ -106,7 +104,6 @@ export function JobFinishModal({
             vehicle_id: vehicleId,
             reminder_type: "wof_due",
             due_date: wofDueDate,
-            notes: "WOF inspection due",
             status: "pending",
             is_recurring: false
           })
