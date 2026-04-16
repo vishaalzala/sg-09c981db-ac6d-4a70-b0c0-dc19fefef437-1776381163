@@ -149,6 +149,11 @@ export default function PublicWebsite() {
         courtesy_vehicle_required: false,
         pickup_time: null,
         created_by: null,
+        booking_number: null as any,
+        deleted_at: null,
+        is_wof_booking: false,
+        source_of_business: "website",
+        wof_booking_type: null
       });
 
       // Track analytics
