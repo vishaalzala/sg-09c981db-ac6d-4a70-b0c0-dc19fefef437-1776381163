@@ -48,7 +48,7 @@ export default function StaffManagement() {
       setCompanyId(company.id);
       
       // Load staff from users table
-      const staffQuery: any = supabase
+      const staffQuery = (supabase as any)
         .from("users")
         .select(`
           *,
