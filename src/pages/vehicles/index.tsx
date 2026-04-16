@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/AppLayout";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -108,236 +109,238 @@ export default function VehiclesPage() {
   }
 
   return (
-    <AppLayout companyId={companyId} companyName="AutoTech Workshop">
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="font-heading text-3xl font-bold">Vehicles</h1>
-            <p className="text-muted-foreground mt-1">
-              Manage vehicle fleet and service history
-            </p>
+    <ProtectedRoute>
+      <AppLayout companyId={companyId} companyName="AutoTech Workshop">
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="font-heading text-3xl font-bold">Vehicles</h1>
+              <p className="text-muted-foreground mt-1">
+                Manage vehicle fleet and service history
+              </p>
+            </div>
+            <Button onClick={() => setShowAddDialog(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Vehicle
+            </Button>
           </div>
-          <Button onClick={() => setShowAddDialog(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Vehicle
-          </Button>
+
+          {/* Search and Filters */}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex gap-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by rego, VIN, make, model..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+                <Button variant="outline">Filters</Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Vehicles Table */}
+          <Card>
+            <CardHeader>
+              <CardTitle>All Vehicles</CardTitle>
+              <CardDescription>
+                {vehicles.length} vehicle{vehicles.length !== 1 ? "s" : ""} total
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {vehicles.length === 0 ? (
+                <EmptyState
+                  icon={CarIcon}
+                  title="No vehicles found"
+                  description="Get started by adding your first vehicle to the system"
+                  action={{
+                    label: "Add Vehicle",
+                    onClick: () => window.location.href = "/vehicles/new",
+                  }}
+                />
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Registration</TableHead>
+                      <TableHead>Vehicle</TableHead>
+                      <TableHead>Owner</TableHead>
+                      <TableHead>Due Dates</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {vehicles.map((vehicle) => (
+                      <TableRow key={vehicle.id} className="cursor-pointer hover:bg-muted/50">
+                        <TableCell>
+                          <Link href={`/vehicles/${vehicle.id}`} className="font-medium hover:text-primary">
+                            {vehicle.registration_number}
+                          </Link>
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{vehicle.make} {vehicle.model}</p>
+                            {vehicle.year && (
+                              <p className="text-sm text-muted-foreground">{vehicle.year}</p>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <User className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-sm">
+                              {Array.isArray(vehicle.customer) ? vehicle.customer[0]?.name : vehicle.customer?.name}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="space-y-1 text-sm">
+                            {vehicle.wof_expiry && (
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="text-xs">WOF</Badge>
+                                <span className="text-muted-foreground">
+                                  {new Date(vehicle.wof_expiry).toLocaleDateString()}
+                                </span>
+                              </div>
+                            )}
+                            {vehicle.service_due_date && (
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="text-xs">Service</Badge>
+                                <span className="text-muted-foreground">
+                                  {new Date(vehicle.service_due_date).toLocaleDateString()}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => window.location.href = `/vehicles/${vehicle.id}`}>
+                                View Details
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => window.location.href = `/vehicles/${vehicle.id}/edit`}>
+                                Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => window.location.href = `/jobs/new?vehicle=${vehicle.id}`}>
+                                Create Job
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Search and Filters */}
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex gap-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search by rego, VIN, make, model..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
+        {/* Add Vehicle Dialog */}
+        <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Add New Vehicle</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="customer">Customer *</Label>
+                <CustomerSelector
+                  companyId={companyId}
+                  value={newVehicle.customer_id}
+                  onChange={(customerId) => setNewVehicle({ ...newVehicle, customer_id: customerId })}
                 />
               </div>
-              <Button variant="outline">Filters</Button>
-            </div>
-          </CardContent>
-        </Card>
 
-        {/* Vehicles Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle>All Vehicles</CardTitle>
-            <CardDescription>
-              {vehicles.length} vehicle{vehicles.length !== 1 ? "s" : ""} total
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {vehicles.length === 0 ? (
-              <EmptyState
-                icon={CarIcon}
-                title="No vehicles found"
-                description="Get started by adding your first vehicle to the system"
-                action={{
-                  label: "Add Vehicle",
-                  onClick: () => window.location.href = "/vehicles/new",
-                }}
-              />
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Registration</TableHead>
-                    <TableHead>Vehicle</TableHead>
-                    <TableHead>Owner</TableHead>
-                    <TableHead>Due Dates</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {vehicles.map((vehicle) => (
-                    <TableRow key={vehicle.id} className="cursor-pointer hover:bg-muted/50">
-                      <TableCell>
-                        <Link href={`/vehicles/${vehicle.id}`} className="font-medium hover:text-primary">
-                          {vehicle.registration_number}
-                        </Link>
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">{vehicle.make} {vehicle.model}</p>
-                          {vehicle.year && (
-                            <p className="text-sm text-muted-foreground">{vehicle.year}</p>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <User className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm">
-                            {Array.isArray(vehicle.customer) ? vehicle.customer[0]?.name : vehicle.customer?.name}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="space-y-1 text-sm">
-                          {vehicle.wof_expiry && (
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline" className="text-xs">WOF</Badge>
-                              <span className="text-muted-foreground">
-                                {new Date(vehicle.wof_expiry).toLocaleDateString()}
-                              </span>
-                            </div>
-                          )}
-                          {vehicle.service_due_date && (
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline" className="text-xs">Service</Badge>
-                              <span className="text-muted-foreground">
-                                {new Date(vehicle.service_due_date).toLocaleDateString()}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => window.location.href = `/vehicles/${vehicle.id}`}>
-                              View Details
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => window.location.href = `/vehicles/${vehicle.id}/edit`}>
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => window.location.href = `/jobs/new?vehicle=${vehicle.id}`}>
-                              Create Job
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Add Vehicle Dialog */}
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Add New Vehicle</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="customer">Customer *</Label>
-              <CustomerSelector
-                companyId={companyId}
-                value={newVehicle.customer_id}
-                onChange={(customerId) => setNewVehicle({ ...newVehicle, customer_id: customerId })}
-              />
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="registration_number">Registration Number *</Label>
-                <Input
-                  id="registration_number"
-                  value={newVehicle.registration_number}
-                  onChange={(e) => setNewVehicle({ ...newVehicle, registration_number: e.target.value.toUpperCase() })}
-                  placeholder="ABC123"
-                  required
-                />
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="registration_number">Registration Number *</Label>
+                  <Input
+                    id="registration_number"
+                    value={newVehicle.registration_number}
+                    onChange={(e) => setNewVehicle({ ...newVehicle, registration_number: e.target.value.toUpperCase() })}
+                    placeholder="ABC123"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="vin">VIN</Label>
+                  <Input
+                    id="vin"
+                    value={newVehicle.vin}
+                    onChange={(e) => setNewVehicle({ ...newVehicle, vin: e.target.value.toUpperCase() })}
+                    placeholder="1HGCM82633A123456"
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="vin">VIN</Label>
-                <Input
-                  id="vin"
-                  value={newVehicle.vin}
-                  onChange={(e) => setNewVehicle({ ...newVehicle, vin: e.target.value.toUpperCase() })}
-                  placeholder="1HGCM82633A123456"
-                />
+
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="make">Make</Label>
+                  <Input
+                    id="make"
+                    value={newVehicle.make}
+                    onChange={(e) => setNewVehicle({ ...newVehicle, make: e.target.value })}
+                    placeholder="Toyota"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="model">Model</Label>
+                  <Input
+                    id="model"
+                    value={newVehicle.model}
+                    onChange={(e) => setNewVehicle({ ...newVehicle, model: e.target.value })}
+                    placeholder="Corolla"
+                  />
+                </div>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="year">Year</Label>
+                  <Input
+                    id="year"
+                    type="number"
+                    value={newVehicle.year}
+                    onChange={(e) => setNewVehicle({ ...newVehicle, year: e.target.value })}
+                    placeholder="2020"
+                    min="1900"
+                    max={new Date().getFullYear() + 1}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="colour">Colour</Label>
+                  <Input
+                    id="colour"
+                    value={newVehicle.colour}
+                    onChange={(e) => setNewVehicle({ ...newVehicle, colour: e.target.value })}
+                    placeholder="Silver"
+                  />
+                </div>
               </div>
             </div>
-
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="make">Make</Label>
-                <Input
-                  id="make"
-                  value={newVehicle.make}
-                  onChange={(e) => setNewVehicle({ ...newVehicle, make: e.target.value })}
-                  placeholder="Toyota"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="model">Model</Label>
-                <Input
-                  id="model"
-                  value={newVehicle.model}
-                  onChange={(e) => setNewVehicle({ ...newVehicle, model: e.target.value })}
-                  placeholder="Corolla"
-                />
-              </div>
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="year">Year</Label>
-                <Input
-                  id="year"
-                  type="number"
-                  value={newVehicle.year}
-                  onChange={(e) => setNewVehicle({ ...newVehicle, year: e.target.value })}
-                  placeholder="2020"
-                  min="1900"
-                  max={new Date().getFullYear() + 1}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="colour">Colour</Label>
-                <Input
-                  id="colour"
-                  value={newVehicle.colour}
-                  onChange={(e) => setNewVehicle({ ...newVehicle, colour: e.target.value })}
-                  placeholder="Silver"
-                />
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddDialog(false)} disabled={isSubmitting}>
-              Cancel
-            </Button>
-            <Button onClick={handleAddVehicle} disabled={isSubmitting}>
-              {isSubmitting ? "Creating..." : "Create Vehicle"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </AppLayout>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowAddDialog(false)} disabled={isSubmitting}>
+                Cancel
+              </Button>
+              <Button onClick={handleAddVehicle} disabled={isSubmitting}>
+                {isSubmitting ? "Creating..." : "Create Vehicle"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </AppLayout>
+    </ProtectedRoute>
   );
 }
