@@ -8,7 +8,7 @@ export const salesOpportunityService = {
   async createOpportunity(data: Partial<SalesOpportunity>) {
     const { data: opportunity, error } = await supabase
       .from("sales_opportunities")
-      .insert(data)
+      .insert(data as any)
       .select()
       .single();
 
