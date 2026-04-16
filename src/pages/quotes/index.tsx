@@ -9,12 +9,28 @@ import { quoteService } from "@/services/quoteService";
 import { companyService } from "@/services/companyService";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { EmptyState } from "@/components/EmptyState";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { CustomerSelector } from "@/components/CustomerSelector";
+import { VehicleSelector } from "@/components/VehicleSelector";
+import { useToast } from "@/components/ui/use-toast";
 
 export default function QuotesPage() {
   const [companyId, setCompanyId] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [quotes, setQuotes] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState("all");
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [newQuote, setNewQuote] = useState({
+    customer_id: "",
+    vehicle_id: "",
+    short_description: "",
+    status: "draft",
+  });
+  const { toast } = useToast();
 
   useEffect(() => {
     loadData();
@@ -30,6 +46,36 @@ export default function QuotesPage() {
       setQuotes(data);
     }
     setLoading(false);
+  };
+
+  const handleCreateQuote = async () => {
+    if (!newQuote.customer_id || !newQuote.vehicle_id) {
+      toast({ title: "Error", description: "Customer and Vehicle are required", variant: "destructive" });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const company = await companyService.getCurrentCompany();
+      if (!company) throw new Error("No company context found");
+
+      const quote = await quoteService.createQuote({
+        ...newQuote,
+        company_id: company.id,
+        quote_date: new Date().toISOString(),
+      } as any);
+
+      toast({ title: "Success", description: "Quote created successfully" });
+      setShowAddDialog(false);
+      setNewQuote({ customer_id: "", vehicle_id: "", short_description: "", status: "draft" });
+      
+      // Redirect to quote detail page
+      window.location.href = `/quotes/${quote.id}`;
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (loading) {
@@ -52,7 +98,7 @@ export default function QuotesPage() {
               Manage customer quotes and estimates
             </p>
           </div>
-          <Button onClick={() => window.location.href = "/quotes/new"}>
+          <Button onClick={() => setShowAddDialog(true)}>
             <Plus className="h-4 w-4 mr-2" />
             New Quote
           </Button>
@@ -157,6 +203,54 @@ export default function QuotesPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Add Quote Dialog */}
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Create New Quote</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="customer">Customer *</Label>
+              <CustomerSelector
+                companyId={companyId}
+                value={newQuote.customer_id}
+                onChange={(customerId) => setNewQuote({ ...newQuote, customer_id: customerId })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="vehicle">Vehicle *</Label>
+              <VehicleSelector
+                companyId={companyId}
+                customerId={newQuote.customer_id}
+                value={newQuote.vehicle_id}
+                onChange={(vehicleId) => setNewQuote({ ...newQuote, vehicle_id: vehicleId })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="short_description">Description</Label>
+              <Textarea
+                id="short_description"
+                value={newQuote.short_description}
+                onChange={(e) => setNewQuote({ ...newQuote, short_description: e.target.value })}
+                placeholder="Brief description of work to be quoted..."
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddDialog(false)} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateQuote} disabled={isSubmitting}>
+              {isSubmitting ? "Creating..." : "Create Quote"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }

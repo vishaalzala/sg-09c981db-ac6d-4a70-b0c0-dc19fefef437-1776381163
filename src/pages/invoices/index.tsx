@@ -10,12 +10,27 @@ import { companyService } from "@/services/companyService";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { EmptyState } from "@/components/EmptyState";
 import { cn } from "@/lib/utils";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { CustomerSelector } from "@/components/CustomerSelector";
+import { VehicleSelector } from "@/components/VehicleSelector";
+import { useToast } from "@/components/ui/use-toast";
 
 export default function InvoicesPage() {
   const [companyId, setCompanyId] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [invoices, setInvoices] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState("all");
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [newInvoice, setNewInvoice] = useState({
+    customer_id: "",
+    vehicle_id: "",
+    notes: "",
+    status: "unpaid",
+  });
+  const { toast } = useToast();
 
   useEffect(() => {
     loadData();
@@ -31,6 +46,37 @@ export default function InvoicesPage() {
       setInvoices(data);
     }
     setLoading(false);
+  };
+
+  const handleCreateInvoice = async () => {
+    if (!newInvoice.customer_id) {
+      toast({ title: "Error", description: "Customer is required", variant: "destructive" });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const company = await companyService.getCurrentCompany();
+      if (!company) throw new Error("No company context found");
+
+      const invoice = await invoiceService.createInvoice({
+        ...newInvoice,
+        company_id: company.id,
+        invoice_date: new Date().toISOString(),
+        due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days from now
+      } as any);
+
+      toast({ title: "Success", description: "Invoice created successfully" });
+      setShowAddDialog(false);
+      setNewInvoice({ customer_id: "", vehicle_id: "", notes: "", status: "unpaid" });
+      
+      // Redirect to invoice detail page
+      window.location.href = `/invoices/${invoice.id}`;
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (loading) {
@@ -53,7 +99,7 @@ export default function InvoicesPage() {
               Manage customer invoices and payments
             </p>
           </div>
-          <Button onClick={() => window.location.href = "/invoices/new"}>
+          <Button onClick={() => setShowAddDialog(true)}>
             <Plus className="h-4 w-4 mr-2" />
             New Invoice
           </Button>
@@ -173,6 +219,54 @@ export default function InvoicesPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Add Invoice Dialog */}
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Create New Invoice</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="customer">Customer *</Label>
+              <CustomerSelector
+                companyId={companyId}
+                value={newInvoice.customer_id}
+                onChange={(customerId) => setNewInvoice({ ...newInvoice, customer_id: customerId })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="vehicle">Vehicle (Optional)</Label>
+              <VehicleSelector
+                companyId={companyId}
+                customerId={newInvoice.customer_id}
+                value={newInvoice.vehicle_id}
+                onChange={(vehicleId) => setNewInvoice({ ...newInvoice, vehicle_id: vehicleId })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="notes">Notes</Label>
+              <Textarea
+                id="notes"
+                value={newInvoice.notes}
+                onChange={(e) => setNewInvoice({ ...newInvoice, notes: e.target.value })}
+                placeholder="Invoice notes or payment terms..."
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddDialog(false)} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateInvoice} disabled={isSubmitting}>
+              {isSubmitting ? "Creating..." : "Create Invoice"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }

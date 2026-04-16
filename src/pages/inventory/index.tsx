@@ -9,11 +9,28 @@ import { companyService } from "@/services/companyService";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { EmptyState } from "@/components/EmptyState";
 import { cn } from "@/lib/utils";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/components/ui/use-toast";
 
 export default function InventoryPage() {
   const [companyId, setCompanyId] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<any[]>([]);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [newItem, setNewItem] = useState({
+    part_number: "",
+    description: "",
+    category: "",
+    cost_price: "",
+    sell_price: "",
+    reorder_level: "",
+  });
+  const { toast } = useToast();
 
   useEffect(() => {
     loadData();
@@ -28,6 +45,36 @@ export default function InventoryPage() {
       setItems(data);
     }
     setLoading(false);
+  };
+
+  const handleCreateItem = async () => {
+    if (!newItem.description) {
+      toast({ title: "Error", description: "Description is required", variant: "destructive" });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const company = await companyService.getCurrentCompany();
+      if (!company) throw new Error("No company context found");
+
+      await inventoryService.createInventoryItem({
+        ...newItem,
+        company_id: company.id,
+        cost_price: newItem.cost_price ? parseFloat(newItem.cost_price) : null,
+        sell_price: newItem.sell_price ? parseFloat(newItem.sell_price) : null,
+        reorder_level: newItem.reorder_level ? parseInt(newItem.reorder_level) : null,
+      } as any);
+
+      toast({ title: "Success", description: "Inventory item created successfully" });
+      setShowAddDialog(false);
+      setNewItem({ part_number: "", description: "", category: "", cost_price: "", sell_price: "", reorder_level: "" });
+      loadData();
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (loading) {
@@ -50,7 +97,7 @@ export default function InventoryPage() {
               Manage parts and stock levels
             </p>
           </div>
-          <Button onClick={() => window.location.href = "/inventory/new"}>
+          <Button onClick={() => setShowAddDialog(true)}>
             <Plus className="h-4 w-4 mr-2" />
             Add Item
           </Button>
@@ -164,6 +211,98 @@ export default function InventoryPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Add Item Dialog */}
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Add Inventory Item</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="description">Description *</Label>
+              <Input
+                id="description"
+                value={newItem.description}
+                onChange={(e) => setNewItem({ ...newItem, description: e.target.value })}
+                placeholder="Brake Pads - Front"
+                required
+              />
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="part_number">Part Number</Label>
+                <Input
+                  id="part_number"
+                  value={newItem.part_number}
+                  onChange={(e) => setNewItem({ ...newItem, part_number: e.target.value })}
+                  placeholder="BP-FR-001"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="category">Category</Label>
+                <Select value={newItem.category} onValueChange={(value) => setNewItem({ ...newItem, category: value })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="brakes">Brakes</SelectItem>
+                    <SelectItem value="filters">Filters</SelectItem>
+                    <SelectItem value="fluids">Fluids</SelectItem>
+                    <SelectItem value="tyres">Tyres</SelectItem>
+                    <SelectItem value="electrical">Electrical</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="cost_price">Cost Price</Label>
+                <Input
+                  id="cost_price"
+                  type="number"
+                  step="0.01"
+                  value={newItem.cost_price}
+                  onChange={(e) => setNewItem({ ...newItem, cost_price: e.target.value })}
+                  placeholder="0.00"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="sell_price">Sell Price</Label>
+                <Input
+                  id="sell_price"
+                  type="number"
+                  step="0.01"
+                  value={newItem.sell_price}
+                  onChange={(e) => setNewItem({ ...newItem, sell_price: e.target.value })}
+                  placeholder="0.00"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="reorder_level">Reorder Level</Label>
+                <Input
+                  id="reorder_level"
+                  type="number"
+                  value={newItem.reorder_level}
+                  onChange={(e) => setNewItem({ ...newItem, reorder_level: e.target.value })}
+                  placeholder="10"
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddDialog(false)} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateItem} disabled={isSubmitting}>
+              {isSubmitting ? "Creating..." : "Add Item"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }

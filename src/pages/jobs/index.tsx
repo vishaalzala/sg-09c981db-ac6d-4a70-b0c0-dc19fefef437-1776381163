@@ -9,12 +9,29 @@ import { jobService } from "@/services/jobService";
 import { companyService } from "@/services/companyService";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { EmptyState } from "@/components/EmptyState";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { CustomerSelector } from "@/components/CustomerSelector";
+import { VehicleSelector } from "@/components/VehicleSelector";
+import { useToast } from "@/components/ui/use-toast";
 
 export default function JobsPage() {
   const [companyId, setCompanyId] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [jobs, setJobs] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState("all");
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [newJob, setNewJob] = useState({
+    customer_id: "",
+    vehicle_id: "",
+    job_title: "",
+    short_description: "",
+    status: "booked",
+  });
+  const { toast } = useToast();
 
   useEffect(() => {
     loadData();
@@ -30,6 +47,33 @@ export default function JobsPage() {
       setJobs(data);
     }
     setLoading(false);
+  };
+
+  const handleCreateJob = async () => {
+    if (!newJob.customer_id || !newJob.vehicle_id || !newJob.job_title) {
+      toast({ title: "Error", description: "Customer, Vehicle, and Job Title are required", variant: "destructive" });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const company = await companyService.getCurrentCompany();
+      if (!company) throw new Error("No company context found");
+
+      await jobService.createJob({
+        ...newJob,
+        company_id: company.id,
+      } as any);
+
+      toast({ title: "Success", description: "Job created successfully" });
+      setShowAddDialog(false);
+      setNewJob({ customer_id: "", vehicle_id: "", job_title: "", short_description: "", status: "booked" });
+      loadData();
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (loading) {
@@ -52,7 +96,7 @@ export default function JobsPage() {
               Manage workshop jobs and repairs
             </p>
           </div>
-          <Button onClick={() => window.location.href = "/jobs/new"}>
+          <Button onClick={() => setShowAddDialog(true)}>
             <Plus className="h-4 w-4 mr-2" />
             New Job
           </Button>
@@ -152,6 +196,65 @@ export default function JobsPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Add Job Dialog */}
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Create New Job</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="customer">Customer *</Label>
+              <CustomerSelector
+                companyId={companyId}
+                value={newJob.customer_id}
+                onChange={(customerId) => setNewJob({ ...newJob, customer_id: customerId })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="vehicle">Vehicle *</Label>
+              <VehicleSelector
+                companyId={companyId}
+                customerId={newJob.customer_id}
+                value={newJob.vehicle_id}
+                onChange={(vehicleId) => setNewJob({ ...newJob, vehicle_id: vehicleId })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="job_title">Job Title *</Label>
+              <Input
+                id="job_title"
+                value={newJob.job_title}
+                onChange={(e) => setNewJob({ ...newJob, job_title: e.target.value })}
+                placeholder="General Service / Brake Repair / WOF Inspection"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="short_description">Description</Label>
+              <Textarea
+                id="short_description"
+                value={newJob.short_description}
+                onChange={(e) => setNewJob({ ...newJob, short_description: e.target.value })}
+                placeholder="Customer reported brake noise when stopping..."
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddDialog(false)} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateJob} disabled={isSubmitting}>
+              {isSubmitting ? "Creating..." : "Create Job"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }
