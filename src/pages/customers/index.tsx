@@ -24,12 +24,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Customers() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [customers, setCustomers] = useState<any[]>([]);
+  const [companyId, setCompanyId] = useState<string>("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newCustomer, setNewCustomer] = useState({
@@ -72,6 +74,7 @@ export default function Customers() {
   const loadData = async () => {
     const company = await companyService.getCurrentCompany();
     if (company) {
+      setCompanyId(company.id);
       // Load recent customers by default
       const results = await customerService.searchCustomers("", company.id, 50);
       setCustomers(results);
