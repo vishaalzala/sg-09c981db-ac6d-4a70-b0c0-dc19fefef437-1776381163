@@ -111,12 +111,10 @@ export default function Customers() {
               Manage your customer database and relationships
             </p>
           </div>
-          <Link href="/customers/new">
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Customer
-            </Button>
-          </Link>
+          <Button onClick={() => setShowAddDialog(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Customer
+          </Button>
         </div>
 
         {/* Search and Filters */}
