@@ -65,16 +65,16 @@ export default function WofInspectionDetail() {
     
     try {
       await wofService.updateInspection(inspection.id, {
-        result: "pass",
+        status: "passed",
         completed_at: new Date().toISOString()
-      });
+      } as any);
       
       // Log compliance event
       await wofService.logCompliance({
         company_id: companyId,
         inspection_id: inspection.id,
         event_type: "inspection_passed",
-        event_data: { result: "pass", completed_at: new Date().toISOString() },
+        event_data: { status: "passed", completed_at: new Date().toISOString() },
         performed_by: "current_user_id"
       });
       
@@ -90,15 +90,15 @@ export default function WofInspectionDetail() {
     
     try {
       await wofService.updateInspection(inspection.id, {
-        result: "fail",
+        status: "failed",
         completed_at: new Date().toISOString()
-      });
+      } as any);
       
       await wofService.logCompliance({
         company_id: companyId,
         inspection_id: inspection.id,
         event_type: "inspection_failed",
-        event_data: { result: "fail", completed_at: new Date().toISOString() },
+        event_data: { status: "failed", completed_at: new Date().toISOString() },
         performed_by: "current_user_id"
       });
       
@@ -142,7 +142,7 @@ export default function WofInspectionDetail() {
     setVoiding(true);
     try {
       await wofService.updateInspection(inspection.id, {
-        result: "voided",
+        status: "voided",
         notes: `VOIDED: ${voidReason}\n\n${inspection.notes || ""}`
       } as any);
       
@@ -166,12 +166,9 @@ export default function WofInspectionDetail() {
   const handleStartRecheck = async () => {
     try {
       const recheck = await wofService.createRecheck({
-        company_id: companyId,
         original_inspection_id: inspection.id,
-        recheck_date: new Date().toISOString().split("T")[0],
-        inspector_id: "current_user_id",
         notes: "Recheck after repairs"
-      });
+      } as any);
       
       toast({ title: "Recheck Started", description: "New recheck inspection created. You can now edit all fields." });
       router.push(`/wof/${recheck.id}`);
@@ -183,9 +180,9 @@ export default function WofInspectionDetail() {
   if (loading) return <LoadingSpinner />;
   if (!inspection) return <div>Inspection not found</div>;
 
-  const isPassed = inspection.result === "pass";
-  const isFailed = inspection.result === "fail";
-  const isVoided = inspection.result === "voided";
+  const isPassed = inspection.status === "passed" || inspection.status === "pass";
+  const isFailed = inspection.status === "failed" || inspection.status === "fail";
+  const isVoided = inspection.status === "voided";
   const isLocked = isPassed || isVoided;
 
   return (
