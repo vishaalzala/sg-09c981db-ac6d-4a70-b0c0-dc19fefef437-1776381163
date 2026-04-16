@@ -23,7 +23,12 @@ import {
   Gift,
   Globe,
   TrendingUp,
-  LogOut
+  LogOut,
+  ChevronLeft,
+  ShoppingCart,
+  ClipboardCheck,
+  Maximize2,
+  Minimize2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -59,6 +64,9 @@ export function AppLayout({ children, companyId, userRole = "service_advisor", c
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState<string[]>(["operations"]);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [fullScreen, setFullScreen] = useState(false);
 
   const navigationSections: Record<string, NavItem[]> = {
     main: [
