@@ -118,10 +118,10 @@ export default function SignupPage() {
       }
 
       // Step 6: Create default payment methods
-      const defaultPaymentMethods = [
+      const defaultPaymentMethods: any[] = [
         { name: "Cash", type: "cash", is_active: true },
-        { name: "EFTPOS", type: "eftpos", is_active: true, fee_type: "percentage", fee_value: 1.5 },
-        { name: "Credit Card", type: "credit_card", is_active: true, fee_type: "percentage", fee_value: 2.5 },
+        { name: "EFTPOS", type: "eftpos", is_active: true, fee_type: "percentage", fee_amount: 1.5, has_fee: true },
+        { name: "Credit Card", type: "credit_card", is_active: true, fee_type: "percentage", fee_amount: 2.5, has_fee: true },
         { name: "Bank Transfer", type: "bank_transfer", is_active: true },
       ];
 
