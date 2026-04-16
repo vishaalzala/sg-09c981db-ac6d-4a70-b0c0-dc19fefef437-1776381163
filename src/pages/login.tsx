@@ -27,22 +27,30 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      await authService.signIn(email, password);
+      const { user, error } = await authService.signIn(email, password);
+      
+      if (error || !user) {
+        toast({ title: "Login Failed", description: error?.message || "Invalid credentials", variant: "destructive" });
+        setLoading(false);
+        return;
+      }
+
+      // Wait a moment for session to be established
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       // Check user role and redirect
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-        if (profile?.role === "super_admin") {
-          router.push("/admin");
-        } else {
-          router.push("/dashboard");
-        }
+      const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+      
+      if (profile?.role === "super_admin") {
+        router.push("/admin");
+      } else {
+        router.push("/dashboard");
       }
     } catch (error: any) {
-      toast({ title: "Login Failed", description: error.message, variant: "destructive" });
+      console.error("Login error:", error);
+      toast({ title: "Login Failed", description: error.message || "An error occurred", variant: "destructive" });
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
@@ -78,6 +86,7 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={loading}
+                  autoComplete="email"
                 />
               </div>
               <div className="space-y-2">
@@ -93,6 +102,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={loading}
+                  autoComplete="current-password"
                 />
               </div>
             </CardContent>

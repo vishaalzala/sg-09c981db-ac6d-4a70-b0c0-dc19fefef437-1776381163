@@ -6,25 +6,46 @@ export type Branch = Tables<"branches">;
 
 export const companyService = {
   async getCurrentCompany(): Promise<Company | null> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.error("No authenticated user found");
+        return null;
+      }
 
-    const { data: userData } = await supabase
-      .from("users")
-      .select("company_id")
-      .eq("id", user.id)
-      .single();
+      const { data: userData, error: userError } = await supabase
+        .from("users")
+        .select("company_id")
+        .eq("id", user.id)
+        .single();
 
-    if (!userData?.company_id) return null;
+      if (userError) {
+        console.error("Error fetching user data:", userError);
+        return null;
+      }
 
-    const { data } = await supabase
-      .from("companies")
-      .select("*")
-      .eq("id", userData.company_id)
-      .is("deleted_at", null)
-      .single();
+      if (!userData?.company_id) {
+        console.error("User has no company_id assigned");
+        return null;
+      }
 
-    return data;
+      const { data, error } = await supabase
+        .from("companies")
+        .select("*")
+        .eq("id", userData.company_id)
+        .is("deleted_at", null)
+        .single();
+
+      if (error) {
+        console.error("Error fetching company:", error);
+        return null;
+      }
+
+      return data;
+    } catch (error) {
+      console.error("Unexpected error in getCurrentCompany:", error);
+      return null;
+    }
   },
 
   async getCompanyBranches(companyId: string): Promise<Branch[]> {
