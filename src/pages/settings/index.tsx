@@ -59,9 +59,14 @@ export default function SettingsPage() {
     try {
       if (enabled) {
         const { data: { user } } = await supabase.auth.getUser();
-        await billingService.enableAddon(companyId, addonId, user?.id || "");
+        if (!user) {
+          toast({ title: "Error", description: "You must be logged in to enable add-ons", variant: "destructive" });
+          return;
+        }
+        
+        await billingService.enableAddon(companyId, addonId, user.id);
         setEnabledAddons(prev => [...prev, addonId]);
-        toast({ title: "Add-on Enabled", description: "The feature is now active." });
+        toast({ title: "Add-on Enabled", description: "The feature is now active and ready to use." });
       } else {
         // Find the record id to disable
         const active = await billingService.getCompanyAddons(companyId);
@@ -69,11 +74,19 @@ export default function SettingsPage() {
         if (record) {
           await billingService.disableAddon(record.id);
           setEnabledAddons(prev => prev.filter(id => id !== addonId));
-          toast({ title: "Add-on Disabled" });
+          toast({ title: "Add-on Disabled", description: "The feature has been turned off." });
         }
       }
+      
+      // Reload add-ons to ensure UI is in sync
+      await loadAddons();
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      console.error("Add-on toggle error:", error);
+      toast({ 
+        title: "Error", 
+        description: error.message || "Failed to update add-on. Please try again.", 
+        variant: "destructive" 
+      });
     }
   };
 
