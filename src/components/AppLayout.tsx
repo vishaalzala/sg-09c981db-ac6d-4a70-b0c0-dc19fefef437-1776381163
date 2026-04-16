@@ -99,7 +99,6 @@ export function AppLayout({ children, companyId, userRole = "service_advisor", c
     ],
     system: [
       { label: "Settings", icon: Settings, href: "/settings" },
-      { label: "Admin Panel", icon: Shield, href: "/admin" },
     ],
   };
 

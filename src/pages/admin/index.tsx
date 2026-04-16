@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { AppLayout } from "@/components/AppLayout";
+import { AdminLayout } from "@/components/AdminLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -66,7 +66,7 @@ export default function SuperAdminPanel() {
   const activeCompanies = companies.filter(c => c.status === "active").length;
 
   return (
-    <AppLayout companyId="super-admin" companyName="Softgen Admin" userName="Super Admin">
+    <AdminLayout userName="Super Admin">
       <div className="space-y-6">
         {/* Header */}
         <div>
@@ -367,6 +367,6 @@ export default function SuperAdminPanel() {
           </TabsContent>
         </Tabs>
       </div>
-    </AppLayout>
+    </AdminLayout>
   );
 }
