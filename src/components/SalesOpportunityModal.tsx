@@ -49,7 +49,7 @@ export function SalesOpportunityModal({
         customer_id: customerId,
         vehicle_id: vehicleId || null,
         title,
-        notes: notes || null,
+        description: notes || null,
         priority,
         estimated_value: parseFloat(estimatedValue) || null,
         status: "new",

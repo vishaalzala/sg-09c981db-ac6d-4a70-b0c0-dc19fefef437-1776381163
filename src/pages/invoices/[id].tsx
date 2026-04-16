@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
   ArrowLeft, Edit, Printer, Download, DollarSign,
-  Clock, User, Car, Calendar, CreditCard, FileText, Copy, Plus
+  Clock, User, Car, Calendar, CreditCard, FileText, Copy, Plus, Send, Percent
 } from "lucide-react";
 import { invoiceService } from "@/services/invoiceService";
 import { companyService } from "@/services/companyService";
@@ -19,7 +19,6 @@ import { PaymentModal } from "@/components/PaymentModal";
 import { jobService } from "@/services/jobService";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, CreditCard, FileText, Printer, Send, Plus, Percent } from "lucide-react";
 import { DiscountModal } from "@/components/DiscountModal";
 
 type Invoice = Tables<"invoices">;
