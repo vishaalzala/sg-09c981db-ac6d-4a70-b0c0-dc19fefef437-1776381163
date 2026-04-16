@@ -2886,6 +2886,104 @@ export type Database = {
           },
         ]
       }
+      payment_methods: {
+        Row: {
+          company_id: string
+          created_at: string | null
+          display_order: number | null
+          fee_amount: number | null
+          fee_type: string | null
+          has_fee: boolean | null
+          id: string
+          is_active: boolean | null
+          name: string
+          type: string
+          updated_at: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string | null
+          display_order?: number | null
+          fee_amount?: number | null
+          fee_type?: string | null
+          has_fee?: boolean | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          type: string
+          updated_at?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string | null
+          display_order?: number | null
+          fee_amount?: number | null
+          fee_type?: string | null
+          has_fee?: boolean | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_methods_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payment_splits: {
+        Row: {
+          amount: number
+          created_at: string | null
+          fee_amount: number | null
+          id: string
+          method_name: string
+          payment_id: string
+          payment_method_id: string | null
+          total_amount: number
+        }
+        Insert: {
+          amount: number
+          created_at?: string | null
+          fee_amount?: number | null
+          id?: string
+          method_name: string
+          payment_id: string
+          payment_method_id?: string | null
+          total_amount: number
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          fee_amount?: number | null
+          id?: string
+          method_name?: string
+          payment_id?: string
+          payment_method_id?: string | null
+          total_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_splits_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_splits_payment_method_id_fkey"
+            columns: ["payment_method_id"]
+            isOneToOne: false
+            referencedRelation: "payment_methods"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payments: {
         Row: {
           amount: number
@@ -2893,11 +2991,14 @@ export type Database = {
           created_at: string | null
           created_by: string | null
           customer_id: string | null
+          fee_amount: number | null
           id: string
           invoice_id: string | null
+          is_split: boolean | null
           notes: string | null
           payment_date: string
           payment_method: string | null
+          payment_method_id: string | null
           payment_number: string | null
           reference: string | null
         }
@@ -2907,11 +3008,14 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           customer_id?: string | null
+          fee_amount?: number | null
           id?: string
           invoice_id?: string | null
+          is_split?: boolean | null
           notes?: string | null
           payment_date?: string
           payment_method?: string | null
+          payment_method_id?: string | null
           payment_number?: string | null
           reference?: string | null
         }
@@ -2921,11 +3025,14 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           customer_id?: string | null
+          fee_amount?: number | null
           id?: string
           invoice_id?: string | null
+          is_split?: boolean | null
           notes?: string | null
           payment_date?: string
           payment_method?: string | null
+          payment_method_id?: string | null
           payment_number?: string | null
           reference?: string | null
         }
@@ -2956,6 +3063,13 @@ export type Database = {
             columns: ["invoice_id"]
             isOneToOne: false
             referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_payment_method_id_fkey"
+            columns: ["payment_method_id"]
+            isOneToOne: false
+            referencedRelation: "payment_methods"
             referencedColumns: ["id"]
           },
         ]
@@ -5351,6 +5465,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_default_payment_methods: {
+        Args: { p_company_id: string }
+        Returns: undefined
+      }
       merge_customers: {
         Args: { source_customer_id: string; target_customer_id: string }
         Returns: Json
