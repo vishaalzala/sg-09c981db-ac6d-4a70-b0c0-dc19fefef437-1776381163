@@ -56,13 +56,19 @@ export default function SettingsPage() {
   const toggleAddon = async (addonId: string, enabled: boolean) => {
     try {
       if (enabled) {
-        await billingService.enableAddon(companyId, addonId);
+        const { data: { user } } = await supabase.auth.getUser();
+        await billingService.enableAddon(companyId, addonId, user?.id || "");
         setEnabledAddons(prev => [...prev, addonId]);
         toast({ title: "Add-on Enabled", description: "The feature is now active." });
       } else {
-        await billingService.disableAddon(companyId, addonId);
-        setEnabledAddons(prev => prev.filter(id => id !== addonId));
-        toast({ title: "Add-on Disabled" });
+        // Find the record id to disable
+        const active = await billingService.getCompanyAddons(companyId);
+        const record = active.find(a => a.addon_id === addonId);
+        if (record) {
+          await billingService.disableAddon(record.id);
+          setEnabledAddons(prev => prev.filter(id => id !== addonId));
+          toast({ title: "Add-on Disabled" });
+        }
       }
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
