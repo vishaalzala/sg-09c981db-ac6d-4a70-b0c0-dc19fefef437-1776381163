@@ -12,14 +12,20 @@ import {
 } from "lucide-react";
 import { companyService } from "@/services/companyService";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { billingService } from "@/services/billingService";
+import { useToast } from "@/hooks/use-toast";
 
 export default function SettingsPage() {
   const [companyId, setCompanyId] = useState("");
   const [companyData, setCompanyData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [addons, setAddons] = useState<any[]>([]);
+  const [enabledAddons, setEnabledAddons] = useState<string[]>([]);
+  const { toast } = useToast();
 
   useEffect(() => {
     loadData();
+    loadAddons();
   }, []);
 
   const loadData = async () => {
@@ -30,6 +36,37 @@ export default function SettingsPage() {
       setCompanyData(company);
     }
     setLoading(false);
+  };
+
+  const loadAddons = async () => {
+    try {
+      const catalog = await billingService.getAddonCatalog();
+      setAddons(catalog);
+      
+      const company = await companyService.getCurrentCompany();
+      if (company) {
+        const active = await billingService.getCompanyAddons(company.id);
+        setEnabledAddons(active.map(a => a.addon_id));
+      }
+    } catch (error) {
+      console.error("Error loading addons:", error);
+    }
+  };
+
+  const toggleAddon = async (addonId: string, enabled: boolean) => {
+    try {
+      if (enabled) {
+        await billingService.enableAddon(companyId, addonId);
+        setEnabledAddons(prev => [...prev, addonId]);
+        toast({ title: "Add-on Enabled", description: "The feature is now active." });
+      } else {
+        await billingService.disableAddon(companyId, addonId);
+        setEnabledAddons(prev => prev.filter(id => id !== addonId));
+        toast({ title: "Add-on Disabled" });
+      }
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
   };
 
   if (loading) {

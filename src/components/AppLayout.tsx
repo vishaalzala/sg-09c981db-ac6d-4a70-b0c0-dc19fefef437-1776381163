@@ -28,7 +28,8 @@ import {
   ShoppingCart,
   ClipboardCheck,
   Maximize2,
-  Minimize2
+  Minimize2,
+  Shield
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -82,6 +83,10 @@ export function AppLayout({ children, companyId, userRole = "service_advisor", c
       { label: "Quotes", icon: FileText, href: "/quotes" },
       { label: "Invoices", icon: Receipt, href: "/invoices", badge: "2" },
     ],
+    staff: [
+      { label: "Staff Management", icon: Users, href: "/staff" },
+      { label: "WOF Inspections", icon: ShieldCheck, href: "/wof" },
+    ],
     inventory: [
       { label: "Inventory", icon: Package, href: "/inventory" },
       { label: "Suppliers", icon: Truck, href: "/suppliers" },
@@ -94,6 +99,7 @@ export function AppLayout({ children, companyId, userRole = "service_advisor", c
     ],
     system: [
       { label: "Settings", icon: Settings, href: "/settings" },
+      { label: "Admin Panel", icon: Shield, href: "/admin" },
     ],
   };
 
