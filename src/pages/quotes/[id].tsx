@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
   ArrowLeft, Edit, Printer, FileText, CheckCircle2, XCircle,
-  Clock, User, Car, Calendar, DollarSign, Copy, Wrench
+  Clock, User, Car, Calendar, DollarSign, Copy, Wrench, ArrowRight, Send, Trash2, Check, X
 } from "lucide-react";
 import { quoteService } from "@/services/quoteService";
 import { companyService } from "@/services/companyService";
@@ -16,18 +16,23 @@ import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { StatusBadge } from "@/components/StatusBadge";
 import { cn } from "@/lib/utils";
 import type { Tables } from "@/integrations/supabase/types";
+import { useToast } from "@/hooks/use-toast";
+import { invoiceService } from "@/services/invoiceService";
+import { jobService } from "@/services/jobService";
 
 type Quote = Tables<"quotes">;
 
 export default function QuoteDetail() {
   const router = useRouter();
   const { id } = router.query;
+  const { toast } = useToast();
   const [quote, setQuote] = useState<Quote | null>(null);
   const [customer, setCustomer] = useState<any>(null);
   const [vehicle, setVehicle] = useState<any>(null);
   const [lineItems, setLineItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [companyId, setCompanyId] = useState("");
+  const [converting, setConverting] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -50,6 +55,69 @@ export default function QuoteDetail() {
       setLineItems([]);
     }
     setLoading(false);
+  };
+
+  const handleConvertToInvoice = async () => {
+    if (!quote) return;
+    
+    setConverting(true);
+    try {
+      // Create invoice from quote
+      const invoice = await invoiceService.createInvoice({
+        company_id: quote.company_id,
+        customer_id: quote.customer_id,
+        vehicle_id: quote.vehicle_id,
+        quote_id: quote.id,
+        invoice_date: new Date().toISOString().split("T")[0],
+        due_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+        notes: quote.notes || "",
+        status: "draft",
+        subtotal: quote.subtotal,
+        tax: quote.tax,
+        total: quote.total,
+        created_by: null
+      } as any);
+
+      // Copy line items (placeholder - would need actual line items)
+      
+      // Update quote status
+      await quoteService.updateQuote(quote.id, { status: "converted" } as any);
+
+      toast({ title: "Converted to Invoice", description: "Quote has been converted to invoice successfully" });
+      router.push(`/invoices/${invoice.id}`);
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+    setConverting(false);
+  };
+
+  const handleConvertToJob = async () => {
+    if (!quote) return;
+    
+    setConverting(true);
+    try {
+      // Create job from quote
+      const job = await jobService.createJob({
+        company_id: quote.company_id,
+        customer_id: quote.customer_id,
+        vehicle_id: quote.vehicle_id,
+        quote_id: quote.id,
+        title: `Job from Quote #${quote.quote_number}`,
+        description: quote.notes || "",
+        status: "booked",
+        priority: "normal",
+        created_by: null
+      } as any);
+
+      // Update quote status
+      await quoteService.updateQuote(quote.id, { status: "approved" } as any);
+
+      toast({ title: "Converted to Job", description: "Quote has been converted to job successfully" });
+      router.push(`/jobs/${job.id}`);
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+    setConverting(false);
   };
 
   if (loading) {

@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
   ArrowLeft, Edit, Printer, Download, DollarSign,
-  Clock, User, Car, Calendar, CreditCard, FileText
+  Clock, User, Car, Calendar, CreditCard, FileText, Copy, Plus
 } from "lucide-react";
 import { invoiceService } from "@/services/invoiceService";
 import { companyService } from "@/services/companyService";
@@ -15,33 +15,29 @@ import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { StatusBadge } from "@/components/StatusBadge";
 import { cn } from "@/lib/utils";
 import type { Tables } from "@/integrations/supabase/types";
+import { PaymentModal } from "@/components/PaymentModal";
+import { jobService } from "@/services/jobService";
+import { Separator } from "@/components/ui/separator";
+import { useToast } from "@/components/ui/use-toast";
 
 type Invoice = Tables<"invoices">;
 
 export default function InvoiceDetail() {
   const router = useRouter();
   const { id } = router.query;
-  const [invoice, setInvoice] = useState<Invoice | null>(null);
-  const [customer, setCustomer] = useState<any>(null);
-  const [vehicle, setVehicle] = useState<any>(null);
-  const [lineItems, setLineItems] = useState<any[]>([]);
-  const [payments, setPayments] = useState<any[]>([]);
+  const { toast } = useToast();
   const [loading, setLoading] = useState(true);
-  const [companyId, setCompanyId] = useState("");
+  const [invoice, setInvoice] = useState<any>(null);
+  const [payments, setPayments] = useState<any[]>([]);
+  const [lineItems, setLineItems] = useState<any[]>([]);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
-    if (id) {
-      loadData();
-    }
+    if (id) loadData();
   }, [id]);
 
   const loadData = async () => {
-    setLoading(true);
-    const company = await companyService.getCurrentCompany();
-    if (company) {
-      setCompanyId(company.id);
-    }
-
     if (typeof id === "string") {
       const invoiceData = await invoiceService.getInvoice(id);
       setInvoice(invoiceData);
@@ -53,248 +49,182 @@ export default function InvoiceDetail() {
     setLoading(false);
   };
 
-  if (loading) {
-    return <LoadingSpinner />;
-  }
+  const handleCopyInvoice = async () => {
+    if (!invoice) return;
+    
+    setProcessing(true);
+    try {
+      // Create duplicate invoice without payments
+      const copy = await invoiceService.createInvoice({
+        company_id: invoice.company_id,
+        customer_id: invoice.customer_id,
+        vehicle_id: invoice.vehicle_id,
+        invoice_date: new Date().toISOString().split("T")[0],
+        due_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+        notes: `Copy of Invoice #${invoice.invoice_number}`,
+        status: "draft",
+        subtotal: invoice.subtotal,
+        tax: invoice.tax,
+        total: invoice.total,
+        created_by: null
+      } as any);
 
-  if (!invoice) {
-    return (
-      <AppLayout companyId={companyId} companyName="AutoTech Workshop" userName="Accountant">
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">Invoice not found</p>
-          <Button onClick={() => router.push("/invoices")} className="mt-4">
-            Back to Invoices
-          </Button>
-        </div>
-      </AppLayout>
-    );
-  }
+      toast({ title: "Invoice Copied", description: "A copy of this invoice has been created" });
+      router.push(`/invoices/${copy.id}`);
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+    setProcessing(false);
+  };
 
-  const totalAmount = lineItems.reduce((sum, item) => sum + (item.total || 0), 0);
-  const gstAmount = totalAmount * 0.15;
-  const grandTotal = totalAmount + gstAmount;
+  const handleCreateCreditNote = async () => {
+    if (!invoice) return;
+    
+    setProcessing(true);
+    try {
+      // Create credit note (negative invoice)
+      const credit = await invoiceService.createInvoice({
+        company_id: invoice.company_id,
+        customer_id: invoice.customer_id,
+        vehicle_id: invoice.vehicle_id,
+        invoice_date: new Date().toISOString().split("T")[0],
+        due_date: new Date().toISOString().split("T")[0],
+        notes: `Credit Note for Invoice #${invoice.invoice_number}`,
+        status: "draft",
+        subtotal: -invoice.subtotal,
+        tax: -invoice.tax,
+        total: -invoice.total,
+        created_by: null
+      } as any);
+
+      toast({ title: "Credit Note Created", description: "Credit note has been created for this invoice" });
+      router.push(`/invoices/${credit.id}`);
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+    setProcessing(false);
+  };
+
+  const handleCreateJob = async () => {
+    if (!invoice) return;
+    
+    setProcessing(true);
+    try {
+      // Create job from invoice
+      const job = await jobService.createJob({
+        company_id: invoice.company_id,
+        customer_id: invoice.customer_id,
+        vehicle_id: invoice.vehicle_id,
+        title: `Job from Invoice #${invoice.invoice_number}`,
+        description: invoice.notes || "Additional work required",
+        status: "booked",
+        priority: "normal",
+        created_by: null
+      } as any);
+
+      toast({ title: "Job Created", description: "A new job has been created from this invoice" });
+      router.push(`/jobs/${job.id}`);
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+    setProcessing(false);
+  };
+
   const totalPaid = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
-  const balance = grandTotal - totalPaid;
+  const balanceDue = (invoice?.total || 0) - totalPaid;
 
-  const isOverdue = invoice.due_date && new Date(invoice.due_date) < new Date() && balance > 0;
+  if (loading) return <LoadingSpinner />;
+  if (!invoice) return <div>Invoice not found</div>;
 
   return (
-    <AppLayout companyId={companyId} companyName="AutoTech Workshop" userName="Accountant">
+    <AppLayout companyId={invoice.company_id} companyName="AutoTech Workshop" userName="Manager">
       <div className="space-y-6">
-        {/* Header */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" onClick={() => router.push("/invoices")}>
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
-            </Button>
-            <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-3xl font-heading font-bold">{invoice.invoice_number}</h1>
-                <StatusBadge type="invoice" status={invoice.status} />
-                {isOverdue && (
-                  <Badge variant="destructive">Overdue</Badge>
-                )}
-              </div>
-              <p className="text-muted-foreground mt-1">
-                Issued {new Date(invoice.created_at).toLocaleDateString()}
-              </p>
-            </div>
+          <div>
+            <h1 className="text-3xl font-heading font-bold">Invoice #{invoice.invoice_number}</h1>
+            <p className="text-muted-foreground">Customer: {(invoice as any).customer_name || "N/A"}</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline">
-              <Printer className="h-4 w-4 mr-2" />
-              Print
+            <Button variant="outline" onClick={handleCopyInvoice} disabled={processing}>
+              <Copy className="h-4 w-4 mr-2" />
+              Copy
             </Button>
-            <Button variant="outline">
-              <Download className="h-4 w-4 mr-2" />
-              Download PDF
+            <Button variant="outline" onClick={handleCreateCreditNote} disabled={processing}>
+              <CreditCard className="h-4 w-4 mr-2" />
+              Credit Note
             </Button>
-            <Button variant="outline" onClick={() => router.push(`/invoices/${id}/edit`)}>
-              <Edit className="h-4 w-4 mr-2" />
-              Edit
+            <Button variant="outline" onClick={handleCreateJob} disabled={processing}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create Job
             </Button>
-            {balance > 0 && (
-              <Button>
-                <DollarSign className="h-4 w-4 mr-2" />
-                Record Payment
-              </Button>
-            )}
+            <Button onClick={() => setShowPaymentModal(true)} disabled={balanceDue <= 0}>
+              <CreditCard className="h-4 w-4 mr-2" />
+              Pay
+            </Button>
           </div>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6">
-          {/* Main Content */}
-          <div className="md:col-span-2 space-y-6">
-            {/* Invoice Details */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Invoice Details</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid md:grid-cols-2 gap-4 text-sm">
-                  <div className="flex items-start gap-3">
-                    <User className="h-4 w-4 mt-1 text-muted-foreground" />
-                    <div>
-                      <p className="text-muted-foreground">Customer</p>
-                      <p className="font-medium">{customer?.name || "—"}</p>
-                    </div>
+        <div className="grid gap-6 lg:grid-cols-3">
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle>Invoice Details</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Status</p>
+                    <StatusBadge status={invoice.status} type="invoice" />
                   </div>
-                  <div className="flex items-start gap-3">
-                    <Car className="h-4 w-4 mt-1 text-muted-foreground" />
-                    <div>
-                      <p className="text-muted-foreground">Vehicle</p>
-                      <p className="font-medium">{vehicle?.registration_number || "—"}</p>
-                      <p className="text-xs text-muted-foreground">{vehicle?.make} {vehicle?.model}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <Calendar className="h-4 w-4 mt-1 text-muted-foreground" />
-                    <div>
-                      <p className="text-muted-foreground">Invoice Date</p>
-                      <p className="font-medium">
-                        {new Date(invoice.created_at).toLocaleDateString()}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <Clock className="h-4 w-4 mt-1 text-muted-foreground" />
-                    <div>
-                      <p className="text-muted-foreground">Due Date</p>
-                      <p className={cn(
-                        "font-medium",
-                        isOverdue && "text-destructive"
-                      )}>
-                        {invoice.due_date ? new Date(invoice.due_date).toLocaleDateString() : "—"}
-                      </p>
-                    </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total</p>
+                    <p className="text-lg font-semibold">${invoice.total?.toFixed(2) || "0.00"}</p>
                   </div>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
 
-                {(invoice as any).notes && (
-                  <div className="pt-4 border-t">
-                    <p className="text-sm text-muted-foreground mb-2">Notes</p>
-                    <p className="text-sm whitespace-pre-wrap">{(invoice as any).notes}</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Line Items */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Invoice Items</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {lineItems.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">No items added</p>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Description</TableHead>
-                        <TableHead>Qty</TableHead>
-                        <TableHead>Price</TableHead>
-                        <TableHead className="text-right">Total</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {/* Would map line items here */}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Payment History */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Payment History</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {payments.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">No payments recorded</p>
-                ) : (
-                  <div className="space-y-3">
-                    {payments.map((payment) => (
-                      <div key={payment.id} className="flex items-center justify-between p-3 border rounded-lg">
-                        <div className="flex-1">
-                          <p className="font-medium flex items-center gap-2">
-                            <CreditCard className="h-4 w-4" />
-                            {payment.payment_method || "Payment"}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            {new Date(payment.payment_date).toLocaleString()}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-semibold text-success">${payment.amount.toFixed(2)}</p>
-                          {payment.reference && (
-                            <p className="text-xs text-muted-foreground">Ref: {payment.reference}</p>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Summary */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Invoice Summary</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Subtotal</span>
-                  <span className="font-medium">${totalAmount.toFixed(2)}</span>
+          <Card>
+            <CardHeader>
+              <CardTitle>Payment Summary</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Total</span>
+                  <span className="font-semibold">${invoice.total?.toFixed(2) || "0.00"}</span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">GST (15%)</span>
-                  <span className="font-medium">${gstAmount.toFixed(2)}</span>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Paid</span>
+                  <span className="font-semibold text-success">${totalPaid.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between font-semibold border-t pt-3">
-                  <span>Total</span>
-                  <span>${grandTotal.toFixed(2)}</span>
+                <Separator />
+                <div className="flex justify-between">
+                  <span className="font-semibold">Balance Due</span>
+                  <span className="text-lg font-bold text-primary">${balanceDue.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between text-sm text-success border-t pt-3">
-                  <span>Paid</span>
-                  <span className="font-medium">${totalPaid.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-lg font-bold border-t pt-3">
-                  <span>Balance Due</span>
-                  <span className={cn(
-                    balance > 0 ? "text-destructive" : "text-success"
-                  )}>
-                    ${balance.toFixed(2)}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Quick Actions */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Quick Actions</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <Button className="w-full" variant="outline">
-                  <FileText className="h-4 w-4 mr-2" />
-                  Send to Customer
-                </Button>
-                <Button className="w-full" variant="outline">
-                  <DollarSign className="h-4 w-4 mr-2" />
-                  Send Payment Link
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
+
+      {/* Payment Modal */}
+      {showPaymentModal && (
+        <PaymentModal
+          isOpen={showPaymentModal}
+          onClose={() => setShowPaymentModal(false)}
+          invoiceId={invoice.id}
+          companyId={invoice.company_id}
+          totalAmount={invoice.total || 0}
+          totalPaid={totalPaid}
+          onPaymentComplete={() => {
+            setShowPaymentModal(false);
+            loadData();
+          }}
+        />
+      )}
     </AppLayout>
   );
 }
