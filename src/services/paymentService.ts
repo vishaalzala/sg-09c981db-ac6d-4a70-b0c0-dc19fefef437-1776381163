@@ -63,6 +63,7 @@ export const paymentService = {
       .from("payments")
       .insert({
         invoice_id: invoiceId,
+        company_id: paymentData.company_id,
         amount: paymentData.totalAmount,
         payment_date: paymentData.date,
         reference: paymentData.reference,

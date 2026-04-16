@@ -133,6 +133,7 @@ export function PaymentModal({
       });
 
       await paymentService.createPayment(invoiceId, {
+        company_id: companyId,
         totalAmount: totalSplitAmount,
         totalFees,
         date: paymentDate,
