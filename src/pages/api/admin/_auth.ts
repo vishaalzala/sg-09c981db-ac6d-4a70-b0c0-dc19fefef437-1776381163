@@ -1,5 +1,5 @@
 import type { NextApiRequest } from "next";
-import { supabaseAdmin, assertServiceRoleConfigured } from "@/lib/supabaseAdmin";
+import { getSupabaseAdmin, assertServiceRoleConfigured } from "@/lib/supabaseAdmin";
 
 export interface AdminAuthContext {
   requesterUserId: string;
@@ -7,6 +7,7 @@ export interface AdminAuthContext {
 
 export async function requireSuperAdmin(req: NextApiRequest): Promise<AdminAuthContext> {
   assertServiceRoleConfigured();
+  const supabaseAdmin = getSupabaseAdmin();
 
   const authHeader = req.headers.authorization ?? "";
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice("Bearer ".length) : null;

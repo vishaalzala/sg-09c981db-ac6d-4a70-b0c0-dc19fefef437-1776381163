@@ -19,6 +19,6 @@ Implement Super Admin ability to create users from the Admin panel, with role + 
 - [x] Add Admin UI: user creation dialog/form (email, password, role, company)
 - [x] Add Admin UI action: “Create demo users” to provision admin/owner/staff/inspector tied to demo company
 - [x] Add “bootstrap first super admin” flow (no dashboard, no SQL)
-- [ ] Add validation + error toasts; ensure created users can login immediately
+- [x] Add validation + error toasts; ensure created users can login immediately
 - [x] Document required env vars for Vercel (`SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_BOOTSTRAP_TOKEN`) without exposing secrets
 - [ ] Run `check_for_errors` with build to confirm deploy readiness

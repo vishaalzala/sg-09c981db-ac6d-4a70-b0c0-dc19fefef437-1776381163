@@ -1,35 +1,44 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { supabaseAdmin, assertServiceRoleConfigured } from "@/lib/supabaseAdmin";
+import { getSupabaseAdmin, isServiceRoleConfigured } from "@/lib/supabaseAdmin";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+
+  const serviceRoleConfigured = isServiceRoleConfigured();
+  if (!serviceRoleConfigured) {
+    return res.status(200).json({
+      hasSuperAdmin: false,
+      serviceRoleConfigured: false,
+    });
+  }
+
   try {
-    if (req.method !== "GET") {
-      return res.status(405).json({ error: "Method not allowed" });
-    }
+    const supabaseAdmin = getSupabaseAdmin();
 
-    assertServiceRoleConfigured();
-
-    const { count, error } = await supabaseAdmin
+    const { data, error } = await supabaseAdmin
       .from("profiles")
-      .select("id", { count: "exact", head: true })
-      .eq("role", "super_admin");
+      .select("id")
+      .eq("role", "super_admin")
+      .limit(1);
 
     if (error) {
-      console.error("Bootstrap status check error:", error);
-      return res.status(500).json({ error: "Failed to check bootstrap status" });
+      console.error("bootstrap-status query error:", error);
+      return res.status(200).json({
+        hasSuperAdmin: false,
+        serviceRoleConfigured: true,
+      });
     }
 
     return res.status(200).json({
-      hasSuperAdmin: (count ?? 0) > 0,
+      hasSuperAdmin: (data ?? []).length > 0,
       serviceRoleConfigured: true,
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Unknown error";
-    const serviceRoleConfigured = message !== "Missing SUPABASE_SERVICE_ROLE_KEY. Set it in Vercel environment variables (server-side only).";
-
     return res.status(200).json({
       hasSuperAdmin: false,
       serviceRoleConfigured,
+      error: message,
     });
   }
 }
