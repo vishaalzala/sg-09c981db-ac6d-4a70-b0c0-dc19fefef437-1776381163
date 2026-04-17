@@ -1,14 +1,16 @@
 import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Car, Wrench, FileText, DollarSign, TrendingUp } from "lucide-react";
-import { companyService } from "@/services/companyService";
-import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Users, Car, Briefcase, FileText, DollarSign, Calendar } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { usePermissions } from "@/hooks/usePermissions";
+import { PermissionGate } from "@/components/PermissionGate";
 
 export default function Dashboard() {
-  const [companyId, setCompanyId] = useState<string>("");
+  const { toast } = useToast();
+  const { role, can, loading: permissionsLoading } = usePermissions();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     customers: 0,
@@ -16,175 +18,197 @@ export default function Dashboard() {
     activeJobs: 0,
     pendingQuotes: 0,
     unpaidInvoices: 0,
-    revenue: 0,
+    monthlyRevenue: 0,
   });
 
   useEffect(() => {
-    loadData();
+    loadDashboardStats();
   }, []);
 
-  const loadData = async () => {
+  async function loadDashboardStats() {
     try {
-      const company = await companyService.getCurrentCompany();
-      if (company) {
-        setCompanyId(company.id);
-        await loadRealStats(company.id);
+      const { data: auth } = await supabase.auth.getUser();
+      if (!auth.user) return;
+
+      const { data: user } = await supabase.from("users").select("company_id").eq("id", auth.user.id).maybeSingle();
+
+      if (!user?.company_id) {
+        toast({ title: "Error", description: "No company context found", variant: "destructive" });
+        return;
       }
-    } catch (error) {
-      console.error("Error loading dashboard:", error);
+
+      const companyId = user.company_id;
+
+      // Get counts based on permissions
+      const [customersResult, vehiclesResult, jobsResult, quotesResult, invoicesResult, revenueResult] = await Promise.all([
+        can("customers:view")
+          ? supabase.from("customers").select("id", { count: "exact", head: true }).eq("company_id", companyId).is("deleted_at", null)
+          : { count: 0 },
+        can("vehicles:view")
+          ? supabase.from("vehicles").select("id", { count: "exact", head: true }).eq("company_id", companyId).is("deleted_at", null)
+          : { count: 0 },
+        can("jobs:view")
+          ? supabase
+              .from("jobs")
+              .select("id", { count: "exact", head: true })
+              .eq("company_id", companyId)
+              .in("status", ["booked", "in_progress", "waiting_approval", "waiting_parts"])
+          : { count: 0 },
+        can("quotes:view")
+          ? supabase.from("quotes").select("id", { count: "exact", head: true }).eq("company_id", companyId).in("status", ["draft", "sent"])
+          : { count: 0 },
+        can("invoices:view")
+          ? supabase
+              .from("invoices")
+              .select("id", { count: "exact", head: true })
+              .eq("company_id", companyId)
+              .in("status", ["draft", "sent", "overdue", "partially_paid"])
+          : { count: 0 },
+        can("invoices:view")
+          ? supabase
+              .from("invoices")
+              .select("total_amount")
+              .eq("company_id", companyId)
+              .eq("status", "paid")
+              .gte("invoice_date", new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString())
+          : { data: [] },
+      ]);
+
+      const revenue = (revenueResult.data ?? []).reduce((sum, inv) => sum + (inv.total_amount ?? 0), 0);
+
+      setStats({
+        customers: customersResult.count ?? 0,
+        vehicles: vehiclesResult.count ?? 0,
+        activeJobs: jobsResult.count ?? 0,
+        pendingQuotes: quotesResult.count ?? 0,
+        unpaidInvoices: invoicesResult.count ?? 0,
+        monthlyRevenue: revenue,
+      });
+    } catch (error: any) {
+      console.error("Dashboard stats error:", error);
+      toast({ title: "Error", description: "Failed to load dashboard stats", variant: "destructive" });
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  const loadRealStats = async (companyId: string) => {
-    try {
-      // Get customer count
-      const { count: customerCount } = await supabase
-        .from("customers")
-        .select("*", { count: "exact", head: true })
-        .eq("company_id", companyId)
-        .is("deleted_at", null);
-
-      // Get vehicle count
-      const { count: vehicleCount } = await supabase
-        .from("vehicles")
-        .select("*", { count: "exact", head: true })
-        .eq("company_id", companyId)
-        .is("deleted_at", null);
-
-      // Get active jobs count (booked, in_progress, waiting_approval, waiting_parts)
-      const { count: activeJobsCount } = await supabase
-        .from("jobs")
-        .select("*", { count: "exact", head: true })
-        .eq("company_id", companyId)
-        .in("status", ["booked", "in_progress", "waiting_approval", "waiting_parts"])
-        .is("deleted_at", null);
-
-      // Get pending quotes count (draft, sent)
-      const { count: pendingQuotesCount } = await supabase
-        .from("quotes")
-        .select("*", { count: "exact", head: true })
-        .eq("company_id", companyId)
-        .in("status", ["draft", "sent"])
-        .is("deleted_at", null);
-
-      // Get unpaid invoices count
-      const { count: unpaidInvoicesCount } = await supabase
-        .from("invoices")
-        .select("*", { count: "exact", head: true })
-        .eq("company_id", companyId)
-        .in("status", ["draft", "sent", "overdue", "partially_paid"])
-        .is("deleted_at", null);
-
-      // Get current month revenue (paid invoices)
-      const firstDayOfMonth = new Date();
-      firstDayOfMonth.setDate(1);
-      firstDayOfMonth.setHours(0, 0, 0, 0);
-
-      const { data: paidInvoices } = await supabase
-        .from("invoices")
-        .select("total_amount")
-        .eq("company_id", companyId)
-        .eq("status", "paid")
-        .gte("invoice_date", firstDayOfMonth.toISOString().split("T")[0])
-        .is("deleted_at", null);
-
-      const revenue = paidInvoices?.reduce((sum, inv) => sum + (inv.total_amount || 0), 0) || 0;
-
-      setStats({
-        customers: customerCount || 0,
-        vehicles: vehicleCount || 0,
-        activeJobs: activeJobsCount || 0,
-        pendingQuotes: pendingQuotesCount || 0,
-        unpaidInvoices: unpaidInvoicesCount || 0,
-        revenue: revenue,
-      });
-    } catch (error) {
-      console.error("Error loading stats:", error);
-    }
-  };
-
-  if (loading) {
-    return <LoadingSpinner />;
+  if (loading || permissionsLoading) {
+    return (
+      <ProtectedRoute requireWorkshop>
+        <AppLayout>
+          <div className="flex items-center justify-center min-h-screen">
+            <p>Loading dashboard...</p>
+          </div>
+        </AppLayout>
+      </ProtectedRoute>
+    );
   }
 
   return (
-    <ProtectedRoute>
-      <AppLayout companyId={companyId} companyName="AutoTech Workshop">
+    <ProtectedRoute requireWorkshop>
+      <AppLayout>
         <div className="space-y-6">
           <div>
-            <h1 className="font-heading text-3xl font-bold">Dashboard</h1>
-            <p className="text-muted-foreground mt-1">Welcome back! Here's your workshop overview.</p>
+            <h1 className="text-3xl font-heading font-bold">Dashboard</h1>
+            <p className="text-muted-foreground">Welcome back! Here's your workshop overview.</p>
+            {role && (
+              <p className="text-sm text-muted-foreground mt-1">
+                Role: <span className="font-semibold capitalize">{role.replace(/_/g, " ")}</span>
+              </p>
+            )}
           </div>
 
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Customers</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.customers}</div>
-                <p className="text-xs text-muted-foreground">Active customer accounts</p>
-              </CardContent>
-            </Card>
+            <PermissionGate permissions="customers:view">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Customers</CardTitle>
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{stats.customers}</div>
+                  <p className="text-xs text-muted-foreground">Active customer accounts</p>
+                </CardContent>
+              </Card>
+            </PermissionGate>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Vehicles</CardTitle>
-                <Car className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.vehicles}</div>
-                <p className="text-xs text-muted-foreground">Vehicles in system</p>
-              </CardContent>
-            </Card>
+            <PermissionGate permissions="vehicles:view">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Vehicles</CardTitle>
+                  <Car className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{stats.vehicles}</div>
+                  <p className="text-xs text-muted-foreground">Vehicles in system</p>
+                </CardContent>
+              </Card>
+            </PermissionGate>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Active Jobs</CardTitle>
-                <Wrench className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.activeJobs}</div>
-                <p className="text-xs text-muted-foreground">Currently in progress</p>
-              </CardContent>
-            </Card>
+            <PermissionGate permissions="jobs:view">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Active Jobs</CardTitle>
+                  <Briefcase className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{stats.activeJobs}</div>
+                  <p className="text-xs text-muted-foreground">In progress or waiting</p>
+                </CardContent>
+              </Card>
+            </PermissionGate>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Pending Quotes</CardTitle>
-                <FileText className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.pendingQuotes}</div>
-                <p className="text-xs text-muted-foreground">Awaiting customer approval</p>
-              </CardContent>
-            </Card>
+            <PermissionGate permissions="quotes:view">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Pending Quotes</CardTitle>
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{stats.pendingQuotes}</div>
+                  <p className="text-xs text-muted-foreground">Awaiting response</p>
+                </CardContent>
+              </Card>
+            </PermissionGate>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Unpaid Invoices</CardTitle>
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.unpaidInvoices}</div>
-                <p className="text-xs text-muted-foreground">Awaiting payment</p>
-              </CardContent>
-            </Card>
+            <PermissionGate permissions="invoices:view">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Unpaid Invoices</CardTitle>
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{stats.unpaidInvoices}</div>
+                  <p className="text-xs text-muted-foreground">Outstanding payments</p>
+                </CardContent>
+              </Card>
+            </PermissionGate>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Monthly Revenue</CardTitle>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">${stats.revenue.toLocaleString()}</div>
-                <p className="text-xs text-muted-foreground">Current month</p>
-              </CardContent>
-            </Card>
+            <PermissionGate permissions={["invoices:view", "reports:view_financial"]} requireAll>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Monthly Revenue</CardTitle>
+                  <DollarSign className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">${stats.monthlyRevenue.toFixed(2)}</div>
+                  <p className="text-xs text-muted-foreground">This month's paid invoices</p>
+                </CardContent>
+              </Card>
+            </PermissionGate>
           </div>
+
+          <PermissionGate permissions="jobs:view">
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Activity</CardTitle>
+                <CardDescription>Your recent jobs and quotes</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">Activity feed coming soon...</p>
+              </CardContent>
+            </Card>
+          </PermissionGate>
         </div>
       </AppLayout>
     </ProtectedRoute>
