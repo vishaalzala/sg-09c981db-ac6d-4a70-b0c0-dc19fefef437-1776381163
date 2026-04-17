@@ -12,6 +12,7 @@ export default function Dashboard() {
   const { toast } = useToast();
   const { role, can, loading: permissionsLoading } = usePermissions();
   const [loading, setLoading] = useState(true);
+  const [companyId, setCompanyId] = useState("");
   const [stats, setStats] = useState({
     customers: 0,
     vehicles: 0,
@@ -37,38 +38,39 @@ export default function Dashboard() {
         return;
       }
 
-      const companyId = user.company_id;
+      const currentCompanyId = user.company_id;
+      setCompanyId(currentCompanyId);
 
       // Get counts based on permissions
       const [customersResult, vehiclesResult, jobsResult, quotesResult, invoicesResult, revenueResult] = await Promise.all([
         can("customers:view")
-          ? supabase.from("customers").select("id", { count: "exact", head: true }).eq("company_id", companyId).is("deleted_at", null)
+          ? supabase.from("customers").select("id", { count: "exact", head: true }).eq("company_id", currentCompanyId).is("deleted_at", null)
           : { count: 0 },
         can("vehicles:view")
-          ? supabase.from("vehicles").select("id", { count: "exact", head: true }).eq("company_id", companyId).is("deleted_at", null)
+          ? supabase.from("vehicles").select("id", { count: "exact", head: true }).eq("company_id", currentCompanyId).is("deleted_at", null)
           : { count: 0 },
         can("jobs:view")
           ? supabase
               .from("jobs")
               .select("id", { count: "exact", head: true })
-              .eq("company_id", companyId)
+              .eq("company_id", currentCompanyId)
               .in("status", ["booked", "in_progress", "waiting_approval", "waiting_parts"])
           : { count: 0 },
         can("quotes:view")
-          ? supabase.from("quotes").select("id", { count: "exact", head: true }).eq("company_id", companyId).in("status", ["draft", "sent"])
+          ? supabase.from("quotes").select("id", { count: "exact", head: true }).eq("company_id", currentCompanyId).in("status", ["draft", "sent"])
           : { count: 0 },
         can("invoices:view")
           ? supabase
               .from("invoices")
               .select("id", { count: "exact", head: true })
-              .eq("company_id", companyId)
+              .eq("company_id", currentCompanyId)
               .in("status", ["draft", "sent", "overdue", "partially_paid"])
           : { count: 0 },
         can("invoices:view")
           ? supabase
               .from("invoices")
               .select("total_amount")
-              .eq("company_id", companyId)
+              .eq("company_id", currentCompanyId)
               .eq("status", "paid")
               .gte("invoice_date", new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString())
           : { data: [] },
@@ -95,7 +97,7 @@ export default function Dashboard() {
   if (loading || permissionsLoading) {
     return (
       <ProtectedRoute requireWorkshop>
-        <AppLayout>
+        <AppLayout companyId={companyId}>
           <div className="flex items-center justify-center min-h-screen">
             <p>Loading dashboard...</p>
           </div>
@@ -106,7 +108,7 @@ export default function Dashboard() {
 
   return (
     <ProtectedRoute requireWorkshop>
-      <AppLayout>
+      <AppLayout companyId={companyId} userRole={role ?? undefined}>
         <div className="space-y-6">
           <div>
             <h1 className="text-3xl font-heading font-bold">Dashboard</h1>
