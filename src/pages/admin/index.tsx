@@ -16,6 +16,11 @@ import { companyService } from "@/services/companyService";
 import { billingService } from "@/services/billingService";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { useRouter } from "next/router";
+import { useToast } from "@/hooks/use-toast";
+import { CreateUserDialog } from "@/components/admin/CreateUserDialog";
+import { SeedDemoUsersButton } from "@/components/admin/SeedDemoUsersButton";
 
 export default function SuperAdminPanel() {
   const [companies, setCompanies] = useState<any[]>([]);
@@ -25,10 +30,47 @@ export default function SuperAdminPanel() {
   const [revenue, setRevenue] = useState({ monthly: 0, annual: 0 });
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [adminChecking, setAdminChecking] = useState(true);
+  const router = useRouter();
+  const { toast } = useToast();
 
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const checkAdmin = async () => {
+      try {
+        const { data: auth } = await supabase.auth.getUser();
+        if (!auth.user) {
+          if (!cancelled) setAdminChecking(false);
+          return;
+        }
+
+        const { data: profile, error } = await supabase.from("profiles").select("role").eq("id", auth.user.id).maybeSingle();
+        if (error) {
+          console.error("Admin role check error:", error);
+          return;
+        }
+
+        if (!profile || profile.role !== "super_admin") {
+          toast({ title: "Access denied", description: "You do not have access to the Super Admin panel.", variant: "destructive" });
+          router.replace("/dashboard");
+          return;
+        }
+      } finally {
+        if (!cancelled) setAdminChecking(false);
+      }
+    };
+
+    checkAdmin();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router, toast]);
 
   const loadData = async () => {
     setLoading(true);
@@ -54,7 +96,7 @@ export default function SuperAdminPanel() {
     setLoading(false);
   };
 
-  if (loading) {
+  if (adminChecking || loading) {
     return <LoadingSpinner />;
   }
 
@@ -148,15 +190,15 @@ export default function SuperAdminPanel() {
             <TabsContent value="companies">
               <Card>
                 <CardHeader>
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                     <div>
                       <CardTitle>Company Management</CardTitle>
                       <CardDescription>Manage workshop accounts and subscriptions</CardDescription>
                     </div>
-                    <Button>
-                      <Plus className="h-4 w-4 mr-2" />
-                      New Company
-                    </Button>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                      <SeedDemoUsersButton />
+                      <CreateUserDialog triggerLabel="Create user" />
+                    </div>
                   </div>
                   <div className="mt-4">
                     <Input

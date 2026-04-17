@@ -15,9 +15,9 @@ Implement Super Admin ability to create users from the Admin panel, with role + 
 ## Checklist
 - [x] Audit existing admin panel for user creation capabilities and data sources
 - [x] Add secure API routes using Supabase service role key (create user, seed demo users, list companies)
-- [ ] Enforce authorization: only `super_admin` can call the endpoint (validate access token + role)
-- [ ] Add Admin UI: user creation dialog/form (email, password, role, company)
-- [ ] Add Admin UI action: “Create demo users” to provision admin/owner/staff/inspector tied to demo company
+- [x] Enforce authorization: only `super_admin` can call the endpoint (validate access token + role)
+- [x] Add Admin UI: user creation dialog/form (email, password, role, company)
+- [x] Add Admin UI action: “Create demo users” to provision admin/owner/staff/inspector tied to demo company
 - [ ] Add validation + error toasts; ensure created users can login immediately
 - [ ] Document required env vars for Vercel (`SUPABASE_SERVICE_ROLE_KEY`) without exposing secrets
 - [ ] Run `check_for_errors` with build to confirm deploy readiness
