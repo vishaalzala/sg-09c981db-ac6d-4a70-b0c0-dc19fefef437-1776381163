@@ -10,6 +10,8 @@ type SeedResult = {
   error?: string;
 };
 
+type AdminListUser = { id: string; email?: string | null };
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
@@ -49,12 +51,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     for (const u of usersToSeed) {
       try {
-        const { data: existing } = await supabaseAdmin.auth.admin.listUsers({
+        const { data: existing, error: listError } = await supabaseAdmin.auth.admin.listUsers({
           page: 1,
           perPage: 200,
         });
 
-        const match = existing?.users?.find((x) => x.email?.toLowerCase() === u.email.toLowerCase()) ?? null;
+        if (listError) {
+          results.push({ key: u.key, email: u.email, userId: null, status: "failed", error: listError.message });
+          continue;
+        }
+
+        const list = ((existing as unknown as { users?: AdminListUser[] })?.users ?? []) as AdminListUser[];
+        const match = list.find((x) => (x.email ?? "").toLowerCase() === u.email.toLowerCase()) ?? null;
 
         let userId: string;
 

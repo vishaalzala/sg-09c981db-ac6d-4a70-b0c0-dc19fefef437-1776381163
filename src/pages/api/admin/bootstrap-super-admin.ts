@@ -1,101 +1,72 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { supabaseAdmin, assertServiceRoleConfigured } from "@/lib/supabaseAdmin";
-
-interface BootstrapBody {
-  bootstrapToken: string;
-  fullName?: string;
-}
+import { getSupabaseAdmin, assertServiceRoleConfigured } from "@/lib/supabaseAdmin";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+
   try {
-    if (req.method !== "POST") {
-      return res.status(405).json({ error: "Method not allowed" });
-    }
-
     assertServiceRoleConfigured();
+    const supabaseAdmin = getSupabaseAdmin();
 
+    const token = (req.body as { token?: string } | null)?.token ?? null;
     const expectedToken = process.env.ADMIN_BOOTSTRAP_TOKEN ?? "";
-    const body = (req.body ?? {}) as Partial<BootstrapBody>;
-    const providedToken = (body.bootstrapToken ?? "").trim();
 
     if (!expectedToken) {
-      return res.status(500).json({ error: "Bootstrap token not configured" });
+      return res.status(500).json({ error: "Missing ADMIN_BOOTSTRAP_TOKEN" });
     }
 
-    if (!providedToken || providedToken !== expectedToken) {
+    if (!token || token !== expectedToken) {
       return res.status(401).json({ error: "Invalid bootstrap token" });
     }
 
     const authHeader = req.headers.authorization ?? "";
-    const token = authHeader.startsWith("Bearer ") ? authHeader.slice("Bearer ".length) : null;
-    if (!token) {
-      return res.status(401).json({ error: "Missing access token" });
+    const accessToken = authHeader.startsWith("Bearer ") ? authHeader.slice("Bearer ".length) : null;
+    if (!accessToken) {
+      return res.status(401).json({ error: "MISSING_TOKEN" });
     }
 
-    const { data: auth, error: authError } = await supabaseAdmin.auth.getUser(token);
-    if (authError || !auth.user) {
-      return res.status(401).json({ error: "Invalid access token" });
+    const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(accessToken);
+    if (userError || !userData.user) {
+      return res.status(401).json({ error: "INVALID_TOKEN" });
     }
 
-    const requesterUserId = auth.user.id;
-    const email = (auth.user.email ?? "").toLowerCase();
-    const fullName = (body.fullName ?? auth.user.user_metadata?.full_name ?? "").toString().trim() || null;
+    const userId = userData.user.id;
+    const email = userData.user.email ?? null;
 
-    const { count, error: countError } = await supabaseAdmin
+    const { data: existingAdmin, error: existingAdminError } = await supabaseAdmin
       .from("profiles")
-      .select("id", { count: "exact", head: true })
-      .eq("role", "super_admin");
+      .select("id")
+      .eq("role", "super_admin")
+      .limit(1);
 
-    if (countError) {
-      console.error("Bootstrap super admin count error:", countError);
+    if (existingAdminError) {
+      console.error("bootstrap-super-admin super admin lookup error:", existingAdminError);
       return res.status(500).json({ error: "Failed to check existing super admins" });
     }
 
-    if ((count ?? 0) > 0) {
+    if ((existingAdmin ?? []).length > 0) {
       return res.status(409).json({ error: "Super admin already exists" });
     }
 
-    const { error: profileError } = await supabaseAdmin.from("profiles").upsert(
-      {
-        id: requesterUserId,
-        email,
-        full_name: fullName,
-        role: "super_admin",
-      },
-      { onConflict: "id" }
-    );
+    const { error: profileUpsertError } = await supabaseAdmin
+      .from("profiles")
+      .upsert({ id: userId, email, role: "super_admin", company_id: null } as any, { onConflict: "id" });
 
-    if (profileError) {
-      console.error("Bootstrap upsert profile error:", profileError);
-      return res.status(500).json({ error: "Failed to promote profile" });
+    if (profileUpsertError) {
+      console.error("bootstrap-super-admin profiles upsert error:", profileUpsertError);
+      return res.status(500).json({ error: "Failed to update profile" });
     }
 
-    const { error: userRowError } = await supabaseAdmin.from("users").upsert(
-      {
-        id: requesterUserId,
-        email,
-        full_name: fullName,
-        company_id: null,
-        is_active: true,
-      },
-      { onConflict: "id" }
-    );
+    const { error: userRowUpsertError } = await supabaseAdmin
+      .from("users")
+      .upsert({ id: userId, email, role: "super_admin", company_id: null } as any, { onConflict: "id" });
 
-    if (userRowError) {
-      console.error("Bootstrap upsert users row error:", userRowError);
-      return res.status(500).json({ error: "Failed to promote user record" });
+    if (userRowUpsertError) {
+      console.error("bootstrap-super-admin users upsert error:", userRowUpsertError);
+      return res.status(500).json({ error: "Failed to update users row" });
     }
 
-    await supabaseAdmin.from("audit_logs").insert({
-      company_id: null,
-      user_id: requesterUserId,
-      action_type: "admin.bootstrap_super_admin",
-      entity_type: "users",
-      entity_id: requesterUserId,
-      changes: { email },
-    });
-
-    return res.status(200).json({ ok: true, userId: requesterUserId, email });
+    return res.status(200).json({ ok: true });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Unknown error";
     return res.status(500).json({ error: message });
