@@ -21,6 +21,7 @@ import { useRouter } from "next/router";
 import { useToast } from "@/hooks/use-toast";
 import { CreateUserDialog } from "@/components/admin/CreateUserDialog";
 import { SeedDemoUsersButton } from "@/components/admin/SeedDemoUsersButton";
+import { BootstrapSuperAdminCard } from "@/components/admin/BootstrapSuperAdminCard";
 
 export default function SuperAdminPanel() {
   const [companies, setCompanies] = useState<any[]>([]);
@@ -31,6 +32,7 @@ export default function SuperAdminPanel() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [adminChecking, setAdminChecking] = useState(true);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
 
@@ -55,9 +57,10 @@ export default function SuperAdminPanel() {
           return;
         }
 
-        if (!profile || profile.role !== "super_admin") {
-          toast({ title: "Access denied", description: "You do not have access to the Super Admin panel.", variant: "destructive" });
-          router.replace("/dashboard");
+        const allowed = !!profile && profile.role === "super_admin";
+        if (!cancelled) setIsSuperAdmin(allowed);
+
+        if (!allowed) {
           return;
         }
       } finally {
@@ -98,6 +101,35 @@ export default function SuperAdminPanel() {
 
   if (adminChecking || loading) {
     return <LoadingSpinner />;
+  }
+
+  if (!isSuperAdmin) {
+    return (
+      <ProtectedRoute>
+        <AdminLayout userName="Admin">
+          <div className="space-y-6">
+            <div>
+              <h1 className="text-3xl font-heading font-bold flex items-center gap-2">
+                <Shield className="h-8 w-8 text-primary" />
+                Super Admin Panel
+              </h1>
+              <p className="text-muted-foreground mt-1">Access requires Super Admin role.</p>
+            </div>
+
+            <BootstrapSuperAdminCard />
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Access denied</CardTitle>
+                <CardDescription>
+                  Your account is not a Super Admin. If a Super Admin already exists, ask them to grant you access.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          </div>
+        </AdminLayout>
+      </ProtectedRoute>
+    );
   }
 
   const filteredCompanies = companies.filter(c => 

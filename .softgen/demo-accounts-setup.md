@@ -1,97 +1,35 @@
 # DEMO ACCOUNTS SETUP GUIDE
 
-## CRITICAL: Manual Setup Required
+## Goal
+Create working demo accounts **without any manual SQL** using the in-app Super Admin tools.
 
-Supabase Auth accounts cannot be created via SQL. Follow these steps:
+## Prerequisites (one-time, server-side)
+Set these environment variables in Vercel (Project Settings → Environment Variables):
+- `SUPABASE_SERVICE_ROLE_KEY` (server-side only)
+- `ADMIN_BOOTSTRAP_TOKEN` (a long random secret)
 
-## Step 1: Access Supabase Dashboard
+## Step 1: Create / Bootstrap the first Super Admin (no Supabase dashboard)
+1. Sign up normally in the app with the email you want to be the first Super Admin.
+2. Visit `/admin`
+3. If no Super Admin exists yet, you will see a **Bootstrap first Super Admin** card.
+4. Paste your `ADMIN_BOOTSTRAP_TOKEN` and click **Make me Super Admin**.
 
-1. Go to your Supabase project dashboard
-2. Navigate to **Authentication** → **Users**
-3. Click **"Add User"** button
+## Step 2: Seed demo users (one click)
+In `/admin` → Companies tab click **Seed demo users**.
 
-## Step 2: Create Demo Accounts
+This will create (or update) these accounts in Supabase Auth + link them in `profiles` and `users`:
+- `admin@demo.com` (role: `super_admin`, no company)
+- `owner@demo.com` (role: `owner`, company: Demo Workshop NZ)
+- `staff@demo.com` (role: `staff`, company: Demo Workshop NZ)
+- `inspector@demo.com` (role: `inspector`, company: Demo Workshop NZ)
 
-### Account 1: Super Admin
-- **Email:** `admin@workshoppro.demo`
-- **Password:** `Demo2024!Admin`
-- **Auto Confirm:** YES
-- After creation:
-  1. Note the User ID (UUID)
-  2. Go to Table Editor → profiles
-  3. Find the profile with this user ID
-  4. Update: `role = 'super_admin'`, `company_id = NULL`
+Default password (shown in the toast and API response): `Demo123!`
 
-### Account 2: Workshop Owner
-- **Email:** `owner@workshoppro.demo`
-- **Password:** `Demo2024!Owner`
-- **Auto Confirm:** YES
-- After creation:
-  1. Note the User ID
-  2. Go to Table Editor → profiles
-  3. Find the profile
-  4. Update: `role = 'owner'`, `company_id = [Demo Workshop NZ ID]`
-  5. Go to Table Editor → users
-  6. Insert: `id = [User ID]`, `company_id = [Demo Workshop NZ ID]`
-
-### Account 3: Staff Member
-- **Email:** `staff@workshoppro.demo`
-- **Password:** `Demo2024!Staff`
-- **Auto Confirm:** YES
-- After creation:
-  1. Note the User ID
-  2. Go to Table Editor → profiles
-  3. Update: `role = 'staff'`, `company_id = [Demo Workshop NZ ID]`
-  4. Go to Table Editor → users
-  5. Insert: `id = [User ID]`, `company_id = [Demo Workshop NZ ID]`
-
-### Account 4: WOF Inspector
-- **Email:** `inspector@workshoppro.demo`
-- **Password:** `Demo2024!Inspector`
-- **Auto Confirm:** YES
-- After creation:
-  1. Note the User ID
-  2. Go to Table Editor → profiles
-  3. Update: `role = 'inspector'`, `company_id = [Demo Workshop NZ ID]`
-  4. Go to Table Editor → users
-  5. Insert: `id = [User ID]`, `company_id = [Demo Workshop NZ ID]`
-
-## Step 3: Get Demo Company ID
-
-Run this SQL query:
-```sql
-SELECT id, name FROM companies WHERE name = 'Demo Workshop NZ';
-```
-
-Use this ID when setting `company_id` in profiles and users tables.
-
-## Step 4: Test Login
-
-1. Go to `/login`
-2. Try each account
-3. Verify correct redirects:
-   - Super Admin → `/admin`
-   - Workshop users → `/dashboard`
-
-## Expected Behavior
-
-After logging in:
-- ✅ No "company context" errors
-- ✅ Can create customers, vehicles, jobs
-- ✅ All pages protected (can't access without login)
-- ✅ Session persists across page refreshes
+## Step 3: Test login
+Go to `/login` and sign in with any of the above accounts. Expected routing:
+- `admin@demo.com` → `/admin`
+- others → `/dashboard`
 
 ## Troubleshooting
-
-**"No company context found":**
-- Check users table has entry with correct company_id
-- Check profiles table has correct company_id
-
-**Can't login:**
-- Verify email/password
-- Check auto-confirm is enabled
-- Check Supabase auth settings
-
-**Redirect loop:**
-- Clear browser cookies
-- Check profile role is set correctly
+- If admin actions fail with “Missing SUPABASE_SERVICE_ROLE_KEY”, you have not set the env var in Vercel and redeployed.
+- If you see “Super admin already exists”, ask the existing Super Admin to create your user from `/admin`.
