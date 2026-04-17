@@ -1,6 +1,6 @@
 ---
 title: "Enable admin user creation + seed demo users"
-status: in_progress
+status: done
 priority: urgent
 type: feature
 tags: ["admin", "auth", "supabase", "demo"]
@@ -21,4 +21,4 @@ Implement Super Admin ability to create users from the Admin panel, with role + 
 - [x] Add “bootstrap first super admin” flow (no dashboard, no SQL)
 - [x] Add validation + error toasts; ensure created users can login immediately
 - [x] Document required env vars for Vercel (`SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_BOOTSTRAP_TOKEN`) without exposing secrets
-- [ ] Run `check_for_errors` with build to confirm deploy readiness
+- [x] Run `check_for_errors` with build to confirm deploy readiness
