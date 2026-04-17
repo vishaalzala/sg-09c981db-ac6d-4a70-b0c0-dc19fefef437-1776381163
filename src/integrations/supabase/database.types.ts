@@ -1,4 +1,4 @@
- 
+/* eslint-disable @typescript-eslint/no-empty-object-type */
 export type Json =
   | string
   | number
@@ -5665,10 +5665,24 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_user_company_access: {
+        Args: { target_company_id: string; user_id: string }
+        Returns: boolean
+      }
       create_default_payment_methods: {
         Args: { p_company_id: string }
         Returns: undefined
       }
+      current_user_company_id: { Args: never; Returns: string }
+      get_user_permissions: {
+        Args: { p_user_id: string }
+        Returns: {
+          permission_category: string
+          permission_key: string
+          permission_name: string
+        }[]
+      }
+      is_super_admin: { Args: never; Returns: boolean }
       merge_customers: {
         Args: { source_customer_id: string; target_customer_id: string }
         Returns: Json
