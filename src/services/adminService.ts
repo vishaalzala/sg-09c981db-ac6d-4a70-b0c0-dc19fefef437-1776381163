@@ -3,77 +3,115 @@ import type { Tables, Database } from "@/integrations/supabase/types";
 
 export interface DashboardStats {
   totalCompanies: number;
+  activeCompanies: number;
+  inactiveCompanies: number;
+  trialCompanies: number;
+  paidCompanies: number;
   totalUsers: number;
-  activeTrials: number;
-  paidSubscriptions: number;
-  monthlyRevenue: number;
-  trialConversionRate: number;
+  recentSignups: any[];
+  recentChanges: any[];
+  alerts: any[];
 }
 
 export interface CompanyWithDetails extends Tables<"companies"> {
   subscription?: Tables<"company_subscriptions"> & {
     plan?: Tables<"subscription_plans">;
   };
-  users_count?: number;
-  addons_count?: number;
+  users?: Tables<"users">[];
+  addons?: (Tables<"company_addons"> & {
+    addon?: Tables<"addon_catalog">;
+  })[];
+  branches?: Tables<"branches">[];
 }
 
-// Dashboard Statistics
+// ============================================
+// DASHBOARD STATISTICS
+// ============================================
+
 export async function getDashboardStats(): Promise<DashboardStats> {
   // Total companies
   const { count: totalCompanies } = await supabase
     .from("companies")
+    .select("*", { count: "exact", head: true });
+
+  // Active companies
+  const { count: activeCompanies } = await supabase
+    .from("companies")
     .select("*", { count: "exact", head: true })
     .eq("is_active", true);
+
+  // Inactive companies
+  const { count: inactiveCompanies } = await supabase
+    .from("companies")
+    .select("*", { count: "exact", head: true })
+    .eq("is_active", false);
+
+  // Trial companies
+  const { count: trialCompanies } = await supabase
+    .from("company_subscriptions")
+    .select("*", { count: "exact", head: true })
+    .eq("status", "trial_active");
+
+  // Paid companies
+  const { count: paidCompanies } = await supabase
+    .from("company_subscriptions")
+    .select("*", { count: "exact", head: true })
+    .eq("status", "active");
 
   // Total users
   const { count: totalUsers } = await supabase
     .from("users")
     .select("*", { count: "exact", head: true });
 
-  // Active trials
-  const { count: activeTrials } = await supabase
+  // Recent signups (last 7 days)
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  
+  const { data: recentSignups } = await supabase
+    .from("companies")
+    .select("*, users(*)")
+    .gte("created_at", sevenDaysAgo.toISOString())
+    .order("created_at", { ascending: false })
+    .limit(5);
+
+  // Recent company changes (audit logs)
+  const { data: recentChanges } = await supabase
+    .from("audit_logs")
+    .select("*, user:users(full_name), company:companies(name)")
+    .order("created_at", { ascending: false })
+    .limit(10);
+
+  // Alerts (trial expiring soon)
+  const threeDaysFromNow = new Date();
+  threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
+  
+  const { data: expiringTrials } = await supabase
     .from("company_subscriptions")
-    .select("*", { count: "exact", head: true })
-    .eq("status", "trial_active");
-
-  // Paid subscriptions
-  const { count: paidSubscriptions } = await supabase
-    .from("company_subscriptions")
-    .select("*", { count: "exact", head: true })
-    .eq("status", "active");
-
-  // Revenue calculation
-  const { data: subscriptions } = await supabase
-    .from("company_subscriptions")
-    .select("*, plan:subscription_plans(price_monthly)")
-    .eq("status", "active");
-
-  const monthlyRevenue = subscriptions?.reduce((sum, sub) => {
-    return sum + (sub.plan?.price_monthly || 0);
-  }, 0) || 0;
-
-  // Trial conversion rate
-  const { count: totalTrials } = await supabase
-    .from("company_subscriptions")
-    .select("*", { count: "exact", head: true })
-    .in("status", ["trial_active", "trial_expired", "active"]);
-
-  const trialConversionRate = totalTrials && paidSubscriptions 
-    ? (paidSubscriptions / totalTrials) * 100 
-    : 0;
+    .select("*, company:companies(name)")
+    .eq("status", "trial_active")
+    .lte("trial_ends_at", threeDaysFromNow.toISOString());
 
   return {
     totalCompanies: totalCompanies || 0,
+    activeCompanies: activeCompanies || 0,
+    inactiveCompanies: inactiveCompanies || 0,
+    trialCompanies: trialCompanies || 0,
+    paidCompanies: paidCompanies || 0,
     totalUsers: totalUsers || 0,
-    activeTrials: activeTrials || 0,
-    paidSubscriptions: paidSubscriptions || 0,
-    monthlyRevenue,
-    trialConversionRate
+    recentSignups: recentSignups || [],
+    recentChanges: recentChanges || [],
+    alerts: expiringTrials?.map(t => ({
+      type: "trial_expiring",
+      message: `Trial expiring soon for ${t.company?.name}`,
+      data: t
+    })) || []
   };
 }
 
-// Company Management
+// ============================================
+// COMPANY MANAGEMENT
+// ============================================
+
 export async function getAllCompanies() {
   const { data, error } = await supabase
     .from("companies")
@@ -90,7 +128,7 @@ export async function getAllCompanies() {
   return data;
 }
 
-export async function getCompanyById(companyId: string) {
+export async function getCompanyById(companyId: string): Promise<CompanyWithDetails> {
   const { data, error } = await supabase
     .from("companies")
     .select(`
@@ -99,17 +137,20 @@ export async function getCompanyById(companyId: string) {
         *,
         plan:subscription_plans(*)
       ),
-      users(*),
+      users(*,
+        role:roles(*)
+      ),
       addons:company_addons(
         *,
         addon:addon_catalog(*)
-      )
+      ),
+      branches(*)
     `)
     .eq("id", companyId)
     .single();
 
   if (error) throw error;
-  return data;
+  return data as CompanyWithDetails;
 }
 
 export async function createCompany(companyData: {
@@ -117,9 +158,8 @@ export async function createCompany(companyData: {
   email?: string;
   phone?: string;
   address?: string;
-  planId?: string;
+  is_active?: boolean;
 }) {
-  // Create company
   const { data: company, error: companyError } = await supabase
     .from("companies")
     .insert({
@@ -127,28 +167,12 @@ export async function createCompany(companyData: {
       email: companyData.email,
       phone: companyData.phone,
       address: companyData.address,
-      is_active: true
+      is_active: companyData.is_active ?? true
     })
     .select()
     .single();
 
   if (companyError) throw companyError;
-
-  // Create subscription if plan provided
-  if (companyData.planId) {
-    const { error: subError } = await supabase
-      .from("company_subscriptions")
-      .insert({
-        company_id: company.id,
-        plan_id: companyData.planId,
-        status: "active",
-        current_period_start: new Date().toISOString(),
-        current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-      });
-
-    if (subError) throw subError;
-  }
-
   return company;
 }
 
@@ -168,14 +192,22 @@ export async function disableCompany(companyId: string) {
   return updateCompany(companyId, { is_active: false });
 }
 
-// User Management
+export async function enableCompany(companyId: string) {
+  return updateCompany(companyId, { is_active: true });
+}
+
+// ============================================
+// USER MANAGEMENT
+// ============================================
+
 export async function getAllUsers() {
   const { data, error } = await supabase
     .from("users")
     .select(`
       *,
       company:companies(name),
-      role:roles(name, display_name)
+      role:roles(name, display_name),
+      profile:profiles(*)
     `)
     .order("created_at", { ascending: false });
 
@@ -183,19 +215,25 @@ export async function getAllUsers() {
   return data;
 }
 
-export async function createUserForCompany(userData: {
-  email: string;
-  full_name: string;
-  companyId: string;
-  roleId: string;
-  password: string;
-}) {
-  // This would need to be done via Supabase Admin API or Edge Function
-  // For now, return a placeholder
-  throw new Error("User creation requires backend implementation");
+export async function getUsersByCompany(companyId: string) {
+  const { data, error } = await supabase
+    .from("users")
+    .select(`
+      *,
+      role:roles(name, display_name),
+      profile:profiles(*)
+    `)
+    .eq("company_id", companyId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return data;
 }
 
-// Plan Management
+// ============================================
+// PLAN MANAGEMENT
+// ============================================
+
 export async function getAllPlans() {
   const { data, error } = await supabase
     .from("subscription_plans")
@@ -231,8 +269,19 @@ export async function updatePlan(planId: string, updates: Partial<Tables<"subscr
   return data;
 }
 
-// Subscription Management
-export async function assignPlanToCompany(companyId: string, planId: string) {
+// ============================================
+// SUBSCRIPTION MANAGEMENT
+// ============================================
+
+export async function assignPlanToCompany(
+  companyId: string,
+  planId: string,
+  options?: {
+    status?: string;
+    billing_cycle?: string;
+    trial_ends_at?: string;
+  }
+) {
   // Check if subscription exists
   const { data: existing } = await supabase
     .from("company_subscriptions")
@@ -240,16 +289,25 @@ export async function assignPlanToCompany(companyId: string, planId: string) {
     .eq("company_id", companyId)
     .single();
 
+  const periodStart = new Date();
+  const periodEnd = new Date();
+  periodEnd.setMonth(periodEnd.getMonth() + 1);
+
+  const subscriptionData = {
+    company_id: companyId,
+    plan_id: planId,
+    status: options?.status || "active",
+    billing_cycle: options?.billing_cycle || "monthly",
+    trial_ends_at: options?.trial_ends_at || null,
+    current_period_start: periodStart.toISOString(),
+    current_period_end: periodEnd.toISOString()
+  };
+
   if (existing) {
     // Update existing
     const { data, error } = await supabase
       .from("company_subscriptions")
-      .update({
-        plan_id: planId,
-        status: "active",
-        current_period_start: new Date().toISOString(),
-        current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-      })
+      .update(subscriptionData)
       .eq("id", existing.id)
       .select()
       .single();
@@ -260,13 +318,7 @@ export async function assignPlanToCompany(companyId: string, planId: string) {
     // Create new
     const { data, error } = await supabase
       .from("company_subscriptions")
-      .insert({
-        company_id: companyId,
-        plan_id: planId,
-        status: "active",
-        current_period_start: new Date().toISOString(),
-        current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-      })
+      .insert(subscriptionData)
       .select()
       .single();
 
@@ -275,7 +327,27 @@ export async function assignPlanToCompany(companyId: string, planId: string) {
   }
 }
 
-// Add-on Management
+export async function startTrial(companyId: string, planId: string, days: number = 14) {
+  const trialEnd = new Date();
+  trialEnd.setDate(trialEnd.getDate() + days);
+
+  return assignPlanToCompany(companyId, planId, {
+    status: "trial_active",
+    trial_ends_at: trialEnd.toISOString()
+  });
+}
+
+export async function convertTrialToPaid(companyId: string, planId: string) {
+  return assignPlanToCompany(companyId, planId, {
+    status: "active",
+    trial_ends_at: null
+  });
+}
+
+// ============================================
+// ADD-ON MANAGEMENT
+// ============================================
+
 export async function getAllAddons() {
   const { data, error } = await supabase
     .from("addon_catalog")
@@ -292,6 +364,18 @@ export async function createAddon(addonData: AddonInsert) {
   const { data, error } = await supabase
     .from("addon_catalog")
     .insert(addonData)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function updateAddon(addonId: string, updates: Partial<Tables<"addon_catalog">>) {
+  const { data, error } = await supabase
+    .from("addon_catalog")
+    .update(updates)
+    .eq("id", addonId)
     .select()
     .single();
 
@@ -324,40 +408,16 @@ export async function removeAddonFromCompany(companyId: string, addonId: string)
   if (error) throw error;
 }
 
-// Audit Logs
-export async function getAuditLogs(limit = 100) {
+export async function toggleAddon(companyId: string, addonId: string, enabled: boolean) {
   const { data, error } = await supabase
-    .from("audit_logs")
-    .select(`
-      *,
-      user:users(full_name, email),
-      company:companies(name)
-    `)
-    .order("created_at", { ascending: false })
-    .limit(limit);
-
-  if (error) throw error;
-  return data;
-}
-
-// Platform Settings
-export async function getPlatformSettings() {
-  const { data, error } = await supabase
-    .from("platform_settings")
-    .select("*");
-
-  if (error) throw error;
-  return data;
-}
-
-export async function updatePlatformSetting(key: string, value: unknown) {
-  const { data, error } = await supabase
-    .from("platform_settings")
-    .update({ 
-      setting_value: value as never,
-      updated_at: new Date().toISOString()
+    .from("company_addons")
+    .update({
+      is_enabled: enabled,
+      enabled_at: enabled ? new Date().toISOString() : null,
+      disabled_at: enabled ? null : new Date().toISOString()
     })
-    .eq("setting_key", key)
+    .eq("company_id", companyId)
+    .eq("addon_id", addonId)
     .select()
     .single();
 
@@ -365,14 +425,286 @@ export async function updatePlatformSetting(key: string, value: unknown) {
   return data;
 }
 
-// Reports
+// ============================================
+// ROLE & PERMISSION MANAGEMENT
+// ============================================
+
+export async function getAllRoles() {
+  const { data, error } = await supabase
+    .from("roles")
+    .select("*")
+    .order("name");
+
+  if (error) throw error;
+  return data;
+}
+
+export async function getAllPermissions() {
+  const { data, error } = await supabase
+    .from("permissions")
+    .select("*")
+    .order("category", { ascending: true });
+
+  if (error) throw error;
+  return data;
+}
+
+export async function getRolePermissions(roleId: string) {
+  const { data, error } = await supabase
+    .from("role_permissions")
+    .select("*, permission:permissions(*)")
+    .eq("role_id", roleId);
+
+  if (error) throw error;
+  return data;
+}
+
+export async function assignPermissionToRole(roleId: string, permissionId: string) {
+  const { data, error } = await supabase
+    .from("role_permissions")
+    .insert({
+      role_id: roleId,
+      permission_id: permissionId
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function removePermissionFromRole(roleId: string, permissionId: string) {
+  const { error } = await supabase
+    .from("role_permissions")
+    .delete()
+    .eq("role_id", roleId)
+    .eq("permission_id", permissionId);
+
+  if (error) throw error;
+}
+
+// ============================================
+// AUDIT LOGS
+// ============================================
+
+export async function getAuditLogs(filters?: {
+  companyId?: string;
+  userId?: string;
+  actionType?: string;
+  startDate?: string;
+  endDate?: string;
+  limit?: number;
+}) {
+  let query = supabase
+    .from("audit_logs")
+    .select(`
+      *,
+      user:users(full_name, email),
+      company:companies(name)
+    `)
+    .order("created_at", { ascending: false });
+
+  if (filters?.companyId) {
+    query = query.eq("company_id", filters.companyId);
+  }
+  
+  if (filters?.userId) {
+    query = query.eq("user_id", filters.userId);
+  }
+  
+  if (filters?.actionType) {
+    query = query.eq("action_type", filters.actionType);
+  }
+  
+  if (filters?.startDate) {
+    query = query.gte("created_at", filters.startDate);
+  }
+  
+  if (filters?.endDate) {
+    query = query.lte("created_at", filters.endDate);
+  }
+
+  query = query.limit(filters?.limit || 100);
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return data;
+}
+
+// ============================================
+// SUPPORT TOOLS
+// ============================================
+
+export interface AccountDiagnostics {
+  authUser: any;
+  profile: any;
+  userRecord: any;
+  company: any;
+  subscription: any;
+  addons: any[];
+  issues: string[];
+  recommendations: string[];
+}
+
+export async function diagnoseAccount(userId: string): Promise<AccountDiagnostics> {
+  const issues: string[] = [];
+  const recommendations: string[] = [];
+
+  // Check auth.users
+  const { data: authUser } = await supabase.auth.admin.getUserById(userId);
+  if (!authUser?.user) {
+    issues.push("Auth user not found");
+  }
+
+  // Check profiles
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", userId)
+    .single();
+  
+  if (!profile) {
+    issues.push("Profile record missing");
+    recommendations.push("Create profile record for this user");
+  }
+
+  // Check users table
+  const { data: userRecord } = await supabase
+    .from("users")
+    .select("*, role:roles(*), company:companies(*)")
+    .eq("id", userId)
+    .single();
+  
+  if (!userRecord) {
+    issues.push("Users table record missing");
+    recommendations.push("Create users record with company_id");
+  } else if (!userRecord.company_id) {
+    issues.push("No company_id linked");
+    recommendations.push("Assign user to a company");
+  }
+
+  // Check company
+  let company = null;
+  if (userRecord?.company_id) {
+    const { data: companyData } = await supabase
+      .from("companies")
+      .select("*")
+      .eq("id", userRecord.company_id)
+      .single();
+    
+    company = companyData;
+    if (!companyData) {
+      issues.push("Company not found");
+    } else if (!companyData.is_active) {
+      issues.push("Company is inactive");
+      recommendations.push("Activate the company");
+    }
+  }
+
+  // Check subscription
+  let subscription = null;
+  if (userRecord?.company_id) {
+    const { data: subData } = await supabase
+      .from("company_subscriptions")
+      .select("*, plan:subscription_plans(*)")
+      .eq("company_id", userRecord.company_id)
+      .single();
+    
+    subscription = subData;
+    if (!subData) {
+      issues.push("No subscription found");
+      recommendations.push("Assign a subscription plan");
+    }
+  }
+
+  // Check addons
+  let addons: any[] = [];
+  if (userRecord?.company_id) {
+    const { data: addonsData } = await supabase
+      .from("company_addons")
+      .select("*, addon:addon_catalog(*)")
+      .eq("company_id", userRecord.company_id);
+    
+    addons = addonsData || [];
+  }
+
+  return {
+    authUser: authUser?.user,
+    profile,
+    userRecord,
+    company,
+    subscription,
+    addons,
+    issues,
+    recommendations
+  };
+}
+
+export async function searchCompanies(query: string) {
+  const { data, error } = await supabase
+    .from("companies")
+    .select("*, subscription:company_subscriptions(*, plan:subscription_plans(*))")
+    .or(`name.ilike.%${query}%,email.ilike.%${query}%`)
+    .limit(10);
+
+  if (error) throw error;
+  return data;
+}
+
+export async function searchUsers(query: string) {
+  const { data, error } = await supabase
+    .from("users")
+    .select("*, company:companies(name), role:roles(display_name)")
+    .or(`full_name.ilike.%${query}%,email.ilike.%${query}%`)
+    .limit(10);
+
+  if (error) throw error;
+  return data;
+}
+
+// ============================================
+// USAGE RECORDS
+// ============================================
+
+export async function getUsageRecords(companyId: string, options?: {
+  startDate?: string;
+  endDate?: string;
+  addonId?: string;
+}) {
+  let query = supabase
+    .from("usage_records")
+    .select("*, addon:addon_catalog(name)")
+    .eq("company_id", companyId)
+    .order("recorded_at", { ascending: false });
+
+  if (options?.startDate) {
+    query = query.gte("billing_period_start", options.startDate);
+  }
+  
+  if (options?.endDate) {
+    query = query.lte("billing_period_end", options.endDate);
+  }
+  
+  if (options?.addonId) {
+    query = query.eq("addon_id", options.addonId);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return data;
+}
+
+// ============================================
+// REPORTS
+// ============================================
+
 export async function getCompanyGrowthReport(days = 30) {
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
 
   const { data, error } = await supabase
     .from("companies")
-    .select("created_at")
+    .select("created_at, name")
     .gte("created_at", startDate.toISOString())
     .order("created_at");
 
@@ -391,4 +723,43 @@ export async function getTrialConversionReport() {
 
   if (error) throw error;
   return data;
+}
+
+export async function getRevenueReport(options?: {
+  startDate?: string;
+  endDate?: string;
+}) {
+  let query = supabase
+    .from("company_subscriptions")
+    .select(`
+      *,
+      plan:subscription_plans(price_monthly, price_annual),
+      company:companies(name)
+    `)
+    .eq("status", "active");
+
+  if (options?.startDate) {
+    query = query.gte("current_period_start", options.startDate);
+  }
+  
+  if (options?.endDate) {
+    query = query.lte("current_period_end", options.endDate);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+  
+  // Calculate total revenue
+  const revenue = data?.reduce((sum, sub) => {
+    const price = sub.billing_cycle === "annual" 
+      ? sub.plan?.price_annual || 0 
+      : sub.plan?.price_monthly || 0;
+    return sum + price;
+  }, 0) || 0;
+
+  return {
+    subscriptions: data,
+    totalRevenue: revenue,
+    count: data?.length || 0
+  };
 }
