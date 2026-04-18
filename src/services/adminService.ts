@@ -150,7 +150,13 @@ export async function getCompanyById(companyId: string): Promise<CompanyWithDeta
     .single();
 
   if (error) throw error;
-  return data as CompanyWithDetails;
+  
+  const formatted = {
+    ...data,
+    subscription: Array.isArray(data.subscription) ? data.subscription[0] : data.subscription
+  };
+  
+  return formatted as unknown as CompanyWithDetails;
 }
 
 export async function createCompany(companyData: {
@@ -201,7 +207,7 @@ export async function enableCompany(companyId: string) {
 // ============================================
 
 export async function getAllUsers() {
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from("users")
     .select(`
       *,
@@ -216,7 +222,7 @@ export async function getAllUsers() {
 }
 
 export async function getUsersByCompany(companyId: string) {
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from("users")
     .select(`
       *,
