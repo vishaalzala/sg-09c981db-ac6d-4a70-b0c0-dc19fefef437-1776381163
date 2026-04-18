@@ -1,28 +1,67 @@
-import { type ReactNode } from "react";
+import { ReactNode } from "react";
 import { usePermissions } from "@/hooks/usePermissions";
-import { type Permission } from "@/lib/permissions";
 
-type PermissionGateProps = {
-  permissions: Permission | Permission[];
-  requireAll?: boolean;
-  fallback?: ReactNode;
+interface PermissionGateProps {
+  permission?: string;
+  anyPermission?: string[];
+  allPermissions?: string[];
   children: ReactNode;
-};
+  fallback?: ReactNode;
+}
 
-export function PermissionGate({ permissions, requireAll = false, fallback = null, children }: PermissionGateProps) {
-  const { can, canAny, canAll, loading } = usePermissions();
+/**
+ * Component wrapper to conditionally render UI based on permissions
+ * 
+ * Usage Examples:
+ * 
+ * // Single permission
+ * <PermissionGate permission="edit_customers">
+ *   <EditButton />
+ * </PermissionGate>
+ * 
+ * // Any of multiple permissions
+ * <PermissionGate anyPermission={["edit_customers", "delete_customers"]}>
+ *   <CustomerActions />
+ * </PermissionGate>
+ * 
+ * // All of multiple permissions
+ * <PermissionGate allPermissions={["view_reports", "export_data"]}>
+ *   <ExportButton />
+ * </PermissionGate>
+ * 
+ * // With fallback
+ * <PermissionGate permission="edit_settings" fallback={<span>Access Denied</span>}>
+ *   <SettingsForm />
+ * </PermissionGate>
+ */
+export function PermissionGate({
+  permission,
+  anyPermission,
+  allPermissions,
+  children,
+  fallback = null
+}: PermissionGateProps) {
+  const { hasPermission, hasAnyPermission, hasAllPermissions, loading } = usePermissions();
 
-  if (loading) {
-    return <>{fallback}</>;
+  // Don't render anything while loading
+  if (loading) return null;
+
+  let hasAccess = false;
+
+  // Check permission type
+  if (permission) {
+    hasAccess = hasPermission(permission);
+  } else if (anyPermission && anyPermission.length > 0) {
+    hasAccess = hasAnyPermission(anyPermission);
+  } else if (allPermissions && allPermissions.length > 0) {
+    hasAccess = hasAllPermissions(allPermissions);
   }
 
-  const permissionsArray = Array.isArray(permissions) ? permissions : [permissions];
-
-  const hasAccess = requireAll ? canAll(permissionsArray) : canAny(permissionsArray);
-
+  // Render fallback if no access
   if (!hasAccess) {
     return <>{fallback}</>;
   }
 
+  // Render children if has access
   return <>{children}</>;
 }

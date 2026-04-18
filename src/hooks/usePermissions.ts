@@ -1,96 +1,196 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  type UserRole,
-  type Permission,
-  hasPermission,
-  hasAnyPermission,
-  hasAllPermissions,
-  canAccessAdmin,
-  canAccessWorkshop,
-  canAccessPortal,
-  getAccessibleNavItems,
-  type NavItem,
-} from "@/lib/permissions";
 
-export type UserPermissions = {
-  role: UserRole | null;
+interface Permission {
+  id: string;
+  name: string;
+  category: string;
+  description: string;
+}
+
+interface UsePermissionsReturn {
   permissions: Permission[];
-  enabledAddons: string[];
+  hasPermission: (permissionName: string) => boolean;
+  hasAnyPermission: (permissionNames: string[]) => boolean;
+  hasAllPermissions: (permissionNames: string[]) => boolean;
   loading: boolean;
-};
+  role: string | null;
+  isAdmin: boolean;
+  isSuperAdmin: boolean;
+}
 
-export function usePermissions() {
-  const [state, setState] = useState<UserPermissions>({
-    role: null,
-    permissions: [],
-    enabledAddons: [],
-    loading: true,
-  });
+/**
+ * Hook to check user permissions for UI element gating
+ * 
+ * Usage:
+ * const { hasPermission, isAdmin } = usePermissions();
+ * 
+ * if (hasPermission('edit_customers')) {
+ *   // Show edit button
+ * }
+ * 
+ * // OR use in JSX:
+ * {hasPermission('delete_invoice') && <DeleteButton />}
+ */
+export function usePermissions(): UsePermissionsReturn {
+  const [permissions, setPermissions] = useState<Permission[]>([]);
+  const [role, setRole] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadPermissions();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
-      loadPermissions();
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
+    loadUserPermissions();
   }, []);
 
-  async function loadPermissions() {
+  const loadUserPermissions = async () => {
     try {
-      const { data: auth } = await supabase.auth.getUser();
-      if (!auth.user) {
-        setState({ role: null, permissions: [], enabledAddons: [], loading: false });
+      // 1. Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setLoading(false);
         return;
       }
 
-      const { data: profile } = await supabase.from("profiles").select("role").eq("id", auth.user.id).maybeSingle();
+      // 2. Get user's role from profile
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
 
-      const role = (profile?.role as UserRole) ?? null;
-
-      // Get enabled add-ons for the user's company
-      let enabledAddons: string[] = [];
-      if (role && role !== "super_admin") {
-        const { data: user } = await supabase.from("users").select("company_id").eq("id", auth.user.id).maybeSingle();
-
-        if (user?.company_id) {
-          const { data: addons } = await supabase
-            .from("company_addons")
-            .select("addon_id")
-            .eq("company_id", user.company_id)
-            .eq("is_enabled", true);
-
-          enabledAddons = addons?.map((a) => a.addon_id) ?? [];
-        }
+      if (!profile?.role) {
+        setLoading(false);
+        return;
       }
 
-      setState({
-        role,
-        permissions: [], // Permissions are checked via hasPermission(role, permission)
-        enabledAddons,
-        loading: false,
-      });
+      setRole(profile.role);
+
+      // 3. Super admin has all permissions - skip database query
+      if (profile.role === "super_admin") {
+        setPermissions([]);
+        setLoading(false);
+        return;
+      }
+
+      // 4. Get role_id from users table
+      const { data: userData } = await supabase
+        .from("users")
+        .select("role_id")
+        .eq("id", user.id)
+        .single();
+
+      if (!userData?.role_id) {
+        setLoading(false);
+        return;
+      }
+
+      // 5. Get permissions for this role
+      const { data: rolePermissions } = await supabase
+        .from("role_permissions")
+        .select(`
+          permissions (
+            id,
+            name,
+            category,
+            description
+          )
+        `)
+        .eq("role_id", userData.role_id);
+
+      if (rolePermissions) {
+        const perms = rolePermissions
+          .map((rp: any) => rp.permissions)
+          .filter(Boolean);
+        setPermissions(perms);
+      }
     } catch (error) {
-      console.error("Load permissions error:", error);
-      setState({ role: null, permissions: [], enabledAddons: [], loading: false });
+      console.error("Error loading permissions:", error);
+    } finally {
+      setLoading(false);
     }
-  }
+  };
+
+  /**
+   * Check if user has a specific permission
+   */
+  const hasPermission = (permissionName: string): boolean => {
+    // Super admin has all permissions
+    if (role === "super_admin") return true;
+    
+    // Admin has all permissions
+    if (role === "admin") return true;
+
+    // Check user's permission list
+    return permissions.some(p => p.name === permissionName);
+  };
+
+  /**
+   * Check if user has ANY of the specified permissions
+   */
+  const hasAnyPermission = (permissionNames: string[]): boolean => {
+    if (role === "super_admin" || role === "admin") return true;
+    return permissionNames.some(name => hasPermission(name));
+  };
+
+  /**
+   * Check if user has ALL of the specified permissions
+   */
+  const hasAllPermissions = (permissionNames: string[]): boolean => {
+    if (role === "super_admin" || role === "admin") return true;
+    return permissionNames.every(name => hasPermission(name));
+  };
 
   return {
-    ...state,
-    can: (permission: Permission) => hasPermission(state.role, permission),
-    canAny: (permissions: Permission[]) => hasAnyPermission(state.role, permissions),
-    canAll: (permissions: Permission[]) => hasAllPermissions(state.role, permissions),
-    canAccessAdmin: () => canAccessAdmin(state.role),
-    canAccessWorkshop: () => canAccessWorkshop(state.role),
-    canAccessPortal: () => canAccessPortal(state.role),
-    getNavItems: () => getAccessibleNavItems(state.role, state.enabledAddons),
-    refresh: loadPermissions,
+    permissions,
+    hasPermission,
+    hasAnyPermission,
+    hasAllPermissions,
+    loading,
+    role,
+    isAdmin: role === "admin",
+    isSuperAdmin: role === "super_admin"
   };
+}
+
+/**
+ * Higher-order component wrapper for permission-based rendering
+ * 
+ * Usage:
+ * <PermissionGate permission="edit_customers">
+ *   <EditButton />
+ * </PermissionGate>
+ */
+interface PermissionGateProps {
+  permission?: string;
+  anyPermission?: string[];
+  allPermissions?: string[];
+  children: React.ReactNode;
+  fallback?: React.ReactNode;
+}
+
+export function PermissionGate({
+  permission,
+  anyPermission,
+  allPermissions,
+  children,
+  fallback = null
+}: PermissionGateProps) {
+  const { hasPermission, hasAnyPermission, hasAllPermissions, loading } = usePermissions();
+
+  if (loading) return null;
+
+  let hasAccess = false;
+
+  if (permission) {
+    hasAccess = hasPermission(permission);
+  } else if (anyPermission && anyPermission.length > 0) {
+    hasAccess = hasAnyPermission(anyPermission);
+  } else if (allPermissions && allPermissions.length > 0) {
+    hasAccess = hasAllPermissions(allPermissions);
+  }
+
+  if (!hasAccess) {
+    return <>{fallback}</>;
+  }
+
+  return <>{children}</>;
 }
