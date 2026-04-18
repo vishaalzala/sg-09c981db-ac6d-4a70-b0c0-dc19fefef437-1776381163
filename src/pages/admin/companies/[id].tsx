@@ -185,7 +185,7 @@ export default function CompanyDetailsPage() {
 
   if (loading) {
     return (
-      <ProtectedRoute requiredRole="super_admin">
+      <ProtectedRoute>
         <AdminLayout>
           <div className="flex items-center justify-center h-96">
             <div className="text-center">
@@ -200,7 +200,7 @@ export default function CompanyDetailsPage() {
 
   if (!company) {
     return (
-      <ProtectedRoute requiredRole="super_admin">
+      <ProtectedRoute>
         <AdminLayout>
           <div className="p-6">
             <Alert variant="destructive">
@@ -225,7 +225,7 @@ export default function CompanyDetailsPage() {
   };
 
   return (
-    <ProtectedRoute requiredRole="super_admin">
+    <ProtectedRoute>
       <AdminLayout>
         <div className="p-6 space-y-6">
           {/* Header */}
