@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Check, ArrowRight, Wrench, Users, Calendar, FileText, Shield, TrendingUp } from "lucide-react";
 import Link from "next/link";
+import { SEO } from "@/components/SEO";
 
 export default function HomePage() {
   const router = useRouter();
