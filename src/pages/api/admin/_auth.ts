@@ -28,7 +28,8 @@ export async function verifyAdmin(req: NextApiRequest) {
       .eq("id", user.id)
       .single();
 
-    const isSuperAdmin = userData?.roles?.name === "super_admin";
+    const roles = userData?.roles as any;
+    const isSuperAdmin = roles && (Array.isArray(roles) ? roles[0]?.name === "super_admin" : roles.name === "super_admin");
 
     return {
       authorized: isSuperAdmin,
