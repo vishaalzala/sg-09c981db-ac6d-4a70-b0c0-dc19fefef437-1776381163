@@ -1,129 +1,102 @@
 import { useState, useEffect } from "react";
+import { useRouter } from "next/router";
 import { AppLayout } from "@/components/AppLayout";
-import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { TrialBanner } from "@/components/TrialBanner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Car, Briefcase, FileText, DollarSign, Calendar } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
-import { usePermissions } from "@/hooks/usePermissions";
-import { PermissionGate } from "@/components/PermissionGate";
+import { 
+  Users, 
+  Car, 
+  Wrench, 
+  FileText, 
+  DollarSign, 
+  Calendar,
+  TrendingUp,
+  AlertCircle
+} from "lucide-react";
+import Link from "next/link";
 
-export default function Dashboard() {
-  const { toast } = useToast();
-  const { role, can, loading: permissionsLoading } = usePermissions();
-  const [loading, setLoading] = useState(true);
-  const [companyId, setCompanyId] = useState("");
+export default function DashboardPage() {
+  const router = useRouter();
   const [stats, setStats] = useState({
     customers: 0,
     vehicles: 0,
     activeJobs: 0,
     pendingQuotes: 0,
     unpaidInvoices: 0,
-    monthlyRevenue: 0,
+    todayBookings: 0
   });
+  const [loading, setLoading] = useState(true);
+  const [companyId, setCompanyId] = useState<string | null>(null);
 
   useEffect(() => {
-    loadDashboardStats();
+    loadDashboardData();
   }, []);
 
-  async function loadDashboardStats() {
+  const loadDashboardData = async () => {
     try {
-      const { data: auth } = await supabase.auth.getUser();
-      if (!auth.user) return;
-
-      const { data: user } = await supabase.from("users").select("company_id").eq("id", auth.user.id).maybeSingle();
-
-      if (!user?.company_id) {
-        toast({ title: "Error", description: "No company context found", variant: "destructive" });
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push("/login");
         return;
       }
 
-      const currentCompanyId = user.company_id;
-      setCompanyId(currentCompanyId);
+      const { data: userData } = await supabase
+        .from("users")
+        .select("company_id")
+        .eq("id", user.id)
+        .single();
 
-      // Get counts based on permissions
-      const [customersResult, vehiclesResult, jobsResult, quotesResult, invoicesResult, revenueResult] = await Promise.all([
-        can("customers:view")
-          ? supabase.from("customers").select("id", { count: "exact", head: true }).eq("company_id", currentCompanyId).is("deleted_at", null)
-          : { count: 0 },
-        can("vehicles:view")
-          ? supabase.from("vehicles").select("id", { count: "exact", head: true }).eq("company_id", currentCompanyId).is("deleted_at", null)
-          : { count: 0 },
-        can("jobs:view")
-          ? supabase
-              .from("jobs")
-              .select("id", { count: "exact", head: true })
-              .eq("company_id", currentCompanyId)
-              .in("status", ["booked", "in_progress", "waiting_approval", "waiting_parts"])
-          : { count: 0 },
-        can("quotes:view")
-          ? supabase.from("quotes").select("id", { count: "exact", head: true }).eq("company_id", currentCompanyId).in("status", ["draft", "sent"])
-          : { count: 0 },
-        can("invoices:view")
-          ? supabase
-              .from("invoices")
-              .select("id", { count: "exact", head: true })
-              .eq("company_id", currentCompanyId)
-              .in("status", ["draft", "sent", "overdue", "partially_paid"])
-          : { count: 0 },
-        can("invoices:view")
-          ? supabase
-              .from("invoices")
-              .select("total_amount")
-              .eq("company_id", currentCompanyId)
-              .eq("status", "paid")
-              .gte("invoice_date", new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString())
-          : { data: [] },
+      if (!userData?.company_id) {
+        console.error("No company context found");
+        return;
+      }
+
+      setCompanyId(userData.company_id);
+
+      // Load stats
+      const [customers, vehicles, jobs, quotes, invoices, bookings] = await Promise.all([
+        supabase.from("customers").select("*", { count: "exact", head: true }).eq("company_id", userData.company_id),
+        supabase.from("vehicles").select("*", { count: "exact", head: true }).eq("company_id", userData.company_id),
+        supabase.from("jobs").select("*", { count: "exact", head: true }).eq("company_id", userData.company_id).in("status", ["in_progress", "booked"]),
+        supabase.from("quotes").select("*", { count: "exact", head: true }).eq("company_id", userData.company_id).eq("status", "draft"),
+        supabase.from("invoices").select("*", { count: "exact", head: true }).eq("company_id", userData.company_id).eq("status", "sent"),
+        supabase.from("bookings").select("*", { count: "exact", head: true }).eq("company_id", userData.company_id).gte("start_time", new Date().toISOString().split("T")[0])
       ]);
 
-      const revenue = (revenueResult.data ?? []).reduce((sum, inv) => sum + (inv.total_amount ?? 0), 0);
-
       setStats({
-        customers: customersResult.count ?? 0,
-        vehicles: vehiclesResult.count ?? 0,
-        activeJobs: jobsResult.count ?? 0,
-        pendingQuotes: quotesResult.count ?? 0,
-        unpaidInvoices: invoicesResult.count ?? 0,
-        monthlyRevenue: revenue,
+        customers: customers.count || 0,
+        vehicles: vehicles.count || 0,
+        activeJobs: jobs.count || 0,
+        pendingQuotes: quotes.count || 0,
+        unpaidInvoices: invoices.count || 0,
+        todayBookings: bookings.count || 0
       });
-    } catch (error: any) {
-      console.error("Dashboard stats error:", error);
-      toast({ title: "Error", description: "Failed to load dashboard stats", variant: "destructive" });
+    } catch (error) {
+      console.error("Error loading dashboard:", error);
     } finally {
       setLoading(false);
     }
-  }
-
-  if (loading || permissionsLoading) {
-    return (
-      <ProtectedRoute requireWorkshop>
-        <AppLayout companyId={companyId}>
-          <div className="flex items-center justify-center min-h-screen">
-            <p>Loading dashboard...</p>
-          </div>
-        </AppLayout>
-      </ProtectedRoute>
-    );
-  }
+  };
 
   return (
-    <ProtectedRoute requireWorkshop>
-      <AppLayout companyId={companyId} userRole={role ?? undefined}>
-        <div className="space-y-6">
-          <div>
-            <h1 className="text-3xl font-heading font-bold">Dashboard</h1>
-            <p className="text-muted-foreground">Welcome back! Here's your workshop overview.</p>
-            {role && (
-              <p className="text-sm text-muted-foreground mt-1">
-                Role: <span className="font-semibold capitalize">{role.replace(/_/g, " ")}</span>
-              </p>
-            )}
-          </div>
+    <AppLayout companyId={companyId}>
+      <div className="p-6 space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Dashboard</h1>
+          <p className="text-muted-foreground">Overview of your workshop</p>
+        </div>
 
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <PermissionGate permissions="customers:view">
+        <TrialBanner />
+
+        {loading ? (
+          <div className="text-center py-12">Loading dashboard...</div>
+        ) : (
+          <>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <CardTitle className="text-sm font-medium">Total Customers</CardTitle>
                   <Users className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
@@ -132,87 +105,110 @@ export default function Dashboard() {
                   <p className="text-xs text-muted-foreground">Active customer accounts</p>
                 </CardContent>
               </Card>
-            </PermissionGate>
 
-            <PermissionGate permissions="vehicles:view">
               <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Vehicles</CardTitle>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium">Vehicles</CardTitle>
                   <Car className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{stats.vehicles}</div>
-                  <p className="text-xs text-muted-foreground">Vehicles in system</p>
+                  <p className="text-xs text-muted-foreground">In your database</p>
                 </CardContent>
               </Card>
-            </PermissionGate>
 
-            <PermissionGate permissions="jobs:view">
               <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <CardTitle className="text-sm font-medium">Active Jobs</CardTitle>
-                  <Briefcase className="h-4 w-4 text-muted-foreground" />
+                  <Wrench className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{stats.activeJobs}</div>
-                  <p className="text-xs text-muted-foreground">In progress or waiting</p>
+                  <p className="text-xs text-muted-foreground">In progress or booked</p>
                 </CardContent>
               </Card>
-            </PermissionGate>
 
-            <PermissionGate permissions="quotes:view">
               <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <CardTitle className="text-sm font-medium">Pending Quotes</CardTitle>
                   <FileText className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{stats.pendingQuotes}</div>
-                  <p className="text-xs text-muted-foreground">Awaiting response</p>
+                  <p className="text-xs text-muted-foreground">Awaiting approval</p>
                 </CardContent>
               </Card>
-            </PermissionGate>
 
-            <PermissionGate permissions="invoices:view">
               <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <CardTitle className="text-sm font-medium">Unpaid Invoices</CardTitle>
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                  <DollarSign className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{stats.unpaidInvoices}</div>
                   <p className="text-xs text-muted-foreground">Outstanding payments</p>
                 </CardContent>
               </Card>
-            </PermissionGate>
 
-            <PermissionGate permissions={["invoices:view", "reports:view_financial"]} requireAll>
               <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Monthly Revenue</CardTitle>
-                  <DollarSign className="h-4 w-4 text-muted-foreground" />
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium">Today's Bookings</CardTitle>
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">${stats.monthlyRevenue.toFixed(2)}</div>
-                  <p className="text-xs text-muted-foreground">This month's paid invoices</p>
+                  <div className="text-2xl font-bold">{stats.todayBookings}</div>
+                  <p className="text-xs text-muted-foreground">Scheduled for today</p>
                 </CardContent>
               </Card>
-            </PermissionGate>
-          </div>
+            </div>
 
-          <PermissionGate permissions="jobs:view">
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Activity</CardTitle>
-                <CardDescription>Your recent jobs and quotes</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">Activity feed coming soon...</p>
-              </CardContent>
-            </Card>
-          </PermissionGate>
-        </div>
-      </AppLayout>
-    </ProtectedRoute>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Quick Actions</CardTitle>
+                  <CardDescription>Common tasks</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <Link href="/customers">
+                    <Button variant="outline" className="w-full justify-start">
+                      <Users className="mr-2 h-4 w-4" />
+                      Add New Customer
+                    </Button>
+                  </Link>
+                  <Link href="/bookings">
+                    <Button variant="outline" className="w-full justify-start">
+                      <Calendar className="mr-2 h-4 w-4" />
+                      Create Booking
+                    </Button>
+                  </Link>
+                  <Link href="/jobs">
+                    <Button variant="outline" className="w-full justify-start">
+                      <Wrench className="mr-2 h-4 w-4" />
+                      Start New Job
+                    </Button>
+                  </Link>
+                  <Link href="/quotes">
+                    <Button variant="outline" className="w-full justify-start">
+                      <FileText className="mr-2 h-4 w-4" />
+                      Create Quote
+                    </Button>
+                  </Link>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Recent Activity</CardTitle>
+                  <CardDescription>Latest updates</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">No recent activity</p>
+                </CardContent>
+              </Card>
+            </div>
+          </>
+        )}
+      </div>
+    </AppLayout>
   );
 }

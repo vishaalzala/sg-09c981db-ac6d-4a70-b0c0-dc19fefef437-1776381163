@@ -1,135 +1,172 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { useRouter } from "next/router";
-import Link from "next/link";
-import { 
-  Building2, 
-  CreditCard, 
-  Activity, 
-  Shield, 
-  Settings, 
-  LogOut,
-  Menu,
-  X,
-  ChevronDown,
-  User
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger 
-} from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { 
+  LayoutDashboard, 
+  Building2, 
+  Users, 
+  CreditCard, 
+  Package, 
+  Shield,
+  Settings,
+  FileText,
+  BarChart3,
+  LogOut,
+  Menu
+} from "lucide-react";
+import Link from "next/link";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
 interface AdminLayoutProps {
   children: ReactNode;
-  userName?: string;
 }
 
-export function AdminLayout({ children, userName = "Super Admin" }: AdminLayoutProps) {
+export function AdminLayout({ children }: AdminLayoutProps) {
   const router = useRouter();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
-  const navigationSections = [
-    { label: "Platform Overview", icon: Activity, href: "/admin" },
-    { label: "Companies", icon: Building2, href: "/admin/companies" },
-    { label: "Plans & Billing", icon: CreditCard, href: "/admin/plans" },
-    { label: "Platform Settings", icon: Settings, href: "/admin/settings" },
-    { label: "Audit Logs", icon: Shield, href: "/admin/audit" },
-  ];
+  useEffect(() => {
+    checkSuperAdmin();
+  }, []);
+
+  const checkSuperAdmin = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push("/login");
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+
+      if (profile?.role !== "super_admin") {
+        router.push("/dashboard");
+        return;
+      }
+
+      setIsSuperAdmin(true);
+    } catch (error) {
+      console.error("Error checking super admin:", error);
+      router.push("/dashboard");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     router.push("/login");
   };
 
-  const isActive = (href: string) => router.pathname === href;
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!isSuperAdmin) {
+    return null;
+  }
+
+  const navigation = [
+    { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
+    { name: "Companies", href: "/admin/companies", icon: Building2 },
+    { name: "Users", href: "/admin/users", icon: Users },
+    { name: "Plans & Billing", href: "/admin/plans", icon: CreditCard },
+    { name: "Add-ons", href: "/admin/addons", icon: Package },
+    { name: "Roles & Permissions", href: "/admin/roles", icon: Shield },
+    { name: "Audit Logs", href: "/admin/audit", icon: FileText },
+    { name: "Reports", href: "/admin/reports", icon: BarChart3 },
+    { name: "Settings", href: "/admin/settings", icon: Settings },
+  ];
 
   return (
-    <div className="min-h-screen bg-muted/30 flex flex-col">
-      {/* Top Header */}
-      <header className="sticky top-0 z-40 w-full border-b bg-slate-900 text-white">
-        <div className="flex h-16 items-center justify-between px-4">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" className="md:hidden text-white" onClick={() => setSidebarOpen(!sidebarOpen)}>
-              {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+    <div className="min-h-screen bg-background">
+      {/* Mobile Header */}
+      <div className="lg:hidden border-b bg-card px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Shield className="h-6 w-6 text-primary" />
+          <span className="font-bold text-lg">Admin Panel</span>
+        </div>
+        <Sheet>
+          <SheetTrigger asChild>
+            <Button variant="ghost" size="icon">
+              <Menu className="h-5 w-5" />
             </Button>
-            <Link href="/admin" className="flex items-center gap-2">
-              <Shield className="h-6 w-6 text-blue-400" />
-              <span className="font-heading font-bold text-lg hidden md:inline">Softgen Super Admin</span>
-            </Link>
-          </div>
+          </SheetTrigger>
+          <SheetContent side="left" className="w-64 p-0">
+            <div className="p-6">
+              <div className="flex items-center gap-2 mb-6">
+                <Shield className="h-6 w-6 text-primary" />
+                <span className="font-bold text-lg">Admin</span>
+              </div>
+              <nav className="space-y-1">
+                {navigation.map((item) => (
+                  <Link key={item.name} href={item.href}>
+                    <Button
+                      variant={router.pathname === item.href ? "secondary" : "ghost"}
+                      className="w-full justify-start"
+                    >
+                      <item.icon className="mr-2 h-4 w-4" />
+                      {item.name}
+                    </Button>
+                  </Link>
+                ))}
+              </nav>
+            </div>
+          </SheetContent>
+        </Sheet>
+      </div>
 
-          <div className="flex items-center gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="gap-2 text-white hover:text-white hover:bg-slate-800">
-                  <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center">
-                    <User className="h-4 w-4 text-white" />
-                  </div>
-                  <span className="hidden md:inline">{userName}</span>
-                  <ChevronDown className="h-4 w-4 hidden md:inline" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>System Administrator</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Sign Out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+      {/* Desktop Sidebar */}
+      <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col">
+        <div className="flex flex-col flex-1 min-h-0 border-r bg-card">
+          <div className="flex items-center h-16 px-6 border-b">
+            <Shield className="h-6 w-6 text-primary mr-2" />
+            <span className="font-bold text-lg">Admin Panel</span>
+          </div>
+          <div className="flex-1 flex flex-col overflow-y-auto">
+            <nav className="flex-1 px-3 py-4 space-y-1">
+              {navigation.map((item) => (
+                <Link key={item.name} href={item.href}>
+                  <Button
+                    variant={router.pathname === item.href ? "secondary" : "ghost"}
+                    className="w-full justify-start"
+                  >
+                    <item.icon className="mr-2 h-4 w-4" />
+                    {item.name}
+                  </Button>
+                </Link>
+              ))}
+            </nav>
+            <div className="p-3 border-t">
+              <Button
+                variant="ghost"
+                className="w-full justify-start"
+                onClick={handleSignOut}
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                Sign Out
+              </Button>
+            </div>
           </div>
         </div>
-      </header>
+      </div>
 
-      <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar Navigation */}
-        <aside className={cn(
-          "fixed inset-y-0 left-0 z-30 w-64 transform border-r bg-slate-900 text-slate-300 pt-16 transition-transform duration-200 ease-in-out md:static md:translate-x-0 md:pt-0",
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        )}>
-          <nav className="h-full overflow-y-auto p-4 space-y-2">
-            <div className="mb-4 px-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-              Admin Controls
-            </div>
-            {navigationSections.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                  isActive(item.href)
-                    ? "bg-blue-600 text-white"
-                    : "hover:bg-slate-800 hover:text-white"
-                )}
-                onClick={() => setSidebarOpen(false)}
-              >
-                <item.icon className="h-4 w-4 flex-shrink-0" />
-                <span className="flex-1">{item.label}</span>
-              </Link>
-            ))}
-          </nav>
-        </aside>
-
-        {/* Main Content */}
-        <main className="flex-1 p-6 overflow-y-auto bg-background">
+      {/* Main Content */}
+      <div className="lg:pl-64">
+        <main className="flex-1">
           {children}
         </main>
       </div>
-
-      {/* Mobile overlay */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 z-20 bg-black/80 backdrop-blur-sm md:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
     </div>
   );
 }
