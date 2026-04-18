@@ -20,10 +20,12 @@ import {
   Globe,
   Lock,
   Headphones,
-  CheckCircle2
+  CheckCircle2,
+  Quote
 } from "lucide-react";
 import Link from "next/link";
 import { SEO } from "@/components/SEO";
+import { TestimonialCarousel } from "@/components/TestimonialCarousel";
 import { useState } from "react";
 
 export default function HomePage() {
@@ -372,8 +374,26 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Features Grid */}
+        {/* Testimonials Section */}
         <section className="py-20 bg-muted/30">
+          <div className="container">
+            <div className="text-center mb-12">
+              <div className="inline-flex items-center justify-center gap-2 mb-4">
+                <Quote className="h-8 w-8 text-primary" />
+              </div>
+              <h2 className="text-3xl md:text-4xl font-bold mb-4">Trusted by Workshop Owners</h2>
+              <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+                See what our customers have to say about WorkshopPro
+              </p>
+            </div>
+            <div className="max-w-4xl mx-auto">
+              <TestimonialCarousel />
+            </div>
+          </div>
+        </section>
+
+        {/* Features Grid */}
+        <section className="py-20">
           <div className="container">
             <div className="text-center mb-12">
               <h2 className="text-3xl md:text-4xl font-bold mb-4">Everything You Need in One Place</h2>

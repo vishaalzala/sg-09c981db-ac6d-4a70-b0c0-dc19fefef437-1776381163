@@ -1,171 +1,298 @@
 import { useState } from "react";
 import { useRouter } from "next/router";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { signUp, type SignupData } from "@/services/authService";
-import { AlertCircle, CheckCircle2 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { CheckCircle2, AlertTriangle, Loader2, Wrench } from "lucide-react";
+import Link from "next/link";
+import { SEO } from "@/components/SEO";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function SignupPage() {
   const router = useRouter();
-  const [formData, setFormData] = useState<SignupData>({
-    email: "",
-    password: "",
-    fullName: "",
+  const [formData, setFormData] = useState({
     companyName: "",
-    phone: ""
+    ownerName: "",
+    email: "",
+    phone: "",
+    password: "",
+    confirmPassword: "",
+    agreeToTerms: false
   });
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
-    setSuccess(false);
-
-    if (formData.password !== confirmPassword) {
-      setError("Passwords do not match");
-      return;
-    }
-
-    if (formData.password.length < 6) {
-      setError("Password must be at least 6 characters");
-      return;
-    }
-
     setLoading(true);
+    setError("");
 
     try {
-      const result = await signUp(formData);
-
-      if (result.error) {
-        setError(result.error.message);
-      } else {
-        setSuccess(true);
-        setTimeout(() => {
-          router.push("/login");
-        }, 2000);
+      // Validation
+      if (!formData.companyName || !formData.ownerName || !formData.email || !formData.password) {
+        throw new Error("Please fill in all required fields");
       }
+
+      if (formData.password.length < 8) {
+        throw new Error("Password must be at least 8 characters");
+      }
+
+      if (formData.password !== formData.confirmPassword) {
+        throw new Error("Passwords do not match");
+      }
+
+      if (!formData.agreeToTerms) {
+        throw new Error("Please agree to the Terms of Service");
+      }
+
+      console.log("Creating trial account:", {
+        email: formData.email,
+        company: formData.companyName
+      });
+
+      // Create company with 14-day trial
+      const response = await fetch("/api/admin/create-company", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          company: {
+            name: formData.companyName,
+            email: formData.email,
+            phone: formData.phone || null,
+            is_active: true
+          },
+          owner: {
+            email: formData.email,
+            password: formData.password,
+            full_name: formData.ownerName
+          },
+          subscription: {
+            planName: "free_trial",
+            status: "trial_active",
+            trialDays: 14
+          },
+          addons: [],
+          branch: {
+            name: `${formData.companyName} - Main Branch`,
+            email: formData.email,
+            phone: formData.phone || null
+          }
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to create account");
+      }
+
+      console.log("Trial account created:", data.companyId);
+
+      // Sign in the user
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: formData.email,
+        password: formData.password
+      });
+
+      if (signInError) {
+        console.error("Auto sign-in failed:", signInError);
+        // Don't throw - account was created, just redirect to login
+        router.push("/login?message=Account created successfully. Please sign in.");
+        return;
+      }
+
+      // Success - redirect to dashboard
+      router.push("/dashboard");
+
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred during signup");
+      console.error("Signup error:", err);
+      setError(err instanceof Error ? err.message : "Failed to create account");
     } finally {
       setLoading(false);
     }
   };
 
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 via-background to-accent/5 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">Start Your Free Trial</CardTitle>
-          <CardDescription className="text-center">
-            14 days free • No credit card required
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {error && (
-            <Alert variant="destructive" className="mb-4">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
+    <>
+      <SEO 
+        title="Start Your Free Trial - WorkshopPro"
+        description="Get started with WorkshopPro today. 14-day free trial, no credit card required."
+      />
 
-          {success && (
-            <Alert className="mb-4 border-green-500 bg-green-50">
-              <CheckCircle2 className="h-4 w-4 text-green-600" />
-              <AlertDescription className="text-green-800">
-                Account created successfully! Your 14-day free trial has started. Redirecting to login...
-              </AlertDescription>
-            </Alert>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Full Name</label>
-              <Input
-                type="text"
-                placeholder="John Smith"
-                value={formData.fullName}
-                onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                required
-              />
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-xl">
+          <CardHeader className="text-center">
+            <div className="flex justify-center mb-4">
+              <div className="bg-primary text-primary-foreground p-3 rounded-lg">
+                <Wrench className="h-8 w-8" />
+              </div>
             </div>
+            <CardTitle className="text-3xl">Start Your Free Trial</CardTitle>
+            <CardDescription className="text-base">
+              14 days free, no credit card required. Get full access to all features.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {error && (
+              <Alert variant="destructive" className="mb-6">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Company Name</label>
-              <Input
-                type="text"
-                placeholder="Your Workshop Ltd"
-                value={formData.companyName}
-                onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
-                required
-              />
-            </div>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="companyName">Workshop Name *</Label>
+                <Input
+                  id="companyName"
+                  name="companyName"
+                  placeholder="e.g., Auckland Auto Service"
+                  value={formData.companyName}
+                  onChange={handleChange}
+                  required
+                  disabled={loading}
+                />
+              </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Email</label>
-              <Input
-                type="email"
-                placeholder="you@company.com"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                required
-              />
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="ownerName">Your Name *</Label>
+                <Input
+                  id="ownerName"
+                  name="ownerName"
+                  placeholder="e.g., John Smith"
+                  value={formData.ownerName}
+                  onChange={handleChange}
+                  required
+                  disabled={loading}
+                />
+              </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Phone (Optional)</label>
-              <Input
-                type="tel"
-                placeholder="+64 21 123 4567"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              />
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email *</Label>
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  placeholder="your@email.com"
+                  value={formData.email}
+                  onChange={handleChange}
+                  required
+                  disabled={loading}
+                />
+              </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Password</label>
-              <Input
-                type="password"
-                placeholder="Min 6 characters"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                required
-              />
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone</Label>
+                <Input
+                  id="phone"
+                  name="phone"
+                  type="tel"
+                  placeholder="+64 21 123 4567"
+                  value={formData.phone}
+                  onChange={handleChange}
+                  disabled={loading}
+                />
+              </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Confirm Password</label>
-              <Input
-                type="password"
-                placeholder="Re-enter password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-              />
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password *</Label>
+                <Input
+                  id="password"
+                  name="password"
+                  type="password"
+                  placeholder="Min. 8 characters"
+                  value={formData.password}
+                  onChange={handleChange}
+                  required
+                  disabled={loading}
+                />
+              </div>
 
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Creating account..." : "Start Free Trial"}
-            </Button>
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirm Password *</Label>
+                <Input
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  type="password"
+                  placeholder="Re-enter password"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  required
+                  disabled={loading}
+                />
+              </div>
 
-            <p className="text-xs text-center text-muted-foreground">
-              By signing up, you agree to our Terms of Service and Privacy Policy
-            </p>
+              <div className="flex items-start space-x-2">
+                <Checkbox
+                  id="terms"
+                  checked={formData.agreeToTerms}
+                  onCheckedChange={(checked) => setFormData({ ...formData, agreeToTerms: checked as boolean })}
+                  disabled={loading}
+                />
+                <label htmlFor="terms" className="text-sm text-muted-foreground leading-tight">
+                  I agree to the{" "}
+                  <Link href="/terms" className="text-primary hover:underline">
+                    Terms of Service
+                  </Link>{" "}
+                  and{" "}
+                  <Link href="/privacy" className="text-primary hover:underline">
+                    Privacy Policy
+                  </Link>
+                </label>
+              </div>
 
-            <div className="text-center text-sm">
-              Already have an account?{" "}
-              <Link href="/login" className="text-primary hover:underline">
-                Sign in
-              </Link>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+              <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+                <div className="flex items-center gap-2 text-sm">
+                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  <span>14-day free trial</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  <span>No credit card required</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  <span>Full access to all features</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  <span>Cancel anytime</span>
+                </div>
+              </div>
+
+              <Button type="submit" size="lg" className="w-full" disabled={loading}>
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creating Your Account...
+                  </>
+                ) : (
+                  "Start Free Trial"
+                )}
+              </Button>
+
+              <p className="text-center text-sm text-muted-foreground">
+                Already have an account?{" "}
+                <Link href="/login" className="text-primary hover:underline">
+                  Sign in
+                </Link>
+              </p>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    </>
   );
 }

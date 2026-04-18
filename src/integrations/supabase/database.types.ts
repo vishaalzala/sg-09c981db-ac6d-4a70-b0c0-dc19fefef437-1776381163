@@ -2812,6 +2812,48 @@ export type Database = {
           },
         ]
       }
+      lead_submissions: {
+        Row: {
+          company_name: string | null
+          created_at: string | null
+          email: string
+          id: string
+          message: string | null
+          metadata: Json | null
+          name: string
+          phone: string | null
+          source: string | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          company_name?: string | null
+          created_at?: string | null
+          email: string
+          id?: string
+          message?: string | null
+          metadata?: Json | null
+          name: string
+          phone?: string | null
+          source?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          company_name?: string | null
+          created_at?: string | null
+          email?: string
+          id?: string
+          message?: string | null
+          metadata?: Json | null
+          name?: string
+          phone?: string | null
+          source?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       loyalty_accounts: {
         Row: {
           account_number: string | null
@@ -4622,6 +4664,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      testimonials: {
+        Row: {
+          avatar_url: string | null
+          company_name: string | null
+          content: string
+          created_at: string | null
+          customer_name: string
+          display_order: number | null
+          id: string
+          is_active: boolean | null
+          rating: number | null
+          role: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          company_name?: string | null
+          content: string
+          created_at?: string | null
+          customer_name: string
+          display_order?: number | null
+          id?: string
+          is_active?: boolean | null
+          rating?: number | null
+          role?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          company_name?: string | null
+          content?: string
+          created_at?: string | null
+          customer_name?: string
+          display_order?: number | null
+          id?: string
+          is_active?: boolean | null
+          rating?: number | null
+          role?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       timesheet_entries: {
         Row: {
