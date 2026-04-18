@@ -15,14 +15,15 @@ import {
   LogOut,
   Menu
 } from "lucide-react";
-import Link from "next/link";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
 interface AdminLayoutProps {
   children: ReactNode;
+  activeTab?: string;
+  onTabChange?: (tab: string) => void;
 }
 
-export function AdminLayout({ children }: AdminLayoutProps) {
+export function AdminLayout({ children, activeTab, onTabChange }: AdminLayoutProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
@@ -64,14 +65,21 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     router.push("/login");
   };
 
-  const navigateToCompanies = () => {
-    router.push("/admin");
+  const handleNavigation = (tab: string) => {
+    if (onTabChange) {
+      onTabChange(tab);
+    } else {
+      router.push(`/admin?tab=${tab}`);
+    }
   };
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">Loading...</div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
       </div>
     );
   }
@@ -81,15 +89,15 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   }
 
   const navigation = [
-    { name: "Dashboard", href: "/admin", icon: LayoutDashboard, action: () => router.push("/admin") },
-    { name: "Companies", href: "/admin", icon: Building2, action: navigateToCompanies },
-    { name: "Users", href: "/admin", icon: Users, action: () => router.push("/admin") },
-    { name: "Plans & Billing", href: "/admin", icon: CreditCard, action: () => router.push("/admin") },
-    { name: "Add-ons", href: "/admin", icon: Package, action: () => router.push("/admin") },
-    { name: "Roles & Permissions", href: "/admin", icon: Shield, action: () => router.push("/admin") },
-    { name: "Audit Logs", href: "/admin", icon: FileText, action: () => router.push("/admin") },
-    { name: "Reports", href: "/admin", icon: BarChart3, action: () => router.push("/admin") },
-    { name: "Settings", href: "/admin", icon: Settings, action: () => router.push("/admin") },
+    { name: "Dashboard", tab: "dashboard", icon: LayoutDashboard },
+    { name: "Companies", tab: "companies", icon: Building2 },
+    { name: "Users", tab: "users", icon: Users },
+    { name: "Plans & Billing", tab: "plans", icon: CreditCard },
+    { name: "Add-ons", tab: "addons", icon: Package },
+    { name: "Roles & Permissions", tab: "roles", icon: Shield },
+    { name: "Audit Logs", tab: "audit", icon: FileText },
+    { name: "Reports", tab: "reports", icon: BarChart3 },
+    { name: "Settings", tab: "settings", icon: Settings },
   ];
 
   return (
@@ -116,9 +124,9 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                 {navigation.map((item) => (
                   <Button
                     key={item.name}
-                    variant="ghost"
+                    variant={activeTab === item.tab ? "secondary" : "ghost"}
                     className="w-full justify-start"
-                    onClick={item.action}
+                    onClick={() => handleNavigation(item.tab)}
                   >
                     <item.icon className="mr-2 h-4 w-4" />
                     {item.name}
@@ -142,9 +150,9 @@ export function AdminLayout({ children }: AdminLayoutProps) {
               {navigation.map((item) => (
                 <Button
                   key={item.name}
-                  variant="ghost"
+                  variant={activeTab === item.tab ? "secondary" : "ghost"}
                   className="w-full justify-start"
-                  onClick={item.action}
+                  onClick={() => handleNavigation(item.tab)}
                 >
                   <item.icon className="mr-2 h-4 w-4" />
                   {item.name}

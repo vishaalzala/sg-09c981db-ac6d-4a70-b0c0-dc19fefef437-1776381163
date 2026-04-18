@@ -12,7 +12,6 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
   getDashboardStats, 
   getAllCompanies, 
@@ -40,18 +39,15 @@ import {
   Users, 
   Clock, 
   CreditCard, 
-  DollarSign, 
-  TrendingUp,
   Plus,
-  Settings,
   Shield,
-  FileText,
   Search,
   AlertTriangle,
   Edit,
   Trash2,
   CheckCircle2,
-  XCircle
+  XCircle,
+  FileText
 } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 import Link from "next/link";
@@ -90,6 +86,14 @@ export default function AdminPanel() {
   const [permissionToDelete, setPermissionToDelete] = useState<any>(null);
   const [newPermission, setNewPermission] = useState({ name: "", category: "", description: "" });
 
+  // Initialize tab from URL
+  useEffect(() => {
+    const tabFromUrl = router.query.tab as string;
+    if (tabFromUrl) {
+      setActiveTab(tabFromUrl);
+    }
+  }, [router.query.tab]);
+
   useEffect(() => {
     loadData();
   }, [activeTab]);
@@ -98,6 +102,8 @@ export default function AdminPanel() {
     try {
       setLoading(true);
       setError("");
+
+      console.log("Loading data for tab:", activeTab);
 
       if (activeTab === "dashboard") {
         const dashStats = await getDashboardStats();
@@ -122,7 +128,7 @@ export default function AdminPanel() {
         const permissionsData = await getAllPermissions();
         setRoles(rolesData || []);
         setPermissions(permissionsData || []);
-        if (rolesData && rolesData.length > 0) {
+        if (rolesData && rolesData.length > 0 && !selectedRole) {
           setSelectedRole(rolesData[0]);
           const rolePerms = await getRolePermissions(rolesData[0].id);
           setRolePermissions(rolePerms || []);
@@ -134,6 +140,76 @@ export default function AdminPanel() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) {
+      loadData();
+      return;
+    }
+
+    try {
+      setLoading(true);
+      if (activeTab === "companies") {
+        const results = await searchCompanies(searchQuery);
+        setCompanies(results || []);
+      } else if (activeTab === "users") {
+        const results = await searchUsers(searchQuery);
+        setUsers(results || []);
+      }
+    } catch (err) {
+      console.error("Search error:", err);
+      setError("Search failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSelectRole = async (role: any) => {
+    setSelectedRole(role);
+    try {
+      const rolePerms = await getRolePermissions(role.id);
+      setRolePermissions(rolePerms || []);
+    } catch (err) {
+      console.error("Error loading role permissions:", err);
+    }
+  };
+
+  const handleTogglePermission = async (permissionId: string, currentlyAssigned: boolean) => {
+    if (!selectedRole) return;
+
+    try {
+      setError("");
+      if (currentlyAssigned) {
+        await removePermissionFromRole(selectedRole.id, permissionId);
+        setSuccess("Permission removed");
+      } else {
+        await assignPermissionToRole(selectedRole.id, permissionId);
+        setSuccess("Permission assigned");
+      }
+      
+      const rolePerms = await getRolePermissions(selectedRole.id);
+      setRolePermissions(rolePerms || []);
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update permission");
+    }
+  };
+
+  const isPermissionAssigned = (permissionId: string) => {
+    return rolePermissions.some((rp: any) => rp.permission_id === permissionId);
+  };
+
+  const groupPermissionsByCategory = () => {
+    const grouped: { [key: string]: any[] } = {};
+    permissions.forEach((perm) => {
+      const category = perm.category || "Other";
+      if (!grouped[category]) {
+        grouped[category] = [];
+      }
+      grouped[category].push(perm);
+    });
+    return grouped;
   };
 
   const handleCreateRole = async () => {
@@ -148,7 +224,7 @@ export default function AdminPanel() {
       setSuccess("Role created successfully");
       setCreateRoleOpen(false);
       setNewRole({ name: "", display_name: "", description: "" });
-      await loadData(); // Reload roles
+      await loadData();
       setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create role");
@@ -206,7 +282,7 @@ export default function AdminPanel() {
       setSuccess("Permission created successfully");
       setCreatePermissionOpen(false);
       setNewPermission({ name: "", category: "", description: "" });
-      await loadData(); // Reload permissions
+      await loadData();
       setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create permission");
@@ -249,76 +325,14 @@ export default function AdminPanel() {
     }
   };
 
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) return;
-
-    try {
-      setLoading(true);
-      if (activeTab === "companies") {
-        const results = await searchCompanies(searchQuery);
-        setCompanies(results || []);
-      } else if (activeTab === "users") {
-        const results = await searchUsers(searchQuery);
-        setUsers(results || []);
-      }
-    } catch (err) {
-      console.error("Search error:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSelectRole = async (role: any) => {
-    setSelectedRole(role);
-    try {
-      const rolePerms = await getRolePermissions(role.id);
-      setRolePermissions(rolePerms || []);
-    } catch (err) {
-      console.error("Error loading role permissions:", err);
-    }
-  };
-
-  const handleTogglePermission = async (permissionId: string, currentlyAssigned: boolean) => {
-    if (!selectedRole) return;
-
-    try {
-      setError("");
-      if (currentlyAssigned) {
-        await removePermissionFromRole(selectedRole.id, permissionId);
-        setSuccess("Permission removed");
-      } else {
-        await assignPermissionToRole(selectedRole.id, permissionId);
-        setSuccess("Permission assigned");
-      }
-      
-      // Reload permissions
-      const rolePerms = await getRolePermissions(selectedRole.id);
-      setRolePermissions(rolePerms || []);
-      setTimeout(() => setSuccess(""), 3000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update permission");
-    }
-  };
-
-  const isPermissionAssigned = (permissionId: string) => {
-    return rolePermissions.some((rp: any) => rp.permission_id === permissionId);
-  };
-
-  const groupPermissionsByCategory = () => {
-    const grouped: { [key: string]: any[] } = {};
-    permissions.forEach((perm) => {
-      const category = perm.category || "Other";
-      if (!grouped[category]) {
-        grouped[category] = [];
-      }
-      grouped[category].push(perm);
-    });
-    return grouped;
+  const handleTabChange = (newTab: string) => {
+    setActiveTab(newTab);
+    router.push(`/admin?tab=${newTab}`, undefined, { shallow: true });
   };
 
   return (
     <ProtectedRoute>
-      <AdminLayout>
+      <AdminLayout activeTab={activeTab} onTabChange={handleTabChange}>
         <div className="p-6 space-y-6">
           <div className="flex items-center justify-between">
             <div>
@@ -333,6 +347,7 @@ export default function AdminPanel() {
 
           {error && (
             <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
@@ -344,7 +359,7 @@ export default function AdminPanel() {
             </Alert>
           )}
 
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <Tabs value={activeTab} onValueChange={handleTabChange}>
             <TabsList className="grid w-full grid-cols-7 lg:w-auto">
               <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
               <TabsTrigger value="companies">Companies</TabsTrigger>
@@ -358,10 +373,13 @@ export default function AdminPanel() {
             {/* Dashboard Tab */}
             <TabsContent value="dashboard" className="space-y-6">
               {loading ? (
-                <div className="text-center py-12">Loading dashboard...</div>
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                  <p className="text-muted-foreground">Loading dashboard...</p>
+                </div>
               ) : stats ? (
                 <>
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                     <Card>
                       <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-sm font-medium">Total Companies</CardTitle>
@@ -393,7 +411,7 @@ export default function AdminPanel() {
                       </CardHeader>
                       <CardContent>
                         <div className="text-2xl font-bold">{stats.trialCompanies}</div>
-                        <p className="text-xs text-muted-foreground mt-1">14-day free trials</p>
+                        <p className="text-xs text-muted-foreground mt-1">Free trials</p>
                       </CardContent>
                     </Card>
 
@@ -404,12 +422,12 @@ export default function AdminPanel() {
                       </CardHeader>
                       <CardContent>
                         <div className="text-2xl font-bold">{stats.paidCompanies}</div>
-                        <p className="text-xs text-muted-foreground mt-1">Active subscriptions</p>
+                        <p className="text-xs text-muted-foreground mt-1">Active</p>
                       </CardContent>
                     </Card>
                   </div>
 
-                  {stats.alerts.length > 0 && (
+                  {stats.alerts && stats.alerts.length > 0 && (
                     <Card>
                       <CardHeader>
                         <CardTitle className="flex items-center gap-2">
@@ -418,7 +436,7 @@ export default function AdminPanel() {
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-2">
-                        {stats.alerts.map((alert, idx) => (
+                        {stats.alerts.map((alert: any, idx: number) => (
                           <div key={idx} className="p-3 bg-yellow-50 border border-yellow-200 rounded">
                             <p className="text-sm text-yellow-800">{alert.message}</p>
                           </div>
@@ -434,11 +452,11 @@ export default function AdminPanel() {
                         <CardDescription>Last 7 days</CardDescription>
                       </CardHeader>
                       <CardContent>
-                        {stats.recentSignups.length === 0 ? (
+                        {!stats.recentSignups || stats.recentSignups.length === 0 ? (
                           <p className="text-sm text-muted-foreground">No recent signups</p>
                         ) : (
                           <div className="space-y-2">
-                            {stats.recentSignups.map((company) => (
+                            {stats.recentSignups.map((company: any) => (
                               <div key={company.id} className="flex justify-between items-center">
                                 <span className="text-sm font-medium">{company.name}</span>
                                 <span className="text-xs text-muted-foreground">
@@ -457,11 +475,11 @@ export default function AdminPanel() {
                         <CardDescription>Latest changes</CardDescription>
                       </CardHeader>
                       <CardContent>
-                        {stats.recentChanges.length === 0 ? (
+                        {!stats.recentChanges || stats.recentChanges.length === 0 ? (
                           <p className="text-sm text-muted-foreground">No recent activity</p>
                         ) : (
                           <div className="space-y-2">
-                            {stats.recentChanges.slice(0, 5).map((log) => (
+                            {stats.recentChanges.slice(0, 5).map((log: any) => (
                               <div key={log.id} className="text-sm">
                                 <span className="font-medium">{log.action}</span>
                                 <span className="text-muted-foreground text-xs ml-2">
@@ -475,7 +493,11 @@ export default function AdminPanel() {
                     </Card>
                   </div>
                 </>
-              ) : null}
+              ) : (
+                <div className="text-center py-12 text-muted-foreground">
+                  No dashboard data available
+                </div>
+              )}
             </TabsContent>
 
             {/* Companies Tab */}
@@ -492,6 +514,11 @@ export default function AdminPanel() {
                   <Button variant="outline" onClick={handleSearch}>
                     <Search className="w-4 h-4" />
                   </Button>
+                  {searchQuery && (
+                    <Button variant="ghost" onClick={() => { setSearchQuery(""); loadData(); }}>
+                      Clear
+                    </Button>
+                  )}
                 </div>
                 <Link href="/admin/companies/new">
                   <Button>
@@ -502,18 +529,21 @@ export default function AdminPanel() {
               </div>
 
               {loading ? (
-                <div className="text-center py-12">Loading companies...</div>
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                  <p className="text-muted-foreground">Loading companies...</p>
+                </div>
               ) : (
                 <Card>
                   <CardContent className="p-0">
                     <div className="divide-y">
                       {companies.length === 0 ? (
                         <div className="p-8 text-center text-muted-foreground">
-                          No companies found
+                          {searchQuery ? "No companies found matching your search" : "No companies found"}
                         </div>
                       ) : (
                         companies.map((company) => (
-                          <div key={company.id} className="p-4 hover:bg-muted/50">
+                          <div key={company.id} className="p-4 hover:bg-muted/50 transition-colors">
                             <div className="flex items-center justify-between">
                               <div className="flex-1">
                                 <h3 className="font-semibold">{company.name}</h3>
@@ -524,7 +554,7 @@ export default function AdminPanel() {
                                   </Badge>
                                   {company.subscription && (
                                     <Badge variant="outline">
-                                      {company.subscription.status}
+                                      {company.subscription.status || "No subscription"}
                                     </Badge>
                                   )}
                                 </div>
@@ -558,6 +588,11 @@ export default function AdminPanel() {
                   <Button variant="outline" onClick={handleSearch}>
                     <Search className="w-4 h-4" />
                   </Button>
+                  {searchQuery && (
+                    <Button variant="ghost" onClick={() => { setSearchQuery(""); loadData(); }}>
+                      Clear
+                    </Button>
+                  )}
                 </div>
                 <Link href="/admin/users/new">
                   <Button>
@@ -568,29 +603,33 @@ export default function AdminPanel() {
               </div>
 
               {loading ? (
-                <div className="text-center py-12">Loading users...</div>
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                  <p className="text-muted-foreground">Loading users...</p>
+                </div>
               ) : (
                 <Card>
                   <CardContent className="p-0">
                     <div className="divide-y">
                       {users.length === 0 ? (
                         <div className="p-8 text-center text-muted-foreground">
-                          No users found
+                          {searchQuery ? "No users found matching your search" : "No users found"}
                         </div>
                       ) : (
                         users.map((user) => (
-                          <div key={user.id} className="p-4 hover:bg-muted/50">
+                          <div key={user.id} className="p-4 hover:bg-muted/50 transition-colors">
                             <div className="flex items-center justify-between">
                               <div>
                                 <h3 className="font-semibold">{user.full_name}</h3>
                                 <p className="text-sm text-muted-foreground">{user.email}</p>
-                                <p className="text-xs text-muted-foreground">{user.company?.name}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {user.company?.name || "No company"}
+                                </p>
                               </div>
                               <div className="flex items-center gap-2">
                                 <Badge variant="outline">
-                                  {user.role?.display_name || "No role"}
+                                  {user.role?.display_name || user.role?.name || "No role"}
                                 </Badge>
-                                <Button variant="ghost" size="sm">Edit</Button>
                               </div>
                             </div>
                           </div>
@@ -606,35 +645,40 @@ export default function AdminPanel() {
             <TabsContent value="plans" className="space-y-4">
               <div className="flex justify-between items-center">
                 <h2 className="text-xl font-semibold">Subscription Plans</h2>
-                <Button>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Plan
-                </Button>
               </div>
 
               {loading ? (
-                <div className="text-center py-12">Loading plans...</div>
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                  <p className="text-muted-foreground">Loading plans...</p>
+                </div>
               ) : (
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {plans.map((plan) => (
-                    <Card key={plan.id}>
-                      <CardHeader>
-                        <CardTitle>{plan.name}</CardTitle>
-                        <CardDescription>{plan.description}</CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-2">
-                          <div className="text-2xl font-bold">
-                            ${plan.price_monthly}
-                            <span className="text-sm font-normal text-muted-foreground">/month</span>
+                  {plans.length === 0 ? (
+                    <div className="col-span-full p-8 text-center text-muted-foreground">
+                      No plans found
+                    </div>
+                  ) : (
+                    plans.map((plan) => (
+                      <Card key={plan.id}>
+                        <CardHeader>
+                          <CardTitle>{plan.name}</CardTitle>
+                          <CardDescription>{plan.description}</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-2">
+                            <div className="text-2xl font-bold">
+                              ${plan.price_monthly}
+                              <span className="text-sm font-normal text-muted-foreground">/month</span>
+                            </div>
+                            <Badge variant={plan.is_active ? "default" : "secondary"}>
+                              {plan.is_active ? "Active" : "Inactive"}
+                            </Badge>
                           </div>
-                          <Badge variant={plan.is_active ? "default" : "secondary"}>
-                            {plan.is_active ? "Active" : "Inactive"}
-                          </Badge>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                        </CardContent>
+                      </Card>
+                    ))
+                  )}
                 </div>
               )}
             </TabsContent>
@@ -643,37 +687,42 @@ export default function AdminPanel() {
             <TabsContent value="addons" className="space-y-4">
               <div className="flex justify-between items-center">
                 <h2 className="text-xl font-semibold">Add-ons</h2>
-                <Button>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Add-on
-                </Button>
               </div>
 
               {loading ? (
-                <div className="text-center py-12">Loading add-ons...</div>
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                  <p className="text-muted-foreground">Loading add-ons...</p>
+                </div>
               ) : (
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {addons.map((addon) => (
-                    <Card key={addon.id}>
-                      <CardHeader>
-                        <CardTitle>{addon.display_name || addon.name}</CardTitle>
-                        <CardDescription>{addon.description}</CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-2">
-                          <div className="text-2xl font-bold">
-                            ${addon.price_monthly}
-                            <span className="text-sm font-normal text-muted-foreground">
-                              /{addon.addon_type === 'usage' ? addon.usage_unit : 'month'}
-                            </span>
+                  {addons.length === 0 ? (
+                    <div className="col-span-full p-8 text-center text-muted-foreground">
+                      No add-ons found
+                    </div>
+                  ) : (
+                    addons.map((addon) => (
+                      <Card key={addon.id}>
+                        <CardHeader>
+                          <CardTitle>{addon.display_name || addon.name}</CardTitle>
+                          <CardDescription>{addon.description}</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-2">
+                            <div className="text-2xl font-bold">
+                              ${addon.price_monthly}
+                              <span className="text-sm font-normal text-muted-foreground">
+                                /{addon.addon_type === 'usage' ? addon.usage_unit : 'month'}
+                              </span>
+                            </div>
+                            <Badge variant={addon.is_active ? "default" : "secondary"}>
+                              {addon.is_active ? "Active" : "Inactive"}
+                            </Badge>
                           </div>
-                          <Badge variant={addon.is_active ? "default" : "secondary"}>
-                            {addon.is_active ? "Active" : "Inactive"}
-                          </Badge>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                        </CardContent>
+                      </Card>
+                    ))
+                  )}
                 </div>
               )}
             </TabsContent>
@@ -774,7 +823,10 @@ export default function AdminPanel() {
               </div>
 
               {loading ? (
-                <div className="text-center py-12">Loading roles...</div>
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                  <p className="text-muted-foreground">Loading roles...</p>
+                </div>
               ) : (
                 <div className="grid gap-4 md:grid-cols-3">
                   {/* Left: Role List */}
@@ -784,41 +836,45 @@ export default function AdminPanel() {
                       <CardDescription>Select a role to manage permissions</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-2">
-                      {roles.map((role) => (
-                        <div key={role.id} className="flex items-center gap-2">
-                          <Button
-                            variant={selectedRole?.id === role.id ? "secondary" : "ghost"}
-                            className="flex-1 justify-start"
-                            onClick={() => handleSelectRole(role)}
-                          >
-                            <Shield className="mr-2 h-4 w-4" />
-                            <div className="text-left flex-1">
-                              <div className="font-medium">{role.display_name || role.name}</div>
-                              <div className="text-xs text-muted-foreground truncate">{role.description}</div>
-                            </div>
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => {
-                              setRoleToEdit({ ...role });
-                              setEditRoleOpen(true);
-                            }}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => {
-                              setRoleToDelete(role);
-                              setDeleteRoleOpen(true);
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))}
+                      {roles.length === 0 ? (
+                        <p className="text-sm text-muted-foreground text-center py-4">No roles found</p>
+                      ) : (
+                        roles.map((role) => (
+                          <div key={role.id} className="flex items-center gap-2">
+                            <Button
+                              variant={selectedRole?.id === role.id ? "secondary" : "ghost"}
+                              className="flex-1 justify-start"
+                              onClick={() => handleSelectRole(role)}
+                            >
+                              <Shield className="mr-2 h-4 w-4" />
+                              <div className="text-left flex-1">
+                                <div className="font-medium">{role.display_name || role.name}</div>
+                                <div className="text-xs text-muted-foreground truncate">{role.description}</div>
+                              </div>
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setRoleToEdit({ ...role });
+                                setEditRoleOpen(true);
+                              }}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setRoleToDelete(role);
+                                setDeleteRoleOpen(true);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))
+                      )}
                     </CardContent>
                   </Card>
 
@@ -837,6 +893,10 @@ export default function AdminPanel() {
                         <div className="text-center py-12 text-muted-foreground">
                           Select a role to manage permissions
                         </div>
+                      ) : permissions.length === 0 ? (
+                        <div className="text-center py-12 text-muted-foreground">
+                          No permissions found
+                        </div>
                       ) : (
                         <div className="space-y-6">
                           {Object.entries(groupPermissionsByCategory()).map(([category, perms]) => (
@@ -848,12 +908,12 @@ export default function AdminPanel() {
                                   return (
                                     <div
                                       key={permission.id}
-                                      className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer"
+                                      className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
                                       onClick={() => handleTogglePermission(permission.id, assigned)}
                                     >
                                       <Checkbox
                                         checked={assigned}
-                                        onCheckedChange={(checked) => handleTogglePermission(permission.id, assigned)}
+                                        onCheckedChange={() => handleTogglePermission(permission.id, assigned)}
                                       />
                                       <div className="flex-1">
                                         <div className="font-medium text-sm">{permission.name}</div>
@@ -897,7 +957,10 @@ export default function AdminPanel() {
               <h2 className="text-xl font-semibold">Audit Logs</h2>
 
               {loading ? (
-                <div className="text-center py-12">Loading audit logs...</div>
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                  <p className="text-muted-foreground">Loading audit logs...</p>
+                </div>
               ) : (
                 <Card>
                   <CardContent className="p-0">
@@ -908,7 +971,7 @@ export default function AdminPanel() {
                         </div>
                       ) : (
                         auditLogs.map((log) => (
-                          <div key={log.id} className="p-4 hover:bg-muted/50">
+                          <div key={log.id} className="p-4 hover:bg-muted/50 transition-colors">
                             <div className="flex items-start justify-between">
                               <div className="flex-1">
                                 <div className="flex items-center gap-2">
