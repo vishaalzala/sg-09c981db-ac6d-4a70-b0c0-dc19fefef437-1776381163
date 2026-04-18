@@ -1,98 +1,92 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import { requireSuperAdmin } from "./_auth";
+import { createClient } from "@supabase/supabase-js";
+import { verifyAdmin } from "./_auth";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  // Verify admin access
+  const adminCheck = await verifyAdmin(req);
+  if (!adminCheck.authorized) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  const { email, password, fullName, companyId, roleId } = req.body;
+
+  if (!email || !password || !fullName || !companyId || !roleId) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
 
   try {
-    await requireSuperAdmin(req);
-    const supabaseAdmin = getSupabaseAdmin();
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      }
+    );
 
-    const { email, password, role, companyId, fullName } = req.body as {
-      email?: string;
-      password?: string;
-      role?: string;
-      companyId?: string | null;
-      fullName?: string;
-    };
-
-    if (!email || !password || !role) {
-      return res.status(400).json({ error: "Missing required fields" });
-    }
-
-    const { data: created, error: createError } = await supabaseAdmin.auth.admin.createUser({
+    // 1. Create auth user
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
       user_metadata: {
-        full_name: fullName ?? null,
-        role,
-        company_id: companyId ?? null,
-      },
+        full_name: fullName
+      }
     });
 
-    if (createError || !created.user) {
-      console.error("Admin createUser error:", createError);
-      return res.status(400).json({ error: createError?.message ?? "Failed to create user" });
-    }
+    if (authError) throw authError;
+    if (!authData.user) throw new Error("User creation failed");
 
-    const userId = created.user.id;
+    // 2. Get role name
+    const { data: role } = await supabaseAdmin
+      .from("roles")
+      .select("name")
+      .eq("id", roleId)
+      .single();
 
-    const { error: profileError } = await supabaseAdmin.from("profiles").upsert(
-      {
-        id: userId,
+    // 3. Create profile
+    const { error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .insert({
+        id: authData.user.id,
+        role: role?.name || "staff",
+        full_name: fullName
+      });
+
+    if (profileError) throw profileError;
+
+    // 4. Create users record
+    const { error: usersError } = await supabaseAdmin
+      .from("users")
+      .insert({
+        id: authData.user.id,
+        company_id: companyId,
         email,
-        full_name: fullName ?? null,
-        role,
-        company_id: companyId ?? null,
-      } as any,
-      { onConflict: "id" }
-    );
+        full_name: fullName,
+        role_id: roleId
+      });
 
-    if (profileError) {
-      console.error("Admin profile upsert error:", profileError);
-      return res.status(500).json({ error: "User created but profile link failed" });
-    }
-
-    const { error: userRowError } = await supabaseAdmin.from("users").upsert(
-      {
-        id: userId,
-        email,
-        full_name: fullName ?? null,
-        role,
-        company_id: companyId ?? null,
-      } as any,
-      { onConflict: "id" }
-    );
-
-    if (userRowError) {
-      console.error("Admin users upsert error:", userRowError);
-      return res.status(500).json({ error: "User created but users table link failed" });
-    }
+    if (usersError) throw usersError;
 
     return res.status(200).json({
-      user: {
-        id: userId,
-        email,
-        role,
-        companyId: companyId ?? null,
-      },
+      success: true,
+      userId: authData.user.id
     });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : "Unknown error";
 
-    const status =
-      message === "MISSING_TOKEN"
-        ? 401
-        : message === "INVALID_TOKEN"
-          ? 401
-          : message === "NOT_SUPER_ADMIN"
-            ? 403
-            : message.includes("SUPABASE_SERVICE_ROLE_KEY")
-              ? 500
-              : 500;
-
-    return res.status(status).json({ error: message });
+  } catch (error) {
+    console.error("Create user error:", error);
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : "Failed to create user"
+    });
   }
 }

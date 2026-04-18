@@ -1,44 +1,58 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getSupabaseAdmin, isServiceRoleConfigured } from "@/lib/supabaseAdmin";
+import { createClient } from "@supabase/supabase-js";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+// Check if super admin exists
 
-  const serviceRoleConfigured = isServiceRoleConfigured();
-  if (!serviceRoleConfigured) {
-    return res.status(200).json({
-      hasSuperAdmin: false,
-      serviceRoleConfigured: false,
-    });
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  if (req.method !== "GET") {
+    return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
-    const supabaseAdmin = getSupabaseAdmin();
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      }
+    );
 
-    const { data, error } = await supabaseAdmin
-      .from("profiles")
+    // Check for super admin role
+    const { data: superAdminRole } = await supabaseAdmin
+      .from("roles")
       .select("id")
-      .eq("role", "super_admin")
-      .limit(1);
+      .eq("name", "super_admin")
+      .single();
 
-    if (error) {
-      console.error("bootstrap-status query error:", error);
+    if (!superAdminRole) {
       return res.status(200).json({
-        hasSuperAdmin: false,
-        serviceRoleConfigured: true,
+        roleExists: false,
+        superAdminExists: false
       });
     }
 
+    // Check for any users with super admin role
+    const { data: superAdmins } = await supabaseAdmin
+      .from("users")
+      .select("id, email")
+      .eq("role_id", superAdminRole.id);
+
     return res.status(200).json({
-      hasSuperAdmin: (data ?? []).length > 0,
-      serviceRoleConfigured: true,
+      roleExists: true,
+      superAdminExists: (superAdmins && superAdmins.length > 0),
+      count: superAdmins?.length || 0
     });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : "Unknown error";
-    return res.status(200).json({
-      hasSuperAdmin: false,
-      serviceRoleConfigured,
-      error: message,
+
+  } catch (error) {
+    console.error("Status check error:", error);
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : "Failed to check status"
     });
   }
 }

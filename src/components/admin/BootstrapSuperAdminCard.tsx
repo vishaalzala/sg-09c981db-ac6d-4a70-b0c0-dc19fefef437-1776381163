@@ -1,143 +1,159 @@
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-
-interface BootstrapStatus {
-  hasSuperAdmin: boolean;
-  serviceRoleConfigured: boolean;
-}
-
-async function getAccessToken(): Promise<string> {
-  const { data, error } = await supabase.auth.getSession();
-  if (error) throw error;
-  const token = data.session?.access_token;
-  if (!token) throw new Error("NOT_AUTHENTICATED");
-  return token;
-}
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Shield, AlertCircle, CheckCircle2 } from "lucide-react";
 
 export function BootstrapSuperAdminCard() {
-  const { toast } = useToast();
-  const [status, setStatus] = useState<BootstrapStatus | null>(null);
-  const [loadingStatus, setLoadingStatus] = useState(true);
-
+  const [status, setStatus] = useState<{
+    roleExists: boolean;
+    superAdminExists: boolean;
+    count: number;
+  } | null>(null);
+  const [email, setEmail] = useState("vishaalzala@gmail.com");
+  const [password, setPassword] = useState("");
   const [bootstrapToken, setBootstrapToken] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   useEffect(() => {
-    let cancelled = false;
-    setLoadingStatus(true);
-
-    fetch("/api/admin/bootstrap-status")
-      .then(async (res) => (await res.json()) as BootstrapStatus)
-      .then((data) => {
-        if (cancelled) return;
-        setStatus(data);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setStatus({ hasSuperAdmin: true, serviceRoleConfigured: false });
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setLoadingStatus(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
+    checkStatus();
   }, []);
 
-  const onBootstrap = async () => {
-    if (!bootstrapToken.trim()) {
-      toast({ title: "Bootstrap token", description: "Enter the bootstrap token", variant: "destructive" });
-      return;
-    }
-
-    setSubmitting(true);
+  const checkStatus = async () => {
     try {
-      const token = await getAccessToken();
-      const res = await fetch("/api/admin/bootstrap-super-admin", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ bootstrapToken }),
-      });
-
-      const json = (await res.json()) as { ok?: boolean; error?: string };
-      if (!res.ok) {
-        throw new Error(json.error ?? "Bootstrap failed");
-      }
-
-      toast({
-        title: "Super Admin enabled",
-        description: "You can now access /admin and create users.",
-      });
-
-      window.location.reload();
-    } catch (e) {
-      const message = e instanceof Error ? e.message : "Bootstrap failed";
-      toast({ title: "Bootstrap failed", description: message, variant: "destructive" });
-    } finally {
-      setSubmitting(false);
+      const res = await fetch("/api/admin/bootstrap-status");
+      const data = await res.json();
+      setStatus(data);
+    } catch (err) {
+      console.error("Status check failed:", err);
     }
   };
 
-  if (loadingStatus || !status) {
+  const handleBootstrap = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+    setLoading(true);
+
+    try {
+      const res = await fetch("/api/admin/bootstrap-super-admin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, bootstrapToken })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Bootstrap failed");
+      }
+
+      setSuccess("Super admin created successfully!");
+      setPassword("");
+      setBootstrapToken("");
+      checkStatus();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Bootstrap failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!status) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle>Admin bootstrap</CardTitle>
-          <CardDescription>Checking system status…</CardDescription>
-        </CardHeader>
+        <CardContent className="p-6">
+          <p className="text-sm text-muted-foreground">Checking status...</p>
+        </CardContent>
       </Card>
     );
   }
 
-  if (!status.serviceRoleConfigured) {
+  if (status.superAdminExists) {
     return (
-      <Card>
+      <Card className="border-green-500">
         <CardHeader>
-          <CardTitle>Admin bootstrap unavailable</CardTitle>
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="h-5 w-5 text-green-600" />
+            <CardTitle>Super Admin Configured</CardTitle>
+          </div>
           <CardDescription>
-            Server is missing SUPABASE_SERVICE_ROLE_KEY, so Admin user creation + demo seeding cannot run.
+            {status.count} super admin account(s) exist
           </CardDescription>
         </CardHeader>
       </Card>
     );
   }
 
-  if (status.hasSuperAdmin) {
-    return null;
-  }
-
   return (
-    <Card className="border-warning/50">
+    <Card className="border-amber-500">
       <CardHeader>
-        <CardTitle>Bootstrap first Super Admin</CardTitle>
+        <div className="flex items-center gap-2">
+          <Shield className="h-5 w-5 text-amber-600" />
+          <CardTitle>Bootstrap Super Admin</CardTitle>
+        </div>
         <CardDescription>
-          No Super Admin exists yet. Enter the one-time bootstrap token to promote your current account.
+          Create the initial super admin account
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="space-y-2">
-          <Label htmlFor="bootstrap-token">Bootstrap token</Label>
-          <Input
-            id="bootstrap-token"
-            value={bootstrapToken}
-            onChange={(e) => setBootstrapToken(e.target.value)}
-            placeholder="Paste token from Vercel env var ADMIN_BOOTSTRAP_TOKEN"
-            disabled={submitting}
-          />
-        </div>
-        <Button onClick={onBootstrap} disabled={submitting}>
-          {submitting ? "Enabling…" : "Make me Super Admin"}
-        </Button>
+      <CardContent>
+        {error && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {success && (
+          <Alert className="mb-4 border-green-500 bg-green-50">
+            <CheckCircle2 className="h-4 w-4 text-green-600" />
+            <AlertDescription className="text-green-800">{success}</AlertDescription>
+          </Alert>
+        )}
+
+        <form onSubmit={handleBootstrap} className="space-y-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Email</label>
+            <Input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Password</label>
+            <Input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={6}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Bootstrap Token</label>
+            <Input
+              type="password"
+              placeholder="From .env.local"
+              value={bootstrapToken}
+              onChange={(e) => setBootstrapToken(e.target.value)}
+              required
+            />
+            <p className="text-xs text-muted-foreground">
+              Use ADMIN_BOOTSTRAP_TOKEN from your .env.local file
+            </p>
+          </div>
+
+          <Button type="submit" disabled={loading} className="w-full">
+            {loading ? "Creating..." : "Create Super Admin"}
+          </Button>
+        </form>
       </CardContent>
     </Card>
   );
