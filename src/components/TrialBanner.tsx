@@ -39,8 +39,8 @@ export function TrialBanner() {
         .eq("company_id", userData.company_id)
         .single();
 
-      if (subscription && subscription.status === "trial_active" && subscription.trial_end) {
-        const trialEnd = new Date(subscription.trial_end);
+      if (subscription && subscription.status === "trial_active" && subscription.trial_ends_at) {
+        const trialEnd = new Date(subscription.trial_ends_at);
         const now = new Date();
         const daysRemaining = Math.ceil((trialEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 

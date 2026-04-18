@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { Tables } from "@/integrations/supabase/types";
+import type { Tables, Database } from "@/integrations/supabase/types";
 
 export interface DashboardStats {
   totalCompanies: number;
@@ -206,7 +206,9 @@ export async function getAllPlans() {
   return data;
 }
 
-export async function createPlan(planData: Partial<Tables<"subscription_plans">>) {
+type PlanInsert = Database["public"]["Tables"]["subscription_plans"]["Insert"];
+
+export async function createPlan(planData: PlanInsert) {
   const { data, error } = await supabase
     .from("subscription_plans")
     .insert(planData)
@@ -284,7 +286,9 @@ export async function getAllAddons() {
   return data;
 }
 
-export async function createAddon(addonData: Partial<Tables<"addon_catalog">>) {
+type AddonInsert = Database["public"]["Tables"]["addon_catalog"]["Insert"];
+
+export async function createAddon(addonData: AddonInsert) {
   const { data, error } = await supabase
     .from("addon_catalog")
     .insert(addonData)

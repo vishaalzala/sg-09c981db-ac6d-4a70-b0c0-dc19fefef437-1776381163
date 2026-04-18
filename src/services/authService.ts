@@ -278,8 +278,7 @@ export async function signUp(data: SignupData): Promise<SignupResult> {
           company_id: company.id,
           plan_id: trialPlan.id,
           status: "trial_active",
-          trial_start: trialStart.toISOString(),
-          trial_end: trialEnd.toISOString(),
+          trial_ends_at: trialEnd.toISOString(),
           current_period_start: trialStart.toISOString(),
           current_period_end: trialEnd.toISOString()
         });

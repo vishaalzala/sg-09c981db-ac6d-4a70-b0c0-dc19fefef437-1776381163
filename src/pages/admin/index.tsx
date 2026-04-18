@@ -320,14 +320,14 @@ export default function AdminPanel() {
                 {addons.map((addon) => (
                   <Card key={addon.id}>
                     <CardHeader>
-                      <CardTitle>{addon.name}</CardTitle>
+                      <CardTitle>{addon.display_name || addon.name}</CardTitle>
                       <CardDescription>{addon.description}</CardDescription>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-2">
                         <div className="text-2xl font-bold">
-                          ${addon.price}
-                          <span className="text-sm font-normal text-muted-foreground">/{addon.billing_type}</span>
+                          ${addon.price_monthly}
+                          <span className="text-sm font-normal text-muted-foreground">/{addon.addon_type === 'usage' ? addon.usage_unit : 'month'}</span>
                         </div>
                         <Badge variant={addon.is_active ? "default" : "secondary"}>
                           {addon.is_active ? "Active" : "Inactive"}
