@@ -1,139 +1,133 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import { requireSuperAdmin } from "./_auth";
+import { createClient } from "@supabase/supabase-js";
 
-type SeedResult = {
-  key: string;
-  email: string;
-  userId: string | null;
-  status: "created" | "updated" | "failed";
-  error?: string;
-};
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  }
+);
 
-type AdminListUser = { id: string; email?: string | null };
-
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
 
   try {
-    await requireSuperAdmin(req);
-    const supabaseAdmin = getSupabaseAdmin();
-
-    const password = "Demo123!";
-
-    const { data: demoCompany, error: demoCompanyError } = await supabaseAdmin
+    // Get demo company
+    const { data: demoCompany } = await supabaseAdmin
       .from("companies")
       .select("id")
       .eq("name", "Demo Workshop NZ")
-      .maybeSingle();
+      .single();
 
-    if (demoCompanyError) {
-      console.error("Seed demo users: demo company lookup error:", demoCompanyError);
-      return res.status(500).json({ error: "Failed to find demo company" });
+    if (!demoCompany) {
+      return res.status(404).json({ error: "Demo company not found" });
     }
 
-    const demoCompanyId = demoCompany?.id ?? null;
+    // Get roles
+    const { data: ownerRole } = await supabaseAdmin
+      .from("roles")
+      .select("id")
+      .eq("name", "owner")
+      .single();
 
-    const usersToSeed: Array<{
-      key: string;
-      email: string;
-      role: string;
-      fullName: string;
-      companyId: string | null;
-    }> = [
-      { key: "super_admin", email: "admin@demo.com", role: "super_admin", fullName: "Demo Super Admin", companyId: null },
-      { key: "owner", email: "owner@demo.com", role: "owner", fullName: "Demo Owner", companyId: demoCompanyId },
-      { key: "staff", email: "staff@demo.com", role: "staff", fullName: "Demo Staff", companyId: demoCompanyId },
-      { key: "inspector", email: "inspector@demo.com", role: "inspector", fullName: "Demo Inspector", companyId: demoCompanyId },
+    const { data: staffRole } = await supabaseAdmin
+      .from("roles")
+      .select("id")
+      .eq("name", "staff")
+      .single();
+
+    const { data: inspectorRole } = await supabaseAdmin
+      .from("roles")
+      .select("id")
+      .eq("name", "inspector")
+      .single();
+
+    const demoUsers = [
+      {
+        email: "owner@demo.com",
+        password: "demo123",
+        full_name: "Demo Owner",
+        role_id: ownerRole?.id,
+        role_name: "owner"
+      },
+      {
+        email: "staff@demo.com",
+        password: "demo123",
+        full_name: "Demo Staff",
+        role_id: staffRole?.id,
+        role_name: "staff"
+      },
+      {
+        email: "inspector@demo.com",
+        password: "demo123",
+        full_name: "Demo Inspector",
+        role_id: inspectorRole?.id,
+        role_name: "inspector"
+      }
     ];
 
-    const results: SeedResult[] = [];
+    const createdUsers = [];
 
-    for (const u of usersToSeed) {
-      try {
-        const { data: existing, error: listError } = await supabaseAdmin.auth.admin.listUsers({
-          page: 1,
-          perPage: 200,
-        });
-
-        if (listError) {
-          results.push({ key: u.key, email: u.email, userId: null, status: "failed", error: listError.message });
-          continue;
+    for (const user of demoUsers) {
+      // Create auth user
+      const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email: user.email,
+        password: user.password,
+        email_confirm: true,
+        user_metadata: {
+          full_name: user.full_name
         }
+      });
 
-        const list = ((existing as unknown as { users?: AdminListUser[] })?.users ?? []) as AdminListUser[];
-        const match = list.find((x) => (x.email ?? "").toLowerCase() === u.email.toLowerCase()) ?? null;
+      if (authError) {
+        console.error(`Failed to create ${user.email}:`, authError);
+        continue;
+      }
 
-        let userId: string;
-
-        if (match) {
-          userId = match.id;
-
-          const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
-            password,
-            email_confirm: true,
-            user_metadata: {
-              full_name: u.fullName,
-              role: u.role,
-              company_id: u.companyId,
-            },
+      if (authUser.user) {
+        // Create profile
+        await supabaseAdmin
+          .from("profiles")
+          .insert({
+            id: authUser.user.id,
+            role: user.role_name,
+            full_name: user.full_name
           });
 
-          if (updateError) {
-            results.push({ key: u.key, email: u.email, userId, status: "failed", error: updateError.message });
-            continue;
-          }
-
-          await supabaseAdmin.from("profiles").upsert(
-            { id: userId, email: u.email, full_name: u.fullName, role: u.role, company_id: u.companyId } as any,
-            { onConflict: "id" }
-          );
-          await supabaseAdmin.from("users").upsert(
-            { id: userId, email: u.email, full_name: u.fullName, role: u.role, company_id: u.companyId } as any,
-            { onConflict: "id" }
-          );
-
-          results.push({ key: u.key, email: u.email, userId, status: "updated" });
-        } else {
-          const { data: created, error: createError } = await supabaseAdmin.auth.admin.createUser({
-            email: u.email,
-            password,
-            email_confirm: true,
-            user_metadata: {
-              full_name: u.fullName,
-              role: u.role,
-              company_id: u.companyId,
-            },
+        // Create users record
+        await supabaseAdmin
+          .from("users")
+          .insert({
+            id: authUser.user.id,
+            company_id: demoCompany.id,
+            email: user.email,
+            full_name: user.full_name,
+            role_id: user.role_id
           });
 
-          if (createError || !created.user) {
-            results.push({ key: u.key, email: u.email, userId: null, status: "failed", error: createError?.message ?? "createUser failed" });
-            continue;
-          }
-
-          userId = created.user.id;
-
-          await supabaseAdmin.from("profiles").upsert(
-            { id: userId, email: u.email, full_name: u.fullName, role: u.role, company_id: u.companyId } as any,
-            { onConflict: "id" }
-          );
-          await supabaseAdmin.from("users").upsert(
-            { id: userId, email: u.email, full_name: u.fullName, role: u.role, company_id: u.companyId } as any,
-            { onConflict: "id" }
-          );
-
-          results.push({ key: u.key, email: u.email, userId, status: "created" });
-        }
-      } catch (e) {
-        const message = e instanceof Error ? e.message : "Unknown error";
-        results.push({ key: u.key, email: u.email, userId: null, status: "failed", error: message });
+        createdUsers.push(user.email);
       }
     }
 
-    return res.status(200).json({ password, demoCompanyId, results });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : "Unknown error";
-    const status = message === "NOT_SUPER_ADMIN" ? 403 : message === "MISSING_TOKEN" ? 401 : 500;
-    return res.status(status).json({ error: message });
+    return res.status(200).json({
+      success: true,
+      message: `Created ${createdUsers.length} demo users: ${createdUsers.join(", ")}`,
+      users: createdUsers
+    });
+
+  } catch (error) {
+    console.error("Error seeding demo users:", error);
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : "Failed to seed demo users"
+    });
   }
 }

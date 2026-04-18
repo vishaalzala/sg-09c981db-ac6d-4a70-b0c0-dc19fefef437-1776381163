@@ -1,449 +1,392 @@
 import { useState, useEffect } from "react";
-import { AdminLayout } from "@/components/AdminLayout";
-import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
-import { 
-  Building2, Users, DollarSign, TrendingUp, 
-  Shield, Settings, BarChart3, Activity,
-  Plus, Edit, Eye, AlertTriangle
-} from "lucide-react";
-import { companyService } from "@/services/companyService";
-import { billingService } from "@/services/billingService";
-import { LoadingSpinner } from "@/components/LoadingSpinner";
-import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
 import { useRouter } from "next/router";
-import { useToast } from "@/hooks/use-toast";
-import { CreateUserDialog } from "@/components/admin/CreateUserDialog";
-import { SeedDemoUsersButton } from "@/components/admin/SeedDemoUsersButton";
-import { BootstrapSuperAdminCard } from "@/components/admin/BootstrapSuperAdminCard";
+import { AdminLayout } from "@/components/AdminLayout";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { 
+  getDashboardStats, 
+  getAllCompanies, 
+  getAllUsers, 
+  getAllPlans,
+  getAllAddons,
+  getAuditLogs,
+  createCompany,
+  assignPlanToCompany,
+  assignAddonToCompany,
+  removeAddonFromCompany,
+  type DashboardStats 
+} from "@/services/adminService";
+import { 
+  Building2, 
+  Users, 
+  Clock, 
+  CreditCard, 
+  DollarSign, 
+  TrendingUp,
+  Plus,
+  Settings,
+  Shield,
+  FileText
+} from "lucide-react";
+import type { Tables } from "@/integrations/supabase/types";
 
-export default function SuperAdminPanel() {
-  const [companies, setCompanies] = useState<any[]>([]);
-  const [plans, setPlans] = useState<any[]>([]);
-  const [addons, setAddons] = useState<any[]>([]);
-  const [usageStats, setUsageStats] = useState<any[]>([]);
-  const [revenue, setRevenue] = useState({ monthly: 0, annual: 0 });
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [adminChecking, setAdminChecking] = useState(true);
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+export default function AdminPanel() {
   const router = useRouter();
-  const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState("dashboard");
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [companies, setCompanies] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
+  const [plans, setPlans] = useState<Tables<"subscription_plans">[]>([]);
+  const [addons, setAddons] = useState<Tables<"addon_catalog">[]>([]);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     loadData();
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const checkAdmin = async () => {
-      try {
-        const { data: auth } = await supabase.auth.getUser();
-        if (!auth.user) {
-          if (!cancelled) setAdminChecking(false);
-          return;
-        }
-
-        const { data: profile, error } = await supabase.from("profiles").select("role").eq("id", auth.user.id).maybeSingle();
-        if (error) {
-          console.error("Admin role check error:", error);
-          return;
-        }
-
-        const allowed = !!profile && profile.role === "super_admin";
-        if (!cancelled) setIsSuperAdmin(allowed);
-
-        if (!allowed) {
-          return;
-        }
-      } finally {
-        if (!cancelled) setAdminChecking(false);
-      }
-    };
-
-    checkAdmin();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [router, toast]);
+  }, [activeTab]);
 
   const loadData = async () => {
-    setLoading(true);
-    
-    // Load companies, plans, addons (simplified)
-    setCompanies([
-      { id: "1", name: "Auckland AutoTech", plan: "Pro", users: 12, mrr: 299, status: "active" },
-      { id: "2", name: "Wellington Motors", plan: "Growth", users: 8, mrr: 149, status: "active" },
-      { id: "3", name: "Christchurch Garage", plan: "Starter", users: 3, mrr: 49, status: "trial" },
-    ]);
+    try {
+      setLoading(true);
+      setError("");
 
-    setPlans([
-      { id: "starter", name: "Starter", price: 49, interval: "month", companies: 15 },
-      { id: "growth", name: "Growth", price: 149, interval: "month", companies: 42 },
-      { id: "pro", name: "Pro", price: 299, interval: "month", companies: 28 },
-    ]);
-
-    const catalog = await billingService.getAddonCatalog();
-    setAddons(catalog);
-
-    setRevenue({ monthly: 12450, annual: 149400 });
-    
-    setLoading(false);
+      if (activeTab === "dashboard") {
+        const dashStats = await getDashboardStats();
+        setStats(dashStats);
+      } else if (activeTab === "companies") {
+        const companiesData = await getAllCompanies();
+        setCompanies(companiesData || []);
+      } else if (activeTab === "users") {
+        const usersData = await getAllUsers();
+        setUsers(usersData || []);
+      } else if (activeTab === "plans") {
+        const plansData = await getAllPlans();
+        setPlans(plansData || []);
+      } else if (activeTab === "addons") {
+        const addonsData = await getAllAddons();
+        setAddons(addonsData || []);
+      } else if (activeTab === "audit") {
+        const logsData = await getAuditLogs(50);
+        setAuditLogs(logsData || []);
+      }
+    } catch (err) {
+      console.error("Error loading admin data:", err);
+      setError(err instanceof Error ? err.message : "Failed to load data");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  if (adminChecking || loading) {
-    return <LoadingSpinner />;
-  }
-
-  if (!isSuperAdmin) {
-    return (
-      <ProtectedRoute>
-        <AdminLayout userName="Admin">
-          <div className="space-y-6">
-            <div>
-              <h1 className="text-3xl font-heading font-bold flex items-center gap-2">
-                <Shield className="h-8 w-8 text-primary" />
-                Super Admin Panel
-              </h1>
-              <p className="text-muted-foreground mt-1">Access requires Super Admin role.</p>
-            </div>
-
-            <BootstrapSuperAdminCard />
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Access denied</CardTitle>
-                <CardDescription>
-                  Your account is not a Super Admin. If a Super Admin already exists, ask them to grant you access.
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          </div>
-        </AdminLayout>
-      </ProtectedRoute>
-    );
-  }
-
-  const filteredCompanies = companies.filter(c => 
-    c.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const totalMRR = companies.reduce((sum, c) => sum + c.mrr, 0);
-  const totalUsers = companies.reduce((sum, c) => sum + c.users, 0);
-  const activeCompanies = companies.filter(c => c.status === "active").length;
-
   return (
-    <ProtectedRoute>
-      <AdminLayout userName="Super Admin">
-        <div className="space-y-6">
-          {/* Header */}
+    <AdminLayout>
+      <div className="p-6 space-y-6">
+        <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-heading font-bold flex items-center gap-2">
-              <Shield className="h-8 w-8 text-primary" />
-              Super Admin Panel
-            </h1>
-            <p className="text-muted-foreground mt-1">Manage all companies, pricing, and platform usage</p>
+            <h1 className="text-3xl font-bold">Platform Administration</h1>
+            <p className="text-muted-foreground">Manage companies, users, plans, and platform settings</p>
           </div>
+          <Badge variant="outline" className="px-3 py-1">
+            <Shield className="w-3 h-3 mr-1" />
+            Super Admin
+          </Badge>
+        </div>
 
-          {/* Stats */}
-          <div className="grid md:grid-cols-4 gap-4">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Total Companies</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between">
-                  <p className="text-3xl font-bold">{companies.length}</p>
-                  <Building2 className="h-8 w-8 text-primary opacity-50" />
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">{activeCompanies} active subscriptions</p>
-              </CardContent>
-            </Card>
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
 
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Monthly Recurring Revenue</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between">
-                  <p className="text-3xl font-bold">${totalMRR.toLocaleString()}</p>
-                  <DollarSign className="h-8 w-8 text-success opacity-50" />
-                </div>
-                <p className="text-xs text-success mt-2">+12% from last month</p>
-              </CardContent>
-            </Card>
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="grid w-full grid-cols-6 lg:w-auto">
+            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+            <TabsTrigger value="companies">Companies</TabsTrigger>
+            <TabsTrigger value="users">Users</TabsTrigger>
+            <TabsTrigger value="plans">Plans</TabsTrigger>
+            <TabsTrigger value="addons">Add-ons</TabsTrigger>
+            <TabsTrigger value="audit">Audit Logs</TabsTrigger>
+          </TabsList>
 
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Total Users</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between">
-                  <p className="text-3xl font-bold">{totalUsers}</p>
-                  <Users className="h-8 w-8 text-accent opacity-50" />
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">Across all companies</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Add-on Revenue</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between">
-                  <p className="text-3xl font-bold">$2,450</p>
-                  <TrendingUp className="h-8 w-8 text-warning opacity-50" />
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">WOF + CARJAM usage</p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Tabs */}
-          <Tabs defaultValue="companies" className="space-y-6">
-            <TabsList>
-              <TabsTrigger value="companies">Companies</TabsTrigger>
-              <TabsTrigger value="plans">Subscription Plans</TabsTrigger>
-              <TabsTrigger value="addons">Add-ons</TabsTrigger>
-              <TabsTrigger value="usage">Usage Analytics</TabsTrigger>
-              <TabsTrigger value="audit">Audit Logs</TabsTrigger>
-            </TabsList>
-
-            {/* Companies Tab */}
-            <TabsContent value="companies">
-              <Card>
-                <CardHeader>
-                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                    <div>
-                      <CardTitle>Company Management</CardTitle>
-                      <CardDescription>Manage workshop accounts and subscriptions</CardDescription>
-                    </div>
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-                      <SeedDemoUsersButton />
-                      <CreateUserDialog triggerLabel="Create user" />
-                    </div>
-                  </div>
-                  <div className="mt-4">
-                    <Input
-                      placeholder="Search companies..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="max-w-sm"
-                    />
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Company</TableHead>
-                        <TableHead>Plan</TableHead>
-                        <TableHead>Users</TableHead>
-                        <TableHead>MRR</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredCompanies.map((company) => (
-                        <TableRow key={company.id}>
-                          <TableCell className="font-medium">{company.name}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{company.plan}</Badge>
-                          </TableCell>
-                          <TableCell>{company.users}</TableCell>
-                          <TableCell>${company.mrr}</TableCell>
-                          <TableCell>
-                            <Badge className={cn(
-                              company.status === "active" && "bg-success",
-                              company.status === "trial" && "bg-warning"
-                            )}>
-                              {company.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right space-x-2">
-                            <Button size="sm" variant="ghost">
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            <Button size="sm" variant="ghost">
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button size="sm" variant="ghost">
-                              <Settings className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            {/* Plans Tab */}
-            <TabsContent value="plans">
-              <div className="grid md:grid-cols-3 gap-6">
-                {plans.map((plan) => (
-                  <Card key={plan.id}>
-                    <CardHeader>
-                      <CardTitle>{plan.name}</CardTitle>
-                      <CardDescription>{plan.companies} companies subscribed</CardDescription>
+          {/* Dashboard Tab */}
+          <TabsContent value="dashboard" className="space-y-6">
+            {loading ? (
+              <div className="text-center py-12">Loading dashboard...</div>
+            ) : stats ? (
+              <>
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                      <CardTitle className="text-sm font-medium">Total Companies</CardTitle>
+                      <Building2 className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div>
-                        <p className="text-3xl font-bold">${plan.price}</p>
-                        <p className="text-sm text-muted-foreground">per {plan.interval}</p>
-                      </div>
-                      <div className="space-y-2">
-                        <Button className="w-full" variant="outline">
-                          <Edit className="h-4 w-4 mr-2" />
-                          Edit Pricing
-                        </Button>
-                        <Button className="w-full" variant="outline">
-                          <Settings className="h-4 w-4 mr-2" />
-                          Configure Features
-                        </Button>
-                      </div>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{stats.totalCompanies}</div>
+                      <p className="text-xs text-muted-foreground mt-1">Active companies</p>
                     </CardContent>
                   </Card>
-                ))}
-              </div>
-            </TabsContent>
 
-            {/* Add-ons Tab */}
-            <TabsContent value="addons">
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                      <CardTitle className="text-sm font-medium">Total Users</CardTitle>
+                      <Users className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{stats.totalUsers}</div>
+                      <p className="text-xs text-muted-foreground mt-1">Platform users</p>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                      <CardTitle className="text-sm font-medium">Active Trials</CardTitle>
+                      <Clock className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{stats.activeTrials}</div>
+                      <p className="text-xs text-muted-foreground mt-1">14-day free trials</p>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                      <CardTitle className="text-sm font-medium">Paid Subscriptions</CardTitle>
+                      <CreditCard className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{stats.paidSubscriptions}</div>
+                      <p className="text-xs text-muted-foreground mt-1">Active subscriptions</p>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                      <CardTitle className="text-sm font-medium">Monthly Revenue</CardTitle>
+                      <DollarSign className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">${stats.monthlyRevenue.toFixed(2)}</div>
+                      <p className="text-xs text-muted-foreground mt-1">NZD per month</p>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                      <CardTitle className="text-sm font-medium">Conversion Rate</CardTitle>
+                      <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{stats.trialConversionRate.toFixed(1)}%</div>
+                      <p className="text-xs text-muted-foreground mt-1">Trial to paid</p>
+                    </CardContent>
+                  </Card>
+                </div>
+              </>
+            ) : null}
+          </TabsContent>
+
+          {/* Companies Tab */}
+          <TabsContent value="companies" className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-semibold">Companies</h2>
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Company
+              </Button>
+            </div>
+
+            {loading ? (
+              <div className="text-center py-12">Loading companies...</div>
+            ) : (
               <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle>Add-on Catalog</CardTitle>
-                      <CardDescription>Manage paid add-ons and pricing</CardDescription>
-                    </div>
-                    <Button>
-                      <Plus className="h-4 w-4 mr-2" />
-                      New Add-on
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {addons.map((addon) => (
-                      <div key={addon.id} className="flex items-center justify-between p-4 border rounded-lg">
-                        <div className="flex-1">
-                          <p className="font-semibold">{addon.name}</p>
-                          <p className="text-sm text-muted-foreground">{addon.description}</p>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <div className="text-right">
-                            <p className="font-medium">${addon.price}</p>
-                            <p className="text-xs text-muted-foreground">{addon.billing_interval}</p>
+                <CardContent className="p-0">
+                  <div className="divide-y">
+                    {companies.map((company) => (
+                      <div key={company.id} className="p-4 hover:bg-muted/50">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h3 className="font-semibold">{company.name}</h3>
+                            <p className="text-sm text-muted-foreground">{company.email}</p>
                           </div>
-                          <Badge className={addon.is_active ? "bg-success" : "bg-muted"}>
-                            {addon.is_active ? "Active" : "Inactive"}
-                          </Badge>
-                          <Button size="sm" variant="outline">
-                            <Edit className="h-4 w-4" />
-                          </Button>
+                          <div className="flex items-center gap-2">
+                            <Badge variant={company.subscription?.status === "active" ? "default" : "secondary"}>
+                              {company.subscription?.status || "No subscription"}
+                            </Badge>
+                            <Button variant="ghost" size="sm">View</Button>
+                          </div>
                         </div>
                       </div>
                     ))}
                   </div>
                 </CardContent>
               </Card>
-            </TabsContent>
+            )}
+          </TabsContent>
 
-            {/* Usage Analytics Tab */}
-            <TabsContent value="usage">
+          {/* Users Tab */}
+          <TabsContent value="users" className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-semibold">Users</h2>
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                Add User
+              </Button>
+            </div>
+
+            {loading ? (
+              <div className="text-center py-12">Loading users...</div>
+            ) : (
               <Card>
-                <CardHeader>
-                  <CardTitle>Platform Usage Analytics</CardTitle>
-                  <CardDescription>Track feature adoption and usage-based billing</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid md:grid-cols-2 gap-6">
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between p-4 border rounded-lg">
-                        <div>
-                          <p className="font-medium">CARJAM Lookups</p>
-                          <p className="text-sm text-muted-foreground">This month</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-2xl font-bold">1,247</p>
-                          <p className="text-xs text-success">+18% vs last month</p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between p-4 border rounded-lg">
-                        <div>
-                          <p className="font-medium">WOF Inspections</p>
-                          <p className="text-sm text-muted-foreground">This month</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-2xl font-bold">843</p>
-                          <p className="text-xs text-success">+12% vs last month</p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between p-4 border rounded-lg">
-                        <div>
-                          <p className="font-medium">Marketing Campaigns</p>
-                          <p className="text-sm text-muted-foreground">Active</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-2xl font-bold">42</p>
-                          <p className="text-xs text-muted-foreground">15 companies</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-4">
-                      <div className="p-4 border rounded-lg">
-                        <p className="font-medium mb-4">Top Add-on Revenue</p>
-                        <div className="space-y-3">
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm">WOF Compliance</span>
-                            <span className="font-medium">$1,890</span>
+                <CardContent className="p-0">
+                  <div className="divide-y">
+                    {users.map((user) => (
+                      <div key={user.id} className="p-4 hover:bg-muted/50">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h3 className="font-semibold">{user.full_name}</h3>
+                            <p className="text-sm text-muted-foreground">{user.email}</p>
+                            <p className="text-xs text-muted-foreground">{user.company?.name}</p>
                           </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm">CARJAM Usage</span>
-                            <span className="font-medium">$560</span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm">Marketing</span>
-                            <span className="font-medium">$420</span>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline">
+                              {user.role?.display_name || "No role"}
+                            </Badge>
+                            <Button variant="ghost" size="sm">Edit</Button>
                           </div>
                         </div>
                       </div>
-                    </div>
+                    ))}
                   </div>
                 </CardContent>
               </Card>
-            </TabsContent>
+            )}
+          </TabsContent>
 
-            {/* Audit Logs Tab */}
-            <TabsContent value="audit">
+          {/* Plans Tab */}
+          <TabsContent value="plans" className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-semibold">Subscription Plans</h2>
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Plan
+              </Button>
+            </div>
+
+            {loading ? (
+              <div className="text-center py-12">Loading plans...</div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {plans.map((plan) => (
+                  <Card key={plan.id}>
+                    <CardHeader>
+                      <CardTitle>{plan.name}</CardTitle>
+                      <CardDescription>{plan.description}</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        <div className="text-2xl font-bold">
+                          ${plan.price_monthly}
+                          <span className="text-sm font-normal text-muted-foreground">/month</span>
+                        </div>
+                        <Badge variant={plan.is_active ? "default" : "secondary"}>
+                          {plan.is_active ? "Active" : "Inactive"}
+                        </Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          {/* Add-ons Tab */}
+          <TabsContent value="addons" className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-semibold">Add-ons</h2>
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Add-on
+              </Button>
+            </div>
+
+            {loading ? (
+              <div className="text-center py-12">Loading add-ons...</div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {addons.map((addon) => (
+                  <Card key={addon.id}>
+                    <CardHeader>
+                      <CardTitle>{addon.name}</CardTitle>
+                      <CardDescription>{addon.description}</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        <div className="text-2xl font-bold">
+                          ${addon.price}
+                          <span className="text-sm font-normal text-muted-foreground">/{addon.billing_type}</span>
+                        </div>
+                        <Badge variant={addon.is_active ? "default" : "secondary"}>
+                          {addon.is_active ? "Active" : "Inactive"}
+                        </Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          {/* Audit Logs Tab */}
+          <TabsContent value="audit" className="space-y-4">
+            <h2 className="text-xl font-semibold">Audit Logs</h2>
+
+            {loading ? (
+              <div className="text-center py-12">Loading audit logs...</div>
+            ) : (
               <Card>
-                <CardHeader>
-                  <CardTitle>System Audit Logs</CardTitle>
-                  <CardDescription>Track all admin actions and system events</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-center text-muted-foreground py-8">Audit log viewer would go here</p>
+                <CardContent className="p-0">
+                  <div className="divide-y">
+                    {auditLogs.length === 0 ? (
+                      <div className="p-8 text-center text-muted-foreground">
+                        No audit logs found
+                      </div>
+                    ) : (
+                      auditLogs.map((log) => (
+                        <div key={log.id} className="p-4 hover:bg-muted/50">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <FileText className="w-4 h-4 text-muted-foreground" />
+                                <span className="font-medium">{log.action}</span>
+                                <Badge variant="outline" className="text-xs">{log.entity_type}</Badge>
+                              </div>
+                              <p className="text-sm text-muted-foreground mt-1">
+                                By {log.user?.full_name || "System"} • {log.company?.name || "Platform"}
+                              </p>
+                              {log.metadata && (
+                                <pre className="text-xs mt-2 p-2 bg-muted rounded">
+                                  {JSON.stringify(log.metadata, null, 2)}
+                                </pre>
+                              )}
+                            </div>
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(log.created_at).toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </CardContent>
               </Card>
-            </TabsContent>
-          </Tabs>
-        </div>
-      </AdminLayout>
-    </ProtectedRoute>
+            )}
+          </TabsContent>
+        </Tabs>
+      </div>
+    </AdminLayout>
   );
 }
