@@ -64,6 +64,10 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     router.push("/login");
   };
 
+  const navigateToCompanies = () => {
+    router.push("/admin");
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -77,15 +81,15 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   }
 
   const navigation = [
-    { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
-    { name: "Companies", href: "/admin/companies", icon: Building2 },
-    { name: "Users", href: "/admin/users", icon: Users },
-    { name: "Plans & Billing", href: "/admin/plans", icon: CreditCard },
-    { name: "Add-ons", href: "/admin/addons", icon: Package },
-    { name: "Roles & Permissions", href: "/admin/roles", icon: Shield },
-    { name: "Audit Logs", href: "/admin/audit", icon: FileText },
-    { name: "Reports", href: "/admin/reports", icon: BarChart3 },
-    { name: "Settings", href: "/admin/settings", icon: Settings },
+    { name: "Dashboard", href: "/admin", icon: LayoutDashboard, action: () => router.push("/admin") },
+    { name: "Companies", href: "/admin", icon: Building2, action: navigateToCompanies },
+    { name: "Users", href: "/admin", icon: Users, action: () => router.push("/admin") },
+    { name: "Plans & Billing", href: "/admin", icon: CreditCard, action: () => router.push("/admin") },
+    { name: "Add-ons", href: "/admin", icon: Package, action: () => router.push("/admin") },
+    { name: "Roles & Permissions", href: "/admin", icon: Shield, action: () => router.push("/admin") },
+    { name: "Audit Logs", href: "/admin", icon: FileText, action: () => router.push("/admin") },
+    { name: "Reports", href: "/admin", icon: BarChart3, action: () => router.push("/admin") },
+    { name: "Settings", href: "/admin", icon: Settings, action: () => router.push("/admin") },
   ];
 
   return (
@@ -110,15 +114,15 @@ export function AdminLayout({ children }: AdminLayoutProps) {
               </div>
               <nav className="space-y-1">
                 {navigation.map((item) => (
-                  <Link key={item.name} href={item.href}>
-                    <Button
-                      variant={router.pathname === item.href ? "secondary" : "ghost"}
-                      className="w-full justify-start"
-                    >
-                      <item.icon className="mr-2 h-4 w-4" />
-                      {item.name}
-                    </Button>
-                  </Link>
+                  <Button
+                    key={item.name}
+                    variant="ghost"
+                    className="w-full justify-start"
+                    onClick={item.action}
+                  >
+                    <item.icon className="mr-2 h-4 w-4" />
+                    {item.name}
+                  </Button>
                 ))}
               </nav>
             </div>
@@ -136,15 +140,15 @@ export function AdminLayout({ children }: AdminLayoutProps) {
           <div className="flex-1 flex flex-col overflow-y-auto">
             <nav className="flex-1 px-3 py-4 space-y-1">
               {navigation.map((item) => (
-                <Link key={item.name} href={item.href}>
-                  <Button
-                    variant={router.pathname === item.href ? "secondary" : "ghost"}
-                    className="w-full justify-start"
-                  >
-                    <item.icon className="mr-2 h-4 w-4" />
-                    {item.name}
-                  </Button>
-                </Link>
+                <Button
+                  key={item.name}
+                  variant="ghost"
+                  className="w-full justify-start"
+                  onClick={item.action}
+                >
+                  <item.icon className="mr-2 h-4 w-4" />
+                  {item.name}
+                </Button>
               ))}
             </nav>
             <div className="p-3 border-t">
