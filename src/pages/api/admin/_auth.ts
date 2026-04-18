@@ -1,41 +1,58 @@
-import type { NextApiRequest } from "next";
 import { createClient } from "@supabase/supabase-js";
+import type { NextApiRequest } from "next";
 
-export async function verifyAdmin(req: NextApiRequest) {
+export async function verifyAdminAuth(req: NextApiRequest) {
   try {
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    
+    if (!authHeader?.startsWith("Bearer ")) {
       return { authorized: false, user: null };
     }
 
-    const token = authHeader.replace("Bearer ", "");
+    const token = authHeader.substring(7);
+    
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
-
-    // Verify token
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-    if (error || !user) {
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error("Missing Supabase environment variables");
       return { authorized: false, user: null };
     }
 
-    // Check if user is super admin
-    const { data: userData } = await supabase
-      .from("users")
-      .select("role_id, roles(name)")
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Verify JWT token
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+
+    if (userError || !user) {
+      console.error("Auth verification failed:", userError);
+      return { authorized: false, user: null };
+    }
+
+    // Fetch role from profiles table ONLY (source of truth for authorization)
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("role")
       .eq("id", user.id)
       .single();
 
-    const roles = userData?.roles as any;
-    const isSuperAdmin = roles && (Array.isArray(roles) ? roles[0]?.name === "super_admin" : roles.name === "super_admin");
+    if (profileError || !profile) {
+      console.error("Profile fetch failed:", profileError);
+      return { authorized: false, user: null };
+    }
 
-    return {
-      authorized: isSuperAdmin,
-      user: isSuperAdmin ? user : null
-    };
+    // Authorize only super_admin role
+    const isSuperAdmin = profile.role === "super_admin";
+
+    if (!isSuperAdmin) {
+      console.error("User is not super admin:", profile.role);
+      return { authorized: false, user: null };
+    }
+
+    return { authorized: true, user };
+
   } catch (error) {
+    console.error("Admin auth error:", error);
     return { authorized: false, user: null };
   }
 }

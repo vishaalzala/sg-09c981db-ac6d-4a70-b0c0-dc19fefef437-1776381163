@@ -1,131 +1,147 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-);
-
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
-    // Get demo company
-    const { data: demoCompany } = await supabaseAdmin
-      .from("companies")
-      .select("id")
-      .eq("name", "Demo Workshop NZ")
-      .single();
+    const { companyId } = req.body;
 
-    if (!demoCompany) {
-      return res.status(404).json({ error: "Demo company not found" });
+    if (!companyId) {
+      return res.status(400).json({ error: "Company ID required" });
     }
 
-    // Get roles
-    const { data: ownerRole } = await supabaseAdmin
-      .from("roles")
-      .select("id")
-      .eq("name", "owner")
-      .single();
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    const { data: staffRole } = await supabaseAdmin
-      .from("roles")
-      .select("id")
-      .eq("name", "staff")
-      .single();
+    if (!supabaseUrl || !supabaseServiceKey) {
+      throw new Error("Missing Supabase configuration");
+    }
 
-    const { data: inspectorRole } = await supabaseAdmin
-      .from("roles")
-      .select("id")
-      .eq("name", "inspector")
-      .single();
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
+    console.log("Seeding demo users for company:", companyId);
+
+    // Demo users with role strings (NO roles table dependency)
     const demoUsers = [
       {
         email: "owner@demo.com",
-        password: "demo123",
+        password: "Demo123!",
         full_name: "Demo Owner",
-        role_id: ownerRole?.id,
-        role_name: "owner"
+        role: "owner"
       },
       {
-        email: "staff@demo.com",
-        password: "demo123",
-        full_name: "Demo Staff",
-        role_id: staffRole?.id,
-        role_name: "staff"
+        email: "manager@demo.com",
+        password: "Demo123!",
+        full_name: "Demo Manager",
+        role: "branch_manager"
+      },
+      {
+        email: "advisor@demo.com",
+        password: "Demo123!",
+        full_name: "Demo Service Advisor",
+        role: "service_advisor"
+      },
+      {
+        email: "tech@demo.com",
+        password: "Demo123!",
+        full_name: "Demo Technician",
+        role: "technician"
       },
       {
         email: "inspector@demo.com",
-        password: "demo123",
-        full_name: "Demo Inspector",
-        role_id: inspectorRole?.id,
-        role_name: "inspector"
+        password: "Demo123!",
+        full_name: "Demo WOF Inspector",
+        role: "wof_inspector"
+      },
+      {
+        email: "parts@demo.com",
+        password: "Demo123!",
+        full_name: "Demo Parts Manager",
+        role: "parts_manager"
       }
     ];
 
     const createdUsers = [];
 
     for (const user of demoUsers) {
-      // Create auth user
-      const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
-        email: user.email,
-        password: user.password,
-        email_confirm: true,
-        user_metadata: {
-          full_name: user.full_name
+      try {
+        console.log(`Creating demo user: ${user.email} with role: ${user.role}`);
+
+        // 1. Create auth user
+        const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+          email: user.email,
+          password: user.password,
+          email_confirm: true,
+          user_metadata: {
+            full_name: user.full_name
+          }
+        });
+
+        if (authError) {
+          console.error(`Failed to create auth user ${user.email}:`, authError);
+          continue;
         }
-      });
 
-      if (authError) {
-        console.error(`Failed to create ${user.email}:`, authError);
-        continue;
-      }
+        if (!authData.user) {
+          console.error(`No user returned for ${user.email}`);
+          continue;
+        }
 
-      if (authUser.user) {
-        // Create profile
-        await supabaseAdmin
+        // 2. Create profile with role string (NO role_id dependency)
+        const { error: profileError } = await supabaseAdmin
           .from("profiles")
           .insert({
-            id: authUser.user.id,
-            role: user.role_name,
+            id: authData.user.id,
+            role: user.role,
+            full_name: user.full_name,
+            email: user.email
+          });
+
+        if (profileError) {
+          console.error(`Failed to create profile for ${user.email}:`, profileError);
+          continue;
+        }
+
+        // 3. Create users record with company_id (NO role_id dependency)
+        const { error: userError } = await supabaseAdmin
+          .from("users")
+          .insert({
+            id: authData.user.id,
+            company_id: companyId,
+            email: user.email,
             full_name: user.full_name
           });
 
-        // Create users record
-        await supabaseAdmin
-          .from("users")
-          .insert({
-            id: authUser.user.id,
-            company_id: demoCompany.id,
-            email: user.email,
-            full_name: user.full_name,
-            role_id: user.role_id
-          });
+        if (userError) {
+          console.error(`Failed to create user record for ${user.email}:`, userError);
+          continue;
+        }
 
-        createdUsers.push(user.email);
+        console.log(`Successfully created demo user: ${user.email}`);
+        createdUsers.push({
+          email: user.email,
+          role: user.role,
+          userId: authData.user.id
+        });
+
+      } catch (err) {
+        console.error(`Error creating user ${user.email}:`, err);
       }
     }
 
+    console.log(`Demo users seeded: ${createdUsers.length}/${demoUsers.length}`);
+
     return res.status(200).json({
       success: true,
-      message: `Created ${createdUsers.length} demo users: ${createdUsers.join(", ")}`,
+      message: `Successfully created ${createdUsers.length} demo users`,
       users: createdUsers
     });
 
   } catch (error) {
-    console.error("Error seeding demo users:", error);
+    console.error("Seed demo users error:", error);
     return res.status(500).json({
       error: error instanceof Error ? error.message : "Failed to seed demo users"
     });

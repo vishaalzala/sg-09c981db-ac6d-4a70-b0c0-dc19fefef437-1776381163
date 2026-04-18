@@ -1,40 +1,93 @@
 import { useState } from "react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Plus, AlertCircle } from "lucide-react";
+import { UserPlus, AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
 
 interface CreateUserDialogProps {
-  companies: Array<{ id: string; name: string }>;
-  roles: Array<{ id: string; name: string; display_name: string }>;
-  onUserCreated: () => void;
+  companyId: string;
+  onUserCreated?: () => void;
 }
 
-export function CreateUserDialog({ companies, roles, onUserCreated }: CreateUserDialogProps) {
+export function CreateUserDialog({ companyId, onUserCreated }: CreateUserDialogProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
   const [formData, setFormData] = useState({
     email: "",
-    full_name: "",
     password: "",
-    company_id: "",
-    role_id: ""
+    fullName: "",
+    role: "" // Changed from roleId to role string
   });
+
+  // Available roles as strings (NO roles table dependency)
+  const availableRoles = [
+    { value: "owner", label: "Owner" },
+    { value: "branch_manager", label: "Branch Manager" },
+    { value: "service_advisor", label: "Service Advisor" },
+    { value: "technician", label: "Technician" },
+    { value: "wof_inspector", label: "WOF Inspector" },
+    { value: "parts_manager", label: "Parts Manager" },
+    { value: "reception", label: "Reception" },
+    { value: "accountant", label: "Accountant" }
+  ];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
     setLoading(true);
+    setError("");
+    setSuccess(false);
 
     try {
-      // This would call an admin API endpoint or Edge Function
-      // For now, show that it's not yet implemented
-      setError("User creation via UI requires Edge Function implementation. Please use Supabase Dashboard Auth section to create users, then link them via the database.");
+      if (!formData.role) {
+        throw new Error("Please select a role");
+      }
+
+      console.log("Creating user:", { ...formData, companyId });
+
+      const response = await fetch("/api/admin/create-user", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+          fullName: formData.fullName,
+          companyId,
+          role: formData.role // Send role string instead of roleId
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to create user");
+      }
+
+      console.log("User created:", data.userId);
+      setSuccess(true);
+      setFormData({
+        email: "",
+        password: "",
+        fullName: "",
+        role: ""
+      });
+
+      setTimeout(() => {
+        setSuccess(false);
+        setOpen(false);
+        if (onUserCreated) {
+          onUserCreated();
+        }
+      }, 2000);
+
     } catch (err) {
+      console.error("Create user error:", err);
       setError(err instanceof Error ? err.message : "Failed to create user");
     } finally {
       setLoading(false);
@@ -45,96 +98,101 @@ export function CreateUserDialog({ companies, roles, onUserCreated }: CreateUser
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button>
-          <Plus className="w-4 h-4 mr-2" />
-          Add User
+          <UserPlus className="w-4 h-4 mr-2" />
+          Create User
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Create New User</DialogTitle>
           <DialogDescription>
-            Add a new user to a company with specific role
+            Add a new user to this company
           </DialogDescription>
         </DialogHeader>
 
+        {success && (
+          <Alert className="border-green-500 bg-green-50">
+            <CheckCircle2 className="h-4 w-4 text-green-600" />
+            <AlertDescription className="text-green-800">
+              User created successfully!
+            </AlertDescription>
+          </Alert>
+        )}
+
         {error && (
           <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
+            <AlertTriangle className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label>Full Name</Label>
+            <Label htmlFor="fullName">Full Name *</Label>
             <Input
-              value={formData.full_name}
-              onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+              id="fullName"
+              value={formData.fullName}
+              onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
               required
+              disabled={loading}
             />
           </div>
 
           <div className="space-y-2">
-            <Label>Email</Label>
+            <Label htmlFor="email">Email *</Label>
             <Input
+              id="email"
               type="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               required
+              disabled={loading}
             />
           </div>
 
           <div className="space-y-2">
-            <Label>Password</Label>
+            <Label htmlFor="password">Password *</Label>
             <Input
+              id="password"
               type="password"
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              placeholder="Min 6 characters"
               required
+              minLength={8}
+              disabled={loading}
             />
           </div>
 
           <div className="space-y-2">
-            <Label>Company</Label>
-            <Select value={formData.company_id} onValueChange={(value) => setFormData({ ...formData, company_id: value })}>
+            <Label htmlFor="role">Role *</Label>
+            <Select
+              value={formData.role}
+              onValueChange={(value) => setFormData({ ...formData, role: value })}
+              disabled={loading}
+            >
               <SelectTrigger>
-                <SelectValue placeholder="Select company" />
+                <SelectValue placeholder="Select a role" />
               </SelectTrigger>
               <SelectContent>
-                {companies.map((company) => (
-                  <SelectItem key={company.id} value={company.id}>
-                    {company.name}
+                {availableRoles.map((role) => (
+                  <SelectItem key={role.value} value={role.value}>
+                    {role.label}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
-          <div className="space-y-2">
-            <Label>Role</Label>
-            <Select value={formData.role_id} onValueChange={(value) => setFormData({ ...formData, role_id: value })}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select role" />
-              </SelectTrigger>
-              <SelectContent>
-                {roles.map((role) => (
-                  <SelectItem key={role.id} value={role.id}>
-                    {role.display_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? "Creating..." : "Create User"}
-            </Button>
-          </div>
+          <Button type="submit" className="w-full" disabled={loading}>
+            {loading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Creating User...
+              </>
+            ) : (
+              "Create User"
+            )}
+          </Button>
         </form>
       </DialogContent>
     </Dialog>

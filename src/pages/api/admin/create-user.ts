@@ -1,38 +1,39 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createClient } from "@supabase/supabase-js";
-import { verifyAdmin } from "./_auth";
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // Verify admin access
-  const adminCheck = await verifyAdmin(req);
-  if (!adminCheck.authorized) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-
-  const { email, password, fullName, companyId, roleId } = req.body;
-
-  if (!email || !password || !fullName || !companyId || !roleId) {
-    return res.status(400).json({ error: "Missing required fields" });
-  }
-
   try {
-    const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false
-        }
-      }
-    );
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !supabaseServiceKey) {
+      throw new Error("Missing Supabase configuration");
+    }
+
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+    // NEW PAYLOAD FORMAT: role string instead of roleId
+    const { email, password, fullName, companyId, role } = req.body;
+
+    // Validation
+    if (!email || !password || !fullName || !companyId || !role) {
+      return res.status(400).json({ 
+        error: "Missing required fields: email, password, fullName, companyId, role" 
+      });
+    }
+
+    // Validate role is a string
+    if (typeof role !== "string") {
+      return res.status(400).json({ 
+        error: "Role must be a string (e.g., 'owner', 'admin', 'staff')" 
+      });
+    }
+
+    console.log("Creating user:", { email, fullName, companyId, role });
 
     // 1. Create auth user
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
@@ -44,43 +45,55 @@ export default async function handler(
       }
     });
 
-    if (authError) throw authError;
-    if (!authData.user) throw new Error("User creation failed");
+    if (authError) {
+      console.error("Auth user creation error:", authError);
+      throw new Error(`Failed to create auth user: ${authError.message}`);
+    }
 
-    // 2. Get role name
-    const { data: role } = await supabaseAdmin
-      .from("roles")
-      .select("name")
-      .eq("id", roleId)
-      .single();
+    if (!authData.user) {
+      throw new Error("No user returned from auth creation");
+    }
 
-    // 3. Create profile
+    console.log("Auth user created:", authData.user.id);
+
+    // 2. Create profile with role string (NO role_id dependency)
     const { error: profileError } = await supabaseAdmin
       .from("profiles")
       .insert({
         id: authData.user.id,
-        role: role?.name || "staff",
-        full_name: fullName
+        role,
+        full_name: fullName,
+        email
       });
 
-    if (profileError) throw profileError;
+    if (profileError) {
+      console.error("Profile creation error:", profileError);
+      throw new Error(`Failed to create profile: ${profileError.message}`);
+    }
 
-    // 4. Create users record
-    const { error: usersError } = await supabaseAdmin
+    console.log("Profile created with role:", role);
+
+    // 3. Create users record with company_id (NO role_id dependency)
+    const { error: userError } = await supabaseAdmin
       .from("users")
       .insert({
         id: authData.user.id,
         company_id: companyId,
         email,
-        full_name: fullName,
-        role_id: roleId
+        full_name: fullName
       });
 
-    if (usersError) throw usersError;
+    if (userError) {
+      console.error("User record creation error:", userError);
+      throw new Error(`Failed to create user record: ${userError.message}`);
+    }
+
+    console.log("User record created");
 
     return res.status(200).json({
       success: true,
-      userId: authData.user.id
+      userId: authData.user.id,
+      message: "User created successfully"
     });
 
   } catch (error) {

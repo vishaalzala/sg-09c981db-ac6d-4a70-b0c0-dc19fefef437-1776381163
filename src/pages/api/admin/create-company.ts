@@ -7,21 +7,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Verify environment variables exist
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl) {
-      console.error("Missing NEXT_PUBLIC_SUPABASE_URL");
       throw new Error("Server configuration error: Missing Supabase URL");
     }
 
     if (!supabaseServiceKey) {
-      console.error("Missing SUPABASE_SERVICE_ROLE_KEY");
       throw new Error("Server configuration error: Missing Supabase service key");
     }
 
-    // Create Supabase client with service role key
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: {
         autoRefreshToken: false,
@@ -31,7 +27,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const { company, owner, subscription, addons, branch } = req.body;
 
-    console.log("Creating company:", { company, owner: { email: owner.email }, subscription, addons, branch });
+    console.log("Creating company:", { 
+      company: company.name, 
+      owner: owner.email, 
+      subscription: subscription.status 
+    });
 
     // 1. Create company
     const { data: companyData, error: companyError } = await supabase
@@ -48,7 +48,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (companyError) {
       console.error("Company creation error:", companyError);
-      throw companyError;
+      throw new Error(`Failed to create company: ${companyError.message}`);
     }
 
     console.log("Company created:", companyData.id);
@@ -65,25 +65,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (authError) {
       console.error("Auth user creation error:", authError);
-      throw authError;
+      throw new Error(`Failed to create owner account: ${authError.message}`);
     }
+    
     if (!authData.user) {
-      console.error("Auth user creation failed - no user returned");
       throw new Error("Failed to create auth user");
     }
 
     console.log("Auth user created:", authData.user.id);
 
-    // 3. Get owner role
-    const { data: ownerRole } = await supabase
-      .from("roles")
-      .select("id")
-      .eq("name", "owner")
-      .single();
-
-    console.log("Owner role:", ownerRole?.id);
-
-    // 4. Create profile
+    // 3. Create profile with role = "owner" (NO role_id dependency)
     const { error: profileError } = await supabase
       .from("profiles")
       .insert({
@@ -95,30 +86,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (profileError) {
       console.error("Profile creation error:", profileError);
-      throw profileError;
+      throw new Error(`Failed to create profile: ${profileError.message}`);
     }
 
-    console.log("Profile created");
+    console.log("Profile created with owner role");
 
-    // 5. Create users record
+    // 4. Create users record with company_id (NO role_id dependency)
     const { error: usersError } = await supabase
       .from("users")
       .insert({
         id: authData.user.id,
         company_id: companyData.id,
         email: owner.email,
-        full_name: owner.full_name,
-        role_id: ownerRole?.id
+        full_name: owner.full_name
       });
 
     if (usersError) {
       console.error("Users record creation error:", usersError);
-      throw usersError;
+      throw new Error(`Failed to create user record: ${usersError.message}`);
     }
 
     console.log("Users record created");
 
-    // 6. Get plan
+    // 5. Get plan
     const { data: plan } = await supabase
       .from("subscription_plans")
       .select("id")
@@ -127,7 +117,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     console.log("Plan found:", plan?.id);
 
-    // 7. Create subscription
+    // 6. Create subscription
     if (plan) {
       const trialStart = new Date();
       const trialEnd = new Date();
@@ -152,13 +142,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       if (subError) {
         console.error("Subscription creation error:", subError);
-        throw subError;
+        throw new Error(`Failed to create subscription: ${subError.message}`);
       }
 
       console.log("Subscription created");
     }
 
-    // 8. Assign add-ons
+    // 7. Assign add-ons (optional)
     if (addons && addons.length > 0) {
       const { data: addonsCatalog } = await supabase
         .from("addon_catalog")
@@ -178,14 +168,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         if (addonsError) {
           console.error("Add-ons assignment error:", addonsError);
-          // Don't throw - add-ons are optional
         } else {
           console.log("Add-ons assigned:", addonsCatalog.length);
         }
       }
     }
 
-    // 9. Create branch if requested
+    // 8. Create branch (optional)
     if (branch && branch.name) {
       const { error: branchError } = await supabase
         .from("branches")
@@ -201,7 +190,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       if (branchError) {
         console.error("Branch creation error:", branchError);
-        // Don't throw - branch is optional
       } else {
         console.log("Branch created");
       }

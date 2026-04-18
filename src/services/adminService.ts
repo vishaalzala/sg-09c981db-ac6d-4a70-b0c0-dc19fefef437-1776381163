@@ -1,110 +1,53 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { Tables, Database } from "@/integrations/supabase/types";
+import type { Tables } from "@/integrations/supabase/types";
 
 export interface DashboardStats {
   totalCompanies: number;
   activeCompanies: number;
   inactiveCompanies: number;
+  totalUsers: number;
   trialCompanies: number;
   paidCompanies: number;
-  totalUsers: number;
+  alerts: any[];
   recentSignups: any[];
   recentChanges: any[];
-  alerts: any[];
 }
-
-export interface CompanyWithDetails extends Tables<"companies"> {
-  subscription?: Tables<"company_subscriptions"> & {
-    plan?: Tables<"subscription_plans">;
-  };
-  users?: Tables<"users">[];
-  addons?: (Tables<"company_addons"> & {
-    addon?: Tables<"addon_catalog">;
-  })[];
-  branches?: Tables<"branches">[];
-}
-
-// ============================================
-// DASHBOARD STATISTICS
-// ============================================
 
 export async function getDashboardStats(): Promise<DashboardStats> {
-  // Total companies
-  const { count: totalCompanies } = await supabase
-    .from("companies")
-    .select("*", { count: "exact", head: true });
+  const [companiesResult, usersResult, subscriptionsResult, auditResult] = await Promise.all([
+    supabase.from("companies").select("id, is_active, created_at"),
+    supabase.from("users").select("id"),
+    supabase.from("company_subscriptions").select("company_id, status"),
+    supabase.from("audit_logs").select("*").order("created_at", { ascending: false }).limit(5)
+  ]);
 
-  // Active companies
-  const { count: activeCompanies } = await supabase
-    .from("companies")
-    .select("*", { count: "exact", head: true })
-    .eq("is_active", true);
+  const companies = companiesResult.data || [];
+  const users = usersResult.data || [];
+  const subscriptions = subscriptionsResult.data || [];
 
-  // Inactive companies
-  const { count: inactiveCompanies } = await supabase
-    .from("companies")
-    .select("*", { count: "exact", head: true })
-    .eq("is_active", false);
+  const activeCompanies = companies.filter(c => c.is_active).length;
+  const trialCompanies = subscriptions.filter(s => s.status === "trial_active").length;
+  const paidCompanies = subscriptions.filter(s => s.status === "active").length;
 
-  // Trial companies
-  const { count: trialCompanies } = await supabase
-    .from("company_subscriptions")
-    .select("*", { count: "exact", head: true })
-    .eq("status", "trial_active");
-
-  // Paid companies
-  const { count: paidCompanies } = await supabase
-    .from("company_subscriptions")
-    .select("*", { count: "exact", head: true })
-    .eq("status", "active");
-
-  // Total users
-  const { count: totalUsers } = await supabase
-    .from("users")
-    .select("*", { count: "exact", head: true });
-
-  // Recent signups (last 7 days)
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-  
-  const { data: recentSignups } = await supabase
-    .from("companies")
-    .select("*, users(*)")
-    .gte("created_at", sevenDaysAgo.toISOString())
-    .order("created_at", { ascending: false })
-    .limit(5);
-
-  // Recent company changes (audit logs)
-  const { data: recentChanges } = await supabase
-    .from("audit_logs")
-    .select("*, user:users(full_name), company:companies(name)")
-    .order("created_at", { ascending: false })
-    .limit(10);
-
-  // Alerts (trial expiring soon)
-  const threeDaysFromNow = new Date();
-  threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
-  
-  const { data: expiringTrials } = await supabase
-    .from("company_subscriptions")
-    .select("*, company:companies(name)")
-    .eq("status", "trial_active")
-    .lte("trial_ends_at", threeDaysFromNow.toISOString());
+  const recentSignups = companies
+    .filter(c => {
+      const createdDate = new Date(c.created_at);
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      return createdDate > weekAgo;
+    })
+    .slice(0, 5);
 
   return {
-    totalCompanies: totalCompanies || 0,
-    activeCompanies: activeCompanies || 0,
-    inactiveCompanies: inactiveCompanies || 0,
-    trialCompanies: trialCompanies || 0,
-    paidCompanies: paidCompanies || 0,
-    totalUsers: totalUsers || 0,
-    recentSignups: recentSignups || [],
-    recentChanges: recentChanges || [],
-    alerts: expiringTrials?.map(t => ({
-      type: "trial_expiring",
-      message: `Trial expiring soon for ${t.company?.name}`,
-      data: t
-    })) || []
+    totalCompanies: companies.length,
+    activeCompanies,
+    inactiveCompanies: companies.length - activeCompanies,
+    totalUsers: users.length,
+    trialCompanies,
+    paidCompanies,
+    alerts: [],
+    recentSignups,
+    recentChanges: auditResult.data || []
   };
 }
 
@@ -129,7 +72,6 @@ export async function getAllCompanies() {
     throw error;
   }
 
-  // Handle the case where subscription might be an array
   const formatted = data?.map(company => ({
     ...company,
     subscription: Array.isArray(company.subscription) && company.subscription.length > 0
@@ -221,12 +163,13 @@ export async function enableCompany(companyId: string) {
 // ============================================
 
 export async function getAllUsers() {
+  // Fetch users with profiles to get role (NO users.role_id dependency)
   const { data, error } = await supabase
     .from("users")
     .select(`
       *,
       company:companies(name),
-      role:roles(name, display_name)
+      profile:profiles!users_id_fkey(role)
     `)
     .order("created_at", { ascending: false });
 
@@ -234,7 +177,23 @@ export async function getAllUsers() {
     console.error("getAllUsers error:", error);
     throw error;
   }
-  return data || [];
+
+  // Map profile.role to display format
+  const usersWithRoles = data?.map(user => {
+    const role = Array.isArray(user.profile) && user.profile.length > 0
+      ? user.profile[0]?.role
+      : user.profile?.role;
+
+    return {
+      ...user,
+      role: {
+        name: role || "unknown",
+        display_name: formatRoleName(role || "unknown")
+      }
+    };
+  });
+
+  return usersWithRoles || [];
 }
 
 export async function getUsersByCompany(companyId: string) {
@@ -242,7 +201,7 @@ export async function getUsersByCompany(companyId: string) {
     .from("users")
     .select(`
       *,
-      role:roles(name, display_name)
+      profile:profiles!users_id_fkey(role)
     `)
     .eq("company_id", companyId)
     .order("created_at", { ascending: false });
@@ -251,7 +210,30 @@ export async function getUsersByCompany(companyId: string) {
     console.error("getUsersByCompany error:", error);
     throw error;
   }
-  return data || [];
+
+  const usersWithRoles = data?.map(user => {
+    const role = Array.isArray(user.profile) && user.profile.length > 0
+      ? user.profile[0]?.role
+      : user.profile?.role;
+
+    return {
+      ...user,
+      role: {
+        name: role || "unknown",
+        display_name: formatRoleName(role || "unknown")
+      }
+    };
+  });
+
+  return usersWithRoles || [];
+}
+
+// Helper to format role names for display
+function formatRoleName(role: string): string {
+  return role
+    .split("_")
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 }
 
 // ============================================
