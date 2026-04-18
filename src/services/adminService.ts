@@ -124,8 +124,22 @@ export async function getAllCompanies() {
     `)
     .order("created_at", { ascending: false });
 
-  if (error) throw error;
-  return data;
+  if (error) {
+    console.error("getAllCompanies error:", error);
+    throw error;
+  }
+
+  // Handle the case where subscription might be an array
+  const formatted = data?.map(company => ({
+    ...company,
+    subscription: Array.isArray(company.subscription) && company.subscription.length > 0
+      ? company.subscription[0]
+      : Array.isArray(company.subscription)
+      ? null
+      : company.subscription
+  }));
+
+  return formatted || [];
 }
 
 export async function getCompanyById(companyId: string): Promise<CompanyWithDetails> {
@@ -207,33 +221,37 @@ export async function enableCompany(companyId: string) {
 // ============================================
 
 export async function getAllUsers() {
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from("users")
     .select(`
       *,
       company:companies(name),
-      role:roles(name, display_name),
-      profile:profiles(*)
+      role:roles(name, display_name)
     `)
     .order("created_at", { ascending: false });
 
-  if (error) throw error;
-  return data;
+  if (error) {
+    console.error("getAllUsers error:", error);
+    throw error;
+  }
+  return data || [];
 }
 
 export async function getUsersByCompany(companyId: string) {
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from("users")
     .select(`
       *,
-      role:roles(name, display_name),
-      profile:profiles(*)
+      role:roles(name, display_name)
     `)
     .eq("company_id", companyId)
     .order("created_at", { ascending: false });
 
-  if (error) throw error;
-  return data;
+  if (error) {
+    console.error("getUsersByCompany error:", error);
+    throw error;
+  }
+  return data || [];
 }
 
 // ============================================
