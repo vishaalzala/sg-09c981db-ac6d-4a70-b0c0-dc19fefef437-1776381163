@@ -27,6 +27,12 @@ import {
   getRolePermissions,
   assignPermissionToRole,
   removePermissionFromRole,
+  createRole,
+  updateRole,
+  deleteRole,
+  createPermission,
+  updatePermission,
+  deletePermission,
   type DashboardStats 
 } from "@/services/adminService";
 import { 
@@ -70,10 +76,18 @@ export default function AdminPanel() {
 
   // Role management state
   const [createRoleOpen, setCreateRoleOpen] = useState(false);
+  const [editRoleOpen, setEditRoleOpen] = useState(false);
+  const [deleteRoleOpen, setDeleteRoleOpen] = useState(false);
+  const [roleToEdit, setRoleToEdit] = useState<any>(null);
+  const [roleToDelete, setRoleToDelete] = useState<any>(null);
   const [newRole, setNewRole] = useState({ name: "", display_name: "", description: "" });
 
   // Permission management state
   const [createPermissionOpen, setCreatePermissionOpen] = useState(false);
+  const [editPermissionOpen, setEditPermissionOpen] = useState(false);
+  const [deletePermissionOpen, setDeletePermissionOpen] = useState(false);
+  const [permissionToEdit, setPermissionToEdit] = useState<any>(null);
+  const [permissionToDelete, setPermissionToDelete] = useState<any>(null);
   const [newPermission, setNewPermission] = useState({ name: "", category: "", description: "" });
 
   useEffect(() => {
@@ -119,6 +133,119 @@ export default function AdminPanel() {
       setError(err instanceof Error ? err.message : "Failed to load data");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCreateRole = async () => {
+    if (!newRole.name) {
+      setError("Role name is required");
+      return;
+    }
+
+    try {
+      setError("");
+      await createRole(newRole);
+      setSuccess("Role created successfully");
+      setCreateRoleOpen(false);
+      setNewRole({ name: "", display_name: "", description: "" });
+      await loadData(); // Reload roles
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create role");
+    }
+  };
+
+  const handleUpdateRole = async () => {
+    if (!roleToEdit) return;
+
+    try {
+      setError("");
+      await updateRole(roleToEdit.id, {
+        name: roleToEdit.name,
+        display_name: roleToEdit.display_name,
+        description: roleToEdit.description
+      });
+      setSuccess("Role updated successfully");
+      setEditRoleOpen(false);
+      setRoleToEdit(null);
+      await loadData();
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update role");
+    }
+  };
+
+  const handleDeleteRole = async () => {
+    if (!roleToDelete) return;
+
+    try {
+      setError("");
+      await deleteRole(roleToDelete.id);
+      setSuccess("Role deleted successfully");
+      setDeleteRoleOpen(false);
+      setRoleToDelete(null);
+      if (selectedRole?.id === roleToDelete.id) {
+        setSelectedRole(null);
+      }
+      await loadData();
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete role");
+    }
+  };
+
+  const handleCreatePermission = async () => {
+    if (!newPermission.name) {
+      setError("Permission name is required");
+      return;
+    }
+
+    try {
+      setError("");
+      await createPermission(newPermission);
+      setSuccess("Permission created successfully");
+      setCreatePermissionOpen(false);
+      setNewPermission({ name: "", category: "", description: "" });
+      await loadData(); // Reload permissions
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create permission");
+    }
+  };
+
+  const handleUpdatePermission = async () => {
+    if (!permissionToEdit) return;
+
+    try {
+      setError("");
+      await updatePermission(permissionToEdit.id, {
+        name: permissionToEdit.name,
+        category: permissionToEdit.category,
+        description: permissionToEdit.description
+      });
+      setSuccess("Permission updated successfully");
+      setEditPermissionOpen(false);
+      setPermissionToEdit(null);
+      await loadData();
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update permission");
+    }
+  };
+
+  const handleDeletePermission = async () => {
+    if (!permissionToDelete) return;
+
+    try {
+      setError("");
+      await deletePermission(permissionToDelete.id);
+      setSuccess("Permission deleted successfully");
+      setDeletePermissionOpen(false);
+      setPermissionToDelete(null);
+      await loadData();
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete permission");
     }
   };
 
@@ -570,7 +697,7 @@ export default function AdminPanel() {
                       </DialogHeader>
                       <div className="space-y-4">
                         <div className="space-y-2">
-                          <Label>Permission Name</Label>
+                          <Label>Permission Name *</Label>
                           <Input
                             placeholder="e.g., view_reports"
                             value={newPermission.name}
@@ -593,7 +720,9 @@ export default function AdminPanel() {
                             onChange={(e) => setNewPermission({ ...newPermission, description: e.target.value })}
                           />
                         </div>
-                        <Button className="w-full">Create Permission</Button>
+                        <Button className="w-full" onClick={handleCreatePermission}>
+                          Create Permission
+                        </Button>
                       </div>
                     </DialogContent>
                   </Dialog>
@@ -612,7 +741,7 @@ export default function AdminPanel() {
                       </DialogHeader>
                       <div className="space-y-4">
                         <div className="space-y-2">
-                          <Label>Role Name</Label>
+                          <Label>Role Name *</Label>
                           <Input
                             placeholder="e.g., workshop_manager"
                             value={newRole.name}
@@ -635,7 +764,9 @@ export default function AdminPanel() {
                             onChange={(e) => setNewRole({ ...newRole, description: e.target.value })}
                           />
                         </div>
-                        <Button className="w-full">Create Role</Button>
+                        <Button className="w-full" onClick={handleCreateRole}>
+                          Create Role
+                        </Button>
                       </div>
                     </DialogContent>
                   </Dialog>
@@ -654,18 +785,39 @@ export default function AdminPanel() {
                     </CardHeader>
                     <CardContent className="space-y-2">
                       {roles.map((role) => (
-                        <Button
-                          key={role.id}
-                          variant={selectedRole?.id === role.id ? "secondary" : "ghost"}
-                          className="w-full justify-start"
-                          onClick={() => handleSelectRole(role)}
-                        >
-                          <Shield className="mr-2 h-4 w-4" />
-                          <div className="text-left">
-                            <div className="font-medium">{role.display_name || role.name}</div>
-                            <div className="text-xs text-muted-foreground">{role.description}</div>
-                          </div>
-                        </Button>
+                        <div key={role.id} className="flex items-center gap-2">
+                          <Button
+                            variant={selectedRole?.id === role.id ? "secondary" : "ghost"}
+                            className="flex-1 justify-start"
+                            onClick={() => handleSelectRole(role)}
+                          >
+                            <Shield className="mr-2 h-4 w-4" />
+                            <div className="text-left flex-1">
+                              <div className="font-medium">{role.display_name || role.name}</div>
+                              <div className="text-xs text-muted-foreground truncate">{role.description}</div>
+                            </div>
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setRoleToEdit({ ...role });
+                              setEditRoleOpen(true);
+                            }}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setRoleToDelete(role);
+                              setDeleteRoleOpen(true);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       ))}
                     </CardContent>
                   </Card>
@@ -707,11 +859,25 @@ export default function AdminPanel() {
                                         <div className="font-medium text-sm">{permission.name}</div>
                                         <div className="text-xs text-muted-foreground">{permission.description}</div>
                                       </div>
-                                      {assigned ? (
-                                        <CheckCircle2 className="h-4 w-4 text-green-600" />
-                                      ) : (
-                                        <XCircle className="h-4 w-4 text-muted-foreground" />
-                                      )}
+                                      <div className="flex gap-1">
+                                        {assigned ? (
+                                          <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                        ) : (
+                                          <XCircle className="h-4 w-4 text-muted-foreground" />
+                                        )}
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-6 w-6"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setPermissionToEdit({ ...permission });
+                                            setEditPermissionOpen(true);
+                                          }}
+                                        >
+                                          <Edit className="h-3 w-3" />
+                                        </Button>
+                                      </div>
                                     </div>
                                   );
                                 })}
@@ -772,6 +938,122 @@ export default function AdminPanel() {
               )}
             </TabsContent>
           </Tabs>
+
+          {/* Edit Role Dialog */}
+          <Dialog open={editRoleOpen} onOpenChange={setEditRoleOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Edit Role</DialogTitle>
+                <DialogDescription>Update role details</DialogDescription>
+              </DialogHeader>
+              {roleToEdit && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Role Name *</Label>
+                    <Input
+                      value={roleToEdit.name}
+                      onChange={(e) => setRoleToEdit({ ...roleToEdit, name: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Display Name</Label>
+                    <Input
+                      value={roleToEdit.display_name || ""}
+                      onChange={(e) => setRoleToEdit({ ...roleToEdit, display_name: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Description</Label>
+                    <Textarea
+                      value={roleToEdit.description || ""}
+                      onChange={(e) => setRoleToEdit({ ...roleToEdit, description: e.target.value })}
+                    />
+                  </div>
+                  <Button className="w-full" onClick={handleUpdateRole}>
+                    Update Role
+                  </Button>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
+
+          {/* Delete Role Dialog */}
+          <Dialog open={deleteRoleOpen} onOpenChange={setDeleteRoleOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Delete Role</DialogTitle>
+                <DialogDescription>
+                  Are you sure you want to delete the role "{roleToDelete?.display_name || roleToDelete?.name}"? This action cannot be undone.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => setDeleteRoleOpen(false)}>
+                  Cancel
+                </Button>
+                <Button variant="destructive" onClick={handleDeleteRole}>
+                  Delete Role
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* Edit Permission Dialog */}
+          <Dialog open={editPermissionOpen} onOpenChange={setEditPermissionOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Edit Permission</DialogTitle>
+                <DialogDescription>Update permission details</DialogDescription>
+              </DialogHeader>
+              {permissionToEdit && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Permission Name *</Label>
+                    <Input
+                      value={permissionToEdit.name}
+                      onChange={(e) => setPermissionToEdit({ ...permissionToEdit, name: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Category</Label>
+                    <Input
+                      value={permissionToEdit.category || ""}
+                      onChange={(e) => setPermissionToEdit({ ...permissionToEdit, category: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Description</Label>
+                    <Textarea
+                      value={permissionToEdit.description || ""}
+                      onChange={(e) => setPermissionToEdit({ ...permissionToEdit, description: e.target.value })}
+                    />
+                  </div>
+                  <Button className="w-full" onClick={handleUpdatePermission}>
+                    Update Permission
+                  </Button>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
+
+          {/* Delete Permission Dialog */}
+          <Dialog open={deletePermissionOpen} onOpenChange={setDeletePermissionOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Delete Permission</DialogTitle>
+                <DialogDescription>
+                  Are you sure you want to delete the permission "{permissionToDelete?.name}"? This will remove it from all roles. This action cannot be undone.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => setDeletePermissionOpen(false)}>
+                  Cancel
+                </Button>
+                <Button variant="destructive" onClick={handleDeletePermission}>
+                  Delete Permission
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       </AdminLayout>
     </ProtectedRoute>

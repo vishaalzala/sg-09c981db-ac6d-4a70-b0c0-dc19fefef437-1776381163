@@ -432,7 +432,7 @@ export async function toggleAddon(companyId: string, addonId: string, enabled: b
 }
 
 // ============================================
-// ROLE & PERMISSION MANAGEMENT
+// ROLE MANAGEMENT
 // ============================================
 
 export async function getAllRoles() {
@@ -445,14 +445,144 @@ export async function getAllRoles() {
   return data;
 }
 
+export async function createRole(roleData: { name: string; display_name?: string; description?: string }) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("Not authenticated");
+
+  const response = await fetch("/api/admin/roles", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${session.access_token}`
+    },
+    body: JSON.stringify(roleData)
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to create role");
+  }
+
+  return response.json();
+}
+
+export async function updateRole(roleId: string, updates: { name?: string; display_name?: string; description?: string }) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("Not authenticated");
+
+  const response = await fetch("/api/admin/roles", {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${session.access_token}`
+    },
+    body: JSON.stringify({ id: roleId, ...updates })
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to update role");
+  }
+
+  return response.json();
+}
+
+export async function deleteRole(roleId: string) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("Not authenticated");
+
+  const response = await fetch("/api/admin/roles", {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${session.access_token}`
+    },
+    body: JSON.stringify({ id: roleId })
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to delete role");
+  }
+
+  return response.json();
+}
+
+// ============================================
+// PERMISSION MANAGEMENT
+// ============================================
+
 export async function getAllPermissions() {
   const { data, error } = await supabase
     .from("permissions")
     .select("*")
-    .order("category", { ascending: true });
+    .order("category, name");
 
   if (error) throw error;
   return data;
+}
+
+export async function createPermission(permissionData: { name: string; category?: string; description?: string }) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("Not authenticated");
+
+  const response = await fetch("/api/admin/permissions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${session.access_token}`
+    },
+    body: JSON.stringify(permissionData)
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to create permission");
+  }
+
+  return response.json();
+}
+
+export async function updatePermission(permissionId: string, updates: { name?: string; category?: string; description?: string }) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("Not authenticated");
+
+  const response = await fetch("/api/admin/permissions", {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${session.access_token}`
+    },
+    body: JSON.stringify({ id: permissionId, ...updates })
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to update permission");
+  }
+
+  return response.json();
+}
+
+export async function deletePermission(permissionId: string) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("Not authenticated");
+
+  const response = await fetch("/api/admin/permissions", {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${session.access_token}`
+    },
+    body: JSON.stringify({ id: permissionId })
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to delete permission");
+  }
+
+  return response.json();
 }
 
 export async function getRolePermissions(roleId: string) {
