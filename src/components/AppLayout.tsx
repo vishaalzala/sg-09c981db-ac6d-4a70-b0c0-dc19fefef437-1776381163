@@ -69,7 +69,7 @@ export function AppLayout({ children, companyId, userRole = "service_advisor", c
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [fullScreen, setFullScreen] = useState(false);
-  const { role, getNavItems, loading: permissionsLoading } = usePermissions();
+  const { role, loading: permissionsLoading } = usePermissions();
 
   const navigationSections: Record<string, NavItem[]> = {
     main: [
@@ -103,9 +103,6 @@ export function AppLayout({ children, companyId, userRole = "service_advisor", c
       { label: "Settings", icon: Settings, href: "/settings" },
     ],
   };
-
-  // Get accessible navigation items based on role
-  const navItems = getNavItems();
 
   const toggleSection = (section: string) => {
     setExpandedSections(prev => 
