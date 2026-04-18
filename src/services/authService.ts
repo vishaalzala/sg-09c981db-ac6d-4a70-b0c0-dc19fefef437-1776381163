@@ -13,6 +13,21 @@ export interface AuthError {
   code?: string;
 }
 
+// Add new interface for signup
+export interface SignupData {
+  email: string;
+  password: string;
+  fullName: string;
+  companyName: string;
+  phone?: string;
+}
+
+export interface SignupResult {
+  user: User | null;
+  company: { id: string; name: string } | null;
+  error: Error | null;
+}
+
 // Dynamic URL Helper
 const getURL = () => {
   let url = process?.env?.NEXT_PUBLIC_VERCEL_URL ?? 
@@ -179,3 +194,109 @@ export const authService = {
     return supabase.auth.onAuthStateChange(callback);
   }
 };
+
+/**
+ * Sign up new user with company and trial subscription
+ */
+export async function signUp(data: SignupData): Promise<SignupResult> {
+  try {
+    // 1. Create auth user
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email: data.email,
+      password: data.password,
+      options: {
+        data: {
+          full_name: data.fullName
+        }
+      }
+    });
+
+    if (authError) throw authError;
+    if (!authData.user) throw new Error("User creation failed");
+
+    // 2. Create company
+    const { data: company, error: companyError } = await supabase
+      .from("companies")
+      .insert({
+        name: data.companyName,
+        email: data.email,
+        phone: data.phone,
+        is_active: true
+      })
+      .select()
+      .single();
+
+    if (companyError) throw companyError;
+
+    // 3. Get owner role
+    const { data: ownerRole } = await supabase
+      .from("roles")
+      .select("id")
+      .eq("name", "owner")
+      .single();
+
+    // 4. Create profile
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .insert({
+        id: authData.user.id,
+        role: "owner",
+        full_name: data.fullName
+      });
+
+    if (profileError) throw profileError;
+
+    // 5. Create users record
+    const { error: usersError } = await supabase
+      .from("users")
+      .insert({
+        id: authData.user.id,
+        company_id: company.id,
+        email: data.email,
+        full_name: data.fullName,
+        role_id: ownerRole?.id
+      });
+
+    if (usersError) throw usersError;
+
+    // 6. Get free trial plan
+    const { data: trialPlan } = await supabase
+      .from("subscription_plans")
+      .select("id")
+      .eq("name", "free_trial")
+      .single();
+
+    if (trialPlan) {
+      // 7. Create trial subscription
+      const trialStart = new Date();
+      const trialEnd = new Date();
+      trialEnd.setDate(trialEnd.getDate() + 14); // 14 day trial
+
+      await supabase
+        .from("company_subscriptions")
+        .insert({
+          company_id: company.id,
+          plan_id: trialPlan.id,
+          status: "trial_active",
+          trial_start: trialStart.toISOString(),
+          trial_end: trialEnd.toISOString(),
+          current_period_start: trialStart.toISOString(),
+          current_period_end: trialEnd.toISOString()
+        });
+    }
+
+    return {
+      user: authData.user,
+      company: { id: company.id, name: company.name },
+      error: null
+    };
+
+  } catch (error) {
+    console.error("Signup error:", error);
+    return {
+      user: null,
+      company: null,
+      error: error as Error
+    };
+  }
+}
