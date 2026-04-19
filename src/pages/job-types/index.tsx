@@ -9,9 +9,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Search, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { companyService } from "@/services/companyService";
 
 export default function JobTypes() {
   const { toast } = useToast();
+  const [companyId, setCompanyId] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
   const [jobTypes, setJobTypes] = useState<any[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>("");
@@ -50,21 +52,30 @@ export default function JobTypes() {
   ];
 
   useEffect(() => {
-    loadJobTypes();
+    companyService.getCurrentCompany().then(c => {
+      if (c) {
+        setCompanyId(c.id);
+        loadJobTypes(c.id);
+      }
+    });
   }, []);
 
-  const loadJobTypes = async () => {
+  const loadJobTypes = async (cId: string) => {
     const { data } = await supabase
       .from("job_types")
       .select("*")
+      .eq("company_id", cId)
       .order("name");
     setJobTypes(data || []);
   };
 
   const handleCreateJobType = async () => {
+    if (!companyId) return;
+
     const { error } = await supabase
       .from("job_types")
       .insert([{
+        company_id: companyId,
         name: newJobType.name,
         category: newJobType.category,
         description: newJobType.description,
@@ -94,7 +105,7 @@ export default function JobTypes() {
       estimated_hours: "",
       estimated_cost: ""
     });
-    loadJobTypes();
+    loadJobTypes(companyId);
   };
 
   const filteredJobTypes = jobTypes.filter(jt => {
@@ -104,7 +115,7 @@ export default function JobTypes() {
   });
 
   return (
-    <AppLayout companyId="">
+    <AppLayout companyId={companyId}>
       <div className="p-6 space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="font-heading text-3xl font-bold">Job Types</h1>

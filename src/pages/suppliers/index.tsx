@@ -9,9 +9,11 @@ import { Label } from "@/components/ui/label";
 import { Search, Plus, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { companyService } from "@/services/companyService";
 
 export default function Suppliers() {
   const { toast } = useToast();
+  const [companyId, setCompanyId] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [showNewDialog, setShowNewDialog] = useState(false);
@@ -25,21 +27,29 @@ export default function Suppliers() {
   });
 
   useEffect(() => {
-    loadSuppliers();
+    companyService.getCurrentCompany().then(c => {
+      if (c) {
+        setCompanyId(c.id);
+        loadSuppliers(c.id);
+      }
+    });
   }, []);
 
-  const loadSuppliers = async () => {
+  const loadSuppliers = async (cId: string) => {
     const { data } = await supabase
       .from("suppliers")
       .select("*")
+      .eq("company_id", cId)
       .order("name");
     setSuppliers(data || []);
   };
 
   const handleCreate = async () => {
+    if (!companyId) return;
+
     const { error } = await supabase
       .from("suppliers")
-      .insert([newSupplier]);
+      .insert([{ ...newSupplier, company_id: companyId }]);
 
     if (error) {
       toast({
@@ -64,7 +74,7 @@ export default function Suppliers() {
       address: "",
       notes: ""
     });
-    loadSuppliers();
+    loadSuppliers(companyId);
   };
 
   const filteredSuppliers = suppliers.filter(s =>
@@ -72,7 +82,7 @@ export default function Suppliers() {
   );
 
   return (
-    <AppLayout companyId="">
+    <AppLayout companyId={companyId}>
       <div className="p-6 space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="font-heading text-3xl font-bold">Suppliers</h1>

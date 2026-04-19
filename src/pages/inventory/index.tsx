@@ -11,9 +11,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Search, Plus, Download, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { companyService } from "@/services/companyService";
 
 export default function Inventory() {
   const { toast } = useToast();
+  const [companyId, setCompanyId] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
   const [inventory, setInventory] = useState<any[]>([]);
   const [showNewStockDialog, setShowNewStockDialog] = useState(false);
@@ -33,21 +35,33 @@ export default function Inventory() {
   });
 
   useEffect(() => {
-    loadInventory();
+    companyService.getCurrentCompany().then(c => {
+      if (c) {
+        setCompanyId(c.id);
+        loadInventory(c.id);
+      }
+    });
   }, []);
 
-  const loadInventory = async () => {
+  const loadInventory = async (cId: string) => {
     const { data } = await supabase
       .from("inventory_items")
       .select("*")
+      .eq("company_id", cId)
       .order("description");
     setInventory(data || []);
   };
 
   const handleCreateStock = async () => {
+    if (!companyId) {
+      toast({ title: "Error", description: "No company context found.", variant: "destructive" });
+      return;
+    }
+
     const { error } = await supabase
       .from("inventory_items")
       .insert([{
+        company_id: companyId,
         part_number: newStock.part_number,
         description: newStock.description,
         location: newStock.location,
@@ -87,7 +101,7 @@ export default function Inventory() {
       reorder_level: "",
       notes: ""
     });
-    loadInventory();
+    loadInventory(companyId);
   };
 
   const toggleItem = (id: string) => {
@@ -112,7 +126,7 @@ export default function Inventory() {
   });
 
   return (
-    <AppLayout companyId="">
+    <AppLayout companyId={companyId}>
       <div className="p-6 space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="font-heading text-3xl font-bold">All Stocks</h1>
