@@ -5564,6 +5564,7 @@ export type Database = {
         Row: {
           booking_id: string | null
           branch_id: string | null
+          checklist: Json | null
           company_id: string
           created_at: string | null
           customer_id: string | null
@@ -5583,6 +5584,7 @@ export type Database = {
           pass_date: string | null
           recheck_started_at: string | null
           repair_job_id: string | null
+          status: string | null
           system_authorization_number: string | null
           updated_at: string | null
           vehicle_id: string
@@ -5595,6 +5597,7 @@ export type Database = {
         Insert: {
           booking_id?: string | null
           branch_id?: string | null
+          checklist?: Json | null
           company_id: string
           created_at?: string | null
           customer_id?: string | null
@@ -5614,6 +5617,7 @@ export type Database = {
           pass_date?: string | null
           recheck_started_at?: string | null
           repair_job_id?: string | null
+          status?: string | null
           system_authorization_number?: string | null
           updated_at?: string | null
           vehicle_id: string
@@ -5626,6 +5630,7 @@ export type Database = {
         Update: {
           booking_id?: string | null
           branch_id?: string | null
+          checklist?: Json | null
           company_id?: string
           created_at?: string | null
           customer_id?: string | null
@@ -5645,6 +5650,7 @@ export type Database = {
           pass_date?: string | null
           recheck_started_at?: string | null
           repair_job_id?: string | null
+          status?: string | null
           system_authorization_number?: string | null
           updated_at?: string | null
           vehicle_id?: string

@@ -4,383 +4,349 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Search, Plus, Calendar, Clock, Users } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { companyService } from "@/services/companyService";
-import { timesheetService } from "@/services/timesheetService";
-import { supabase } from "@/integrations/supabase/client";
-import { LoadingSpinner } from "@/components/LoadingSpinner";
-import { EmptyState } from "@/components/EmptyState";
-import { 
-  Users, 
-  Clock, 
-  Award, 
-  Plus, 
-  Search, 
-  Calendar,
-  TrendingUp,
-  PlayCircle,
-  StopCircle,
-  FileText
-} from "lucide-react";
-import { demoStaff } from "@/lib/demoData";
 
-export default function StaffPage() {
+export default function Staff() {
   const { toast } = useToast();
-  const [loading, setLoading] = useState(true);
-  const [companyId, setCompanyId] = useState("");
+  const [companyId, setCompanyId] = useState<string>("");
+  const [searchTerm, setSearchTerm] = useState("");
   const [staff, setStaff] = useState<any[]>([]);
   const [timesheets, setTimesheets] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState("staff");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [activeStaffId, setActiveStaffId] = useState<string | null>(null);
-
-  // DEMO MODE: Check if demo mode is enabled
-  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showTimesheetDialog, setShowTimesheetDialog] = useState(false);
+  const [newStaff, setNewStaff] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    role: "",
+    hourly_rate: ""
+  });
+  const [newTimesheet, setNewTimesheet] = useState({
+    staff_id: "",
+    date: new Date().toISOString().split("T")[0],
+    hours_worked: "",
+    job_id: "",
+    notes: ""
+  });
 
   useEffect(() => {
-    loadData();
+    companyService.getCurrentCompany().then(c => {
+      if (c) {
+        setCompanyId(c.id);
+        loadStaff(c.id);
+        loadTimesheets(c.id);
+      }
+    });
   }, []);
 
-  const loadData = async () => {
-    setLoading(true);
-    
-    // DEMO MODE: Use mock data
-    if (isDemoMode) {
-      console.log("🎭 DEMO MODE - Using mock staff data");
-      setStaff(demoStaff);
-      setCompanyId("demo-company-id");
-      setLoading(false);
+  const loadStaff = async (cId: string) => {
+    const { data } = await supabase
+      .from("users")
+      .select("*")
+      .eq("company_id", cId)
+      .order("name");
+    setStaff(data || []);
+  };
+
+  const loadTimesheets = async (cId: string) => {
+    const { data } = await supabase
+      .from("timesheets")
+      .select("*, users(name)")
+      .eq("company_id", cId)
+      .order("date", { ascending: false });
+    setTimesheets(data || []);
+  };
+
+  const handleAddStaff = async () => {
+    if (!companyId) return;
+
+    const { error } = await supabase
+      .from("users")
+      .insert([{
+        company_id: companyId,
+        name: newStaff.name,
+        email: newStaff.email,
+        phone: newStaff.phone,
+        role: newStaff.role
+      }]);
+
+    if (error) {
+      toast({ title: "Error", description: "Failed to add staff member", variant: "destructive" });
       return;
     }
 
-    // PRODUCTION MODE: Load real data
-    const company = await companyService.getCurrentCompany();
-    if (company) {
-      setCompanyId(company.id);
-      
-      // Load staff from users table
-      const staffQuery = (supabase as any)
-        .from("users")
-        .select(`
-          *,
-          role:roles!users_role_id_fkey(name),
-          branch:branches!users_branch_id_fkey(name)
-        `)
-        .eq("company_id", company.id)
-        .order("full_name");
-        
-      const { data: staffData } = await staffQuery;
-      
-      setStaff(staffData || []);
-
-      // Load today's timesheets
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
-      
-      const timesheetData = await timesheetService.getTimesheets(company.id, {
-        dateFrom: todayStart.toISOString(),
-        dateTo: new Date().toISOString()
-      });
-      
-      setTimesheets(timesheetData || []);
-    }
-    setLoading(false);
+    toast({ title: "Success", description: "Staff member added successfully" });
+    setShowAddDialog(false);
+    setNewStaff({ name: "", email: "", phone: "", role: "", hourly_rate: "" });
+    loadStaff(companyId);
   };
 
-  const handleClockIn = async (userId: string) => {
-    try {
-      await timesheetService.clockIn(companyId, userId);
-      toast({ title: "Clocked In", description: "Time tracking started successfully." });
-      loadData();
-    } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+  const handleAddTimesheet = async () => {
+    if (!companyId) return;
+
+    const { error } = await supabase
+      .from("timesheets")
+      .insert([{
+        company_id: companyId,
+        user_id: newTimesheet.staff_id,
+        date: newTimesheet.date,
+        hours_worked: parseFloat(newTimesheet.hours_worked),
+        job_id: newTimesheet.job_id || null,
+        notes: newTimesheet.notes
+      }]);
+
+    if (error) {
+      toast({ title: "Error", description: "Failed to add timesheet entry", variant: "destructive" });
+      return;
     }
+
+    toast({ title: "Success", description: "Timesheet entry added successfully" });
+    setShowTimesheetDialog(false);
+    setNewTimesheet({ staff_id: "", date: new Date().toISOString().split("T")[0], hours_worked: "", job_id: "", notes: "" });
+    loadTimesheets(companyId);
   };
 
-  const handleClockOut = async (entryId: string, userId: string) => {
-    try {
-      await timesheetService.clockOut(entryId);
-      toast({ title: "Clocked Out", description: "Time tracking stopped." });
-      loadData();
-    } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    }
-  };
-
-  if (loading) {
-    return <LoadingSpinner />;
-  }
-
-  const filteredStaff = staff.filter(s => 
-    s.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.email?.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredStaff = staff.filter(s =>
+    s.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    s.email?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const activeTimesheets = timesheets.filter(t => !t.clock_out_time);
-  const completedToday = timesheets.filter(t => t.clock_out_time);
-
   return (
-    <AppLayout companyId={companyId} companyName="AutoTech Workshop" userName="Manager">
-      <div className="space-y-6">
-        {/* Header */}
+    <AppLayout companyId={companyId}>
+      <div className="p-6 space-y-6">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-heading font-bold">Staff & Timesheets</h1>
-            <p className="text-muted-foreground">Manage team members and track work hours</p>
-          </div>
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Staff Member
-          </Button>
-        </div>
-
-        {/* Quick Stats */}
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Total Staff</p>
-                  <p className="text-2xl font-bold">{staff.length}</p>
-                </div>
-                <Users className="h-8 w-8 text-muted-foreground" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Clocked In</p>
-                  <p className="text-2xl font-bold text-success">{activeTimesheets.length}</p>
-                </div>
-                <PlayCircle className="h-8 w-8 text-success" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Completed Today</p>
-                  <p className="text-2xl font-bold">{completedToday.length}</p>
-                </div>
-                <StopCircle className="h-8 w-8 text-muted-foreground" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Hours Today</p>
-                  <p className="text-2xl font-bold">
-                    {completedToday.reduce((sum, t) => {
-                      if (t.clock_in_time && t.clock_out_time) {
-                        const hours = (new Date(t.clock_out_time).getTime() - new Date(t.clock_in_time).getTime()) / (1000 * 60 * 60);
-                        return sum + hours;
-                      }
-                      return sum;
-                    }, 0).toFixed(1)}
-                  </p>
-                </div>
-                <Clock className="h-8 w-8 text-primary" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList>
-            <TabsTrigger value="staff">
-              <Users className="h-4 w-4 mr-2" />
-              Staff Directory
-            </TabsTrigger>
-            <TabsTrigger value="timesheets">
+          <h1 className="font-heading text-3xl font-bold">Staff & Timesheets</h1>
+          <div className="flex gap-2">
+            <Button onClick={() => setShowTimesheetDialog(true)}>
               <Clock className="h-4 w-4 mr-2" />
-              Timesheets
-            </TabsTrigger>
-            <TabsTrigger value="certifications">
-              <Award className="h-4 w-4 mr-2" />
-              Certifications
-            </TabsTrigger>
+              Add Timesheet
+            </Button>
+            <Button onClick={() => setShowAddDialog(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Staff
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total Staff</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{staff.length}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Hours This Week</CardTitle>
+              <Clock className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {timesheets.reduce((sum, t) => sum + (t.hours_worked || 0), 0).toFixed(1)}
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Entries This Month</CardTitle>
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{timesheets.length}</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Tabs defaultValue="staff">
+          <TabsList>
+            <TabsTrigger value="staff">Staff Members</TabsTrigger>
+            <TabsTrigger value="timesheets">Timesheets</TabsTrigger>
           </TabsList>
 
-          {/* Staff Directory */}
-          <TabsContent value="staff" className="space-y-4">
+          <TabsContent value="staff">
             <Card>
               <CardHeader>
                 <div className="flex items-center gap-4">
-                  <div className="flex-1 relative">
+                  <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      placeholder="Search staff by name or email..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Search staff..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
                       className="pl-9"
                     />
                   </div>
                 </div>
               </CardHeader>
-              <CardContent>
-                {filteredStaff.length === 0 ? (
-                  <EmptyState
-                    icon={Users}
-                    title="No staff members"
-                    description="Add your first team member to get started"
-                  />
-                ) : (
-                  <div className="space-y-3">
-                    {filteredStaff.map((member) => {
-                      const role = Array.isArray(member.role) ? member.role[0] : member.role;
-                      const branch = Array.isArray(member.branch) ? member.branch[0] : member.branch;
-                      const activeTimesheet = activeTimesheets.find(t => t.user_id === member.id);
-
-                      return (
-                        <div
-                          key={member.id}
-                          className="p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-                        >
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex-1 space-y-2">
-                              <div className="flex items-center gap-2">
-                                <span className="font-semibold">{member.full_name}</span>
-                                {activeTimesheet && (
-                                  <Badge className="bg-success text-white">
-                                    <PlayCircle className="h-3 w-3 mr-1" />
-                                    Clocked In
-                                  </Badge>
-                                )}
-                              </div>
-
-                              <p className="text-sm text-muted-foreground">{member.email}</p>
-
-                              <div className="flex items-center gap-4 text-sm">
-                                {role && (
-                                  <Badge variant="outline">{role.name}</Badge>
-                                )}
-                                {branch && (
-                                  <span className="text-muted-foreground">Branch: {branch.name}</span>
-                                )}
-                              </div>
-                            </div>
-
-                            <div className="flex gap-2">
-                              {activeTimesheet ? (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleClockOut(activeTimesheet.id, member.id)}
-                                >
-                                  <StopCircle className="h-4 w-4 mr-2" />
-                                  Clock Out
-                                </Button>
-                              ) : (
-                                <Button
-                                  size="sm"
-                                  onClick={() => handleClockIn(member.id)}
-                                >
-                                  <PlayCircle className="h-4 w-4 mr-2" />
-                                  Clock In
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>NAME</TableHead>
+                      <TableHead>EMAIL</TableHead>
+                      <TableHead>PHONE</TableHead>
+                      <TableHead>ROLE</TableHead>
+                      <TableHead>ACTIONS</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredStaff.map((member) => (
+                      <TableRow key={member.id}>
+                        <TableCell className="font-medium">{member.name}</TableCell>
+                        <TableCell>{member.email}</TableCell>
+                        <TableCell>{member.phone}</TableCell>
+                        <TableCell>{member.role}</TableCell>
+                        <TableCell>
+                          <Button variant="ghost" size="sm">Edit</Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* Timesheets */}
-          <TabsContent value="timesheets" className="space-y-4">
+          <TabsContent value="timesheets">
             <Card>
-              <CardHeader>
-                <CardTitle>Today's Time Entries</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {timesheets.length === 0 ? (
-                  <EmptyState
-                    icon={Clock}
-                    title="No time entries"
-                    description="Clock in to start tracking time"
-                  />
-                ) : (
-                  <div className="space-y-3">
-                    {timesheets.map((entry) => {
-                      const staffMember = staff.find(s => s.id === entry.user_id);
-                      const duration = entry.clock_out_time
-                        ? ((new Date(entry.clock_out_time).getTime() - new Date(entry.clock_in_time).getTime()) / (1000 * 60 * 60)).toFixed(2)
-                        : "In Progress";
-
-                      return (
-                        <div
-                          key={entry.id}
-                          className="p-4 border rounded-lg"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex-1">
-                              <p className="font-medium">{staffMember?.full_name || "Unknown"}</p>
-                              <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
-                                <span>In: {new Date(entry.clock_in_time).toLocaleTimeString()}</span>
-                                {entry.clock_out_time && (
-                                  <span>Out: {new Date(entry.clock_out_time).toLocaleTimeString()}</span>
-                                )}
-                              </div>
-                              {entry.notes && (
-                                <p className="text-sm text-muted-foreground mt-2">{entry.notes}</p>
-                              )}
-                            </div>
-                            <div className="text-right">
-                              <p className="text-lg font-bold">{duration}</p>
-                              <p className="text-xs text-muted-foreground">hours</p>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Certifications */}
-          <TabsContent value="certifications" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Staff Certifications</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Alert>
-                  <Award className="h-4 w-4" />
-                  <AlertDescription>
-                    Track WOF inspector certifications, trade qualifications, and safety training here.
-                  </AlertDescription>
-                </Alert>
-                <div className="mt-4">
-                  <EmptyState
-                    icon={Award}
-                    title="No certifications"
-                    description="Add certifications to track expiry dates and compliance"
-                  />
-                </div>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>DATE</TableHead>
+                      <TableHead>STAFF MEMBER</TableHead>
+                      <TableHead>HOURS WORKED</TableHead>
+                      <TableHead>JOB ID</TableHead>
+                      <TableHead>NOTES</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {timesheets.map((entry) => (
+                      <TableRow key={entry.id}>
+                        <TableCell>{new Date(entry.date).toLocaleDateString()}</TableCell>
+                        <TableCell>{entry.users?.name}</TableCell>
+                        <TableCell>{entry.hours_worked} hrs</TableCell>
+                        <TableCell>{entry.job_id || "N/A"}</TableCell>
+                        <TableCell>{entry.notes}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
       </div>
+
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Staff Member</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Name</Label>
+              <Input
+                value={newStaff.name}
+                onChange={(e) => setNewStaff({ ...newStaff, name: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>Email</Label>
+              <Input
+                type="email"
+                value={newStaff.email}
+                onChange={(e) => setNewStaff({ ...newStaff, email: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>Phone</Label>
+              <Input
+                value={newStaff.phone}
+                onChange={(e) => setNewStaff({ ...newStaff, phone: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>Role</Label>
+              <Input
+                value={newStaff.role}
+                onChange={(e) => setNewStaff({ ...newStaff, role: e.target.value })}
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setShowAddDialog(false)}>Cancel</Button>
+              <Button onClick={handleAddStaff}>Add Staff</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showTimesheetDialog} onOpenChange={setShowTimesheetDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Timesheet Entry</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Staff Member</Label>
+              <select
+                className="w-full border rounded px-3 py-2"
+                value={newTimesheet.staff_id}
+                onChange={(e) => setNewTimesheet({ ...newTimesheet, staff_id: e.target.value })}
+              >
+                <option value="">Select staff member</option>
+                {staff.map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <Label>Date</Label>
+              <Input
+                type="date"
+                value={newTimesheet.date}
+                onChange={(e) => setNewTimesheet({ ...newTimesheet, date: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>Hours Worked</Label>
+              <Input
+                type="number"
+                step="0.5"
+                value={newTimesheet.hours_worked}
+                onChange={(e) => setNewTimesheet({ ...newTimesheet, hours_worked: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>Job ID (optional)</Label>
+              <Input
+                value={newTimesheet.job_id}
+                onChange={(e) => setNewTimesheet({ ...newTimesheet, job_id: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>Notes</Label>
+              <Input
+                value={newTimesheet.notes}
+                onChange={(e) => setNewTimesheet({ ...newTimesheet, notes: e.target.value })}
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setShowTimesheetDialog(false)}>Cancel</Button>
+              <Button onClick={handleAddTimesheet}>Add Entry</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }
