@@ -228,11 +228,11 @@ export async function signUp(data: SignupData): Promise<SignupResult> {
 
     if (companyError) throw companyError;
 
-    // 3. Get owner role
+    // 3. Get company_owner role (was 'owner', which doesn't match standard setup)
     const { data: ownerRole } = await supabase
       .from("roles")
       .select("id")
-      .eq("name", "owner")
+      .eq("name", "company_owner")
       .single();
 
     // 4. Create profile
@@ -240,7 +240,7 @@ export async function signUp(data: SignupData): Promise<SignupResult> {
       .from("profiles")
       .insert({
         id: authData.user.id,
-        role: "owner",
+        role: "company_owner",
         full_name: data.fullName
       });
 

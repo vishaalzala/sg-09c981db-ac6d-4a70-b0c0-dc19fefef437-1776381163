@@ -74,12 +74,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     console.log("Auth user created:", authData.user.id);
 
-    // 3. Create profile with role = "owner" (NO role_id dependency)
+    // 3. Create profile with role = "company_owner"
     const { error: profileError } = await supabase
       .from("profiles")
       .insert({
         id: authData.user.id,
-        role: "owner",
+        role: "company_owner",
         full_name: owner.full_name,
         email: owner.email
       });
@@ -89,16 +89,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       throw new Error(`Failed to create profile: ${profileError.message}`);
     }
 
-    console.log("Profile created with owner role");
+    console.log("Profile created with company_owner role");
 
-    // 4. Create users record with company_id (NO role_id dependency)
+    // 4. Get company_owner role ID
+    const { data: ownerRole } = await supabase
+      .from("roles")
+      .select("id")
+      .eq("name", "company_owner")
+      .single();
+
+    // 5. Create users record with company_id and role_id
     const { error: usersError } = await supabase
       .from("users")
       .insert({
         id: authData.user.id,
         company_id: companyData.id,
         email: owner.email,
-        full_name: owner.full_name
+        full_name: owner.full_name,
+        role_id: ownerRole?.id
       });
 
     if (usersError) {
@@ -108,7 +116,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     console.log("Users record created");
 
-    // 5. Get plan
+    // 6. Get plan
     const { data: plan } = await supabase
       .from("subscription_plans")
       .select("id")
@@ -117,7 +125,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     console.log("Plan found:", plan?.id);
 
-    // 6. Create subscription
+    // 7. Create subscription
     if (plan) {
       const trialStart = new Date();
       const trialEnd = new Date();
@@ -148,7 +156,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       console.log("Subscription created");
     }
 
-    // 7. Assign add-ons (optional)
+    // 8. Assign add-ons (optional)
     if (addons && addons.length > 0) {
       const { data: addonsCatalog } = await supabase
         .from("addon_catalog")
@@ -174,7 +182,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    // 8. Create branch (optional)
+    // 9. Create branch (optional)
     if (branch && branch.name) {
       const { error: branchError } = await supabase
         .from("branches")
