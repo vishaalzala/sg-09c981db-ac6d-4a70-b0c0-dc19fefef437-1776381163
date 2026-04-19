@@ -81,7 +81,7 @@ export default function NewInvoice() {
 
     const { data, error } = await supabase
       .from("invoices")
-      .insert([{
+      .insert({
         company_id: companyId,
         customer_id: selectedCustomer.id,
         vehicle_id: selectedVehicle?.id || null,
@@ -92,7 +92,7 @@ export default function NewInvoice() {
         status: "unpaid",
         total_amount: 0,
         balance: 0
-      }])
+      })
       .select()
       .single();
 
