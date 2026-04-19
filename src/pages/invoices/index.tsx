@@ -17,23 +17,16 @@ import { CustomerSelector } from "@/components/CustomerSelector";
 import { VehicleSelector } from "@/components/VehicleSelector";
 import { useToast } from "@/hooks/use-toast";
 import { demoInvoices } from "@/lib/demoData";
+import { useRouter } from "next/router";
 
 export default function InvoicesPage() {
+  const router = useRouter();
   const [companyId, setCompanyId] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [invoices, setInvoices] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState("all");
-  const [showAddDialog, setShowAddDialog] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [newInvoice, setNewInvoice] = useState({
-    customer_id: "",
-    vehicle_id: "",
-    notes: "",
-    status: "unpaid",
-  });
   const { toast } = useToast();
 
-  // DEMO MODE: Check if demo mode is enabled
   const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 
   useEffect(() => {
@@ -43,7 +36,6 @@ export default function InvoicesPage() {
   const loadData = async () => {
     setLoading(true);
     
-    // DEMO MODE: Use mock data
     if (isDemoMode) {
       console.log("🎭 DEMO MODE - Using mock invoice data");
       setInvoices(demoInvoices);
@@ -52,46 +44,34 @@ export default function InvoicesPage() {
       return;
     }
 
-    // PRODUCTION MODE: Load real data
     const company = await companyService.getCurrentCompany();
     if (company) {
       setCompanyId(company.id);
       const status = activeTab === "all" ? undefined : activeTab;
       const data = await invoiceService.getInvoices(company.id, status);
-      setInvoices(data);
+      
+      // Calculate totals for invoices that don't have them
+      const invoicesWithTotals = (data || []).map(invoice => {
+        let calculatedTotal = invoice.total_amount;
+        
+        // If total_amount is null/undefined, calculate from line items
+        if (calculatedTotal == null && invoice.invoice_items) {
+          calculatedTotal = invoice.invoice_items.reduce((sum: number, item: any) => {
+            const itemTotal = (item.quantity || 0) * (item.unit_price || 0) - (item.discount || 0);
+            return sum + itemTotal;
+          }, 0);
+        }
+        
+        return {
+          ...invoice,
+          total_amount: calculatedTotal ?? 0,
+          balance: invoice.balance ?? calculatedTotal ?? 0
+        };
+      });
+      
+      setInvoices(invoicesWithTotals);
     }
     setLoading(false);
-  };
-
-  const handleCreateInvoice = async () => {
-    if (!newInvoice.customer_id) {
-      toast({ title: "Error", description: "Customer is required", variant: "destructive" });
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const company = await companyService.getCurrentCompany();
-      if (!company) throw new Error("No company context found");
-
-      const invoice = await invoiceService.createInvoice({
-        ...newInvoice,
-        company_id: company.id,
-        invoice_date: new Date().toISOString(),
-        due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days from now
-      } as any);
-
-      toast({ title: "Success", description: "Invoice created successfully" });
-      setShowAddDialog(false);
-      setNewInvoice({ customer_id: "", vehicle_id: "", notes: "", status: "unpaid" });
-      
-      // Redirect to invoice detail page
-      window.location.href = `/invoices/${invoice.id}`;
-    } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } finally {
-      setIsSubmitting(false);
-    }
   };
 
   if (loading) {
@@ -104,9 +84,8 @@ export default function InvoicesPage() {
   };
 
   return (
-    <AppLayout companyId={companyId} companyName="AutoTech Workshop" userName="Service Manager">
+    <AppLayout companyId={companyId}>
       <div className="space-y-6">
-        {/* Header */}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="font-heading text-3xl font-bold">Invoices</h1>
@@ -114,13 +93,12 @@ export default function InvoicesPage() {
               Manage customer invoices and payments
             </p>
           </div>
-          <Button onClick={() => setShowAddDialog(true)}>
+          <Button onClick={() => router.push("/dashboard/invoices/new")}>
             <Plus className="h-4 w-4 mr-2" />
             New Invoice
           </Button>
         </div>
 
-        {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
             <TabsTrigger value="all">All Invoices</TabsTrigger>
@@ -146,7 +124,7 @@ export default function InvoicesPage() {
                     description={`No invoices found${activeTab !== "all" ? ` with status: ${activeTab.replace(/_/g, " ")}` : ""}`}
                     action={{
                       label: "Create Invoice",
-                      onClick: () => window.location.href = "/invoices/new",
+                      onClick: () => router.push("/dashboard/invoices/new"),
                     }}
                   />
                 ) : (
@@ -155,6 +133,10 @@ export default function InvoicesPage() {
                       const customer = Array.isArray(invoice.customer) ? invoice.customer[0] : invoice.customer;
                       const vehicle = Array.isArray(invoice.vehicle) ? invoice.vehicle[0] : invoice.vehicle;
                       const isOverdue = invoice.status === "overdue";
+                      
+                      // Safe total amount display
+                      const totalAmount = invoice.total_amount ?? 0;
+                      const balance = invoice.balance ?? 0;
 
                       return (
                         <div
@@ -163,7 +145,7 @@ export default function InvoicesPage() {
                             "p-4 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer",
                             isOverdue && "border-destructive/50 bg-destructive/5"
                           )}
-                          onClick={() => window.location.href = `/invoices/${invoice.id}`}
+                          onClick={() => router.push(`/dashboard/invoices/${invoice.id}`)}
                         >
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex-1 space-y-2">
@@ -207,19 +189,17 @@ export default function InvoicesPage() {
                                 </p>
                               )}
 
-                              {invoice.total_amount !== null && (
-                                <div className="font-semibold text-primary flex items-center gap-1">
-                                  <DollarSign className="h-4 w-4" />
-                                  {invoice.total_amount.toFixed(2)}
-                                </div>
-                              )}
+                              <div className="font-semibold text-primary flex items-center gap-1">
+                                <DollarSign className="h-4 w-4" />
+                                {totalAmount.toFixed(2)}
+                              </div>
 
-                              {invoice.balance !== null && invoice.balance > 0 && (
+                              {balance > 0 && (
                                 <p className={cn(
                                   "text-xs font-medium",
                                   isOverdue ? "text-destructive" : "text-warning"
                                 )}>
-                                  Balance: ${invoice.balance.toFixed(2)}
+                                  Balance: ${balance.toFixed(2)}
                                 </p>
                               )}
                             </div>
@@ -234,54 +214,6 @@ export default function InvoicesPage() {
           </TabsContent>
         </Tabs>
       </div>
-
-      {/* Add Invoice Dialog */}
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Create New Invoice</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="customer">Customer *</Label>
-              <CustomerSelector
-                companyId={companyId}
-                value={newInvoice.customer_id}
-                onChange={(customerId) => setNewInvoice({ ...newInvoice, customer_id: customerId })}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="vehicle">Vehicle (Optional)</Label>
-              <VehicleSelector
-                companyId={companyId}
-                customerId={newInvoice.customer_id}
-                value={newInvoice.vehicle_id}
-                onChange={(vehicleId) => setNewInvoice({ ...newInvoice, vehicle_id: vehicleId })}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notes</Label>
-              <Textarea
-                id="notes"
-                value={newInvoice.notes}
-                onChange={(e) => setNewInvoice({ ...newInvoice, notes: e.target.value })}
-                placeholder="Invoice notes or payment terms..."
-                rows={3}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddDialog(false)} disabled={isSubmitting}>
-              Cancel
-            </Button>
-            <Button onClick={handleCreateInvoice} disabled={isSubmitting}>
-              {isSubmitting ? "Creating..." : "Create Invoice"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </AppLayout>
   );
 }
