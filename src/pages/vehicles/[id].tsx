@@ -26,12 +26,14 @@ export default function VehicleDetail() {
   const [showPaymentInstructionDialog, setShowPaymentInstructionDialog] = useState(false);
 
   useEffect(() => {
-    if (id) {
+    if (id && typeof id === "string") {
       loadVehicleData();
     }
   }, [id]);
 
   const loadVehicleData = async () => {
+    if (!id || typeof id !== "string") return;
+    
     setLoading(true);
 
     const { data: vehicleData } = await supabase

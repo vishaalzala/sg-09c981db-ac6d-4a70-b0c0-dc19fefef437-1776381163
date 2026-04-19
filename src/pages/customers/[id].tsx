@@ -33,12 +33,14 @@ export default function CustomerDetail() {
   const [sendMethod, setSendMethod] = useState<"sms" | "email">("email");
 
   useEffect(() => {
-    if (id) {
+    if (id && typeof id === "string") {
       loadCustomerData();
     }
   }, [id]);
 
   const loadCustomerData = async () => {
+    if (!id || typeof id !== "string") return;
+    
     setLoading(true);
 
     // Load customer
