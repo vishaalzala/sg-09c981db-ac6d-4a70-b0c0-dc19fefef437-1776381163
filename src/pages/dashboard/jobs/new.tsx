@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { companyService } from "@/services/companyService";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/router";
+import { cn } from "@/lib/utils";
 
 export default function NewJob() {
   const router = useRouter();
@@ -80,17 +81,21 @@ export default function NewJob() {
       return;
     }
 
+    const jobTitle = selectedVehicle 
+      ? `Job for ${selectedVehicle.registration_number}`
+      : `Job for ${selectedCustomer.name}`;
+
     const { data, error } = await supabase
       .from("jobs")
       .insert([{
         company_id: companyId,
         customer_id: selectedCustomer.id,
         vehicle_id: selectedVehicle?.id || null,
-        job_date: formData.job_date,
-        assigned_to: formData.assigned_to || null,
+        job_title: jobTitle,
+        start_time: new Date(formData.job_date).toISOString(),
         description: formData.description,
-        notes: formData.notes,
-        status: "pending"
+        internal_notes: formData.notes,
+        status: "booked"
       }])
       .select()
       .single();
