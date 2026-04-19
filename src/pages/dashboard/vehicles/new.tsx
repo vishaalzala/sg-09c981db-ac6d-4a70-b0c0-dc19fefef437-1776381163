@@ -79,8 +79,13 @@ export default function NewVehicle() {
         model: formData.model,
         year: parseInt(formData.year) || null,
         vin: formData.vin,
-        color: formData.color,
-        odometer: parseInt(formData.odometer) || null
+        colour: formData.color,
+        engine_size: formData.engine,
+        transmission: formData.transmission,
+        fuel_type: formData.fuel_type,
+        body_type: formData.body_type,
+        odometer: parseInt(formData.odometer) || null,
+        notes: formData.notes
       })
       .select()
       .single();

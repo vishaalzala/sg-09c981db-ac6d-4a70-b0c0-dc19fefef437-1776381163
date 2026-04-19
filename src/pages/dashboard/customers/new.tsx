@@ -50,16 +50,24 @@ export default function NewCustomer() {
   const handleSave = async () => {
     if (!companyId) return;
 
+    const typeElement = document.querySelector('input[name="type"]:checked') as HTMLInputElement;
+    const isCompany = typeElement?.value === 'company';
+
     const { data, error } = await supabase
       .from("customers")
       .insert({
         company_id: companyId,
-        name: formData.name,
+        name: isCompany && formData.company_name ? formData.company_name : formData.name,
+        is_company: isCompany,
         email: formData.email,
         mobile: formData.mobile,
         phone: formData.phone,
-        address: formData.address,
-        notes: formData.notes
+        physical_address: formData.address,
+        physical_city: formData.city,
+        physical_postal_code: formData.postcode,
+        source_of_business: formData.source_of_business,
+        notes: formData.notes,
+        marketing_consent: formData.enable_marketing_email
       })
       .select()
       .single();
