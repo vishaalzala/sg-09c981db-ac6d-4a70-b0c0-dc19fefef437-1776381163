@@ -48,7 +48,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 
 interface AppLayoutProps {
   children: ReactNode;
-  companyId: string;
+  companyId?: string | null;
   userRole?: string;
   companyName?: string;
   userName?: string;

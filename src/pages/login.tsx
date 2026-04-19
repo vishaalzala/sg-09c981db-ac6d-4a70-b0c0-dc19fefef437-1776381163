@@ -42,8 +42,10 @@ export default function LoginPage() {
 
       console.log("Auth successful, user ID:", authData.user.id);
 
+      // Wait a moment for session to be fully established
+      await new Promise(resolve => setTimeout(resolve, 500));
+
       // Fetch user role from profiles table
-      // Using profiles.role as source of truth for authorization
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("role, email, full_name")

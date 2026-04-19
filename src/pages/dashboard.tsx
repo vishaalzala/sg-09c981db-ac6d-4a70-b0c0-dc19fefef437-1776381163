@@ -29,6 +29,7 @@ export default function DashboardPage() {
   });
   const [loading, setLoading] = useState(true);
   const [companyId, setCompanyId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadDashboardData();
@@ -42,14 +43,23 @@ export default function DashboardPage() {
         return;
       }
 
-      const { data: userData } = await supabase
+      const { data: userData, error: userError } = await supabase
         .from("users")
         .select("company_id")
         .eq("id", user.id)
         .single();
 
+      if (userError) {
+        console.error("Error loading user data:", userError);
+        setError("Failed to load user data. Please try logging in again.");
+        setLoading(false);
+        return;
+      }
+
       if (!userData?.company_id) {
-        console.error("No company context found");
+        console.error("No company context found for user:", user.id);
+        setError("No company context found. Please contact support.");
+        setLoading(false);
         return;
       }
 
@@ -75,13 +85,37 @@ export default function DashboardPage() {
       });
     } catch (error) {
       console.error("Error loading dashboard:", error);
+      setError("An unexpected error occurred. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>Error</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-muted-foreground">{error}</p>
+            <div className="flex gap-2">
+              <Button onClick={() => router.push("/login")} variant="outline">
+                Back to Login
+              </Button>
+              <Button onClick={() => window.location.reload()}>
+                Retry
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
-    <AppLayout companyId={companyId}>
+    <AppLayout companyId={companyId || ""}>
       <div className="p-6 space-y-6">
         <div>
           <h1 className="text-3xl font-bold">Dashboard</h1>
