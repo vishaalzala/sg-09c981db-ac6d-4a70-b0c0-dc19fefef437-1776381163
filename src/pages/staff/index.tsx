@@ -68,6 +68,7 @@ export default function Staff() {
     const { error } = await supabase
       .from("users")
       .insert([{
+        id: crypto.randomUUID(),
         company_id: companyId,
         full_name: newStaff.full_name,
         email: newStaff.email,
