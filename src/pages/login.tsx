@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertTriangle, Loader2, Wrench } from "lucide-react";
+import { AlertTriangle, Loader2, Wrench, Settings } from "lucide-react";
 import Link from "next/link";
 import { SEO } from "@/components/SEO";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,15 +17,26 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // DEMO MODE: Check if demo mode is enabled
+  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // DEMO MODE: Skip real auth and redirect
+    if (isDemoMode) {
+      console.log("🎭 DEMO MODE - Bypassing login");
+      router.push("/dashboard");
+      return;
+    }
+
+    // PRODUCTION MODE: Real login flow
     setLoading(true);
     setError("");
 
     try {
       console.log("Attempting login for:", email);
 
-      // Sign in with Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password
@@ -42,10 +53,8 @@ export default function LoginPage() {
 
       console.log("Auth successful, user ID:", authData.user.id);
 
-      // Wait a moment for session to be fully established
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      // Fetch user role from profiles table
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("role, email, full_name")
@@ -54,7 +63,6 @@ export default function LoginPage() {
 
       if (profileError) {
         console.error("Profile query error:", profileError);
-        // Provide more specific error message
         if (profileError.code === "PGRST116") {
           throw new Error("User profile not found. Please contact support.");
         } else if (profileError.message.includes("permission")) {
@@ -71,7 +79,6 @@ export default function LoginPage() {
 
       console.log("Profile loaded:", { role: profile.role, email: profile.email });
 
-      // Route based on role (profiles.role is source of truth)
       if (profile.role === "super_admin") {
         console.log("Redirecting super admin to /admin");
         router.push("/admin");
@@ -88,6 +95,87 @@ export default function LoginPage() {
     }
   };
 
+  // DEMO MODE: Show demo access buttons
+  if (isDemoMode) {
+    return (
+      <>
+        <SEO 
+          title="Demo Mode - WorkshopPro"
+          description="Demo mode enabled - development access"
+        />
+
+        <div className="min-h-screen bg-background flex items-center justify-center p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader className="text-center">
+              <div className="flex justify-center mb-4">
+                <div className="bg-primary text-primary-foreground p-3 rounded-lg">
+                  <Settings className="h-8 w-8" />
+                </div>
+              </div>
+              <CardTitle className="text-3xl">🎭 Demo Mode Active</CardTitle>
+              <CardDescription className="text-base">
+                Authentication is bypassed for development. Choose where to go:
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  Demo mode is enabled via <code className="text-xs bg-muted px-1 py-0.5 rounded">NEXT_PUBLIC_DEMO_MODE=true</code>
+                  <br />
+                  All pages are accessible without authentication.
+                </AlertDescription>
+              </Alert>
+
+              <div className="space-y-2">
+                <Button 
+                  size="lg" 
+                  className="w-full" 
+                  onClick={() => router.push("/admin")}
+                >
+                  Enter Admin Panel
+                </Button>
+                
+                <Button 
+                  size="lg" 
+                  className="w-full" 
+                  variant="outline"
+                  onClick={() => router.push("/dashboard")}
+                >
+                  Enter Dashboard
+                </Button>
+
+                <Button 
+                  size="lg" 
+                  className="w-full" 
+                  variant="outline"
+                  onClick={() => router.push("/customers")}
+                >
+                  View Customers
+                </Button>
+
+                <Button 
+                  size="lg" 
+                  className="w-full" 
+                  variant="outline"
+                  onClick={() => router.push("/settings")}
+                >
+                  View Settings
+                </Button>
+              </div>
+
+              <div className="pt-4 text-center text-sm text-muted-foreground">
+                <p>To disable demo mode, set:</p>
+                <code className="text-xs bg-muted px-2 py-1 rounded">NEXT_PUBLIC_DEMO_MODE=false</code>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </>
+    );
+  }
+
+  // PRODUCTION MODE: Normal login form
   return (
     <>
       <SEO 

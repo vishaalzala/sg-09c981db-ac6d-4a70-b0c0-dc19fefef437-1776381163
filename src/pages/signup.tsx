@@ -25,13 +25,24 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // DEMO MODE: Check if demo mode is enabled
+  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // DEMO MODE: Skip real signup and redirect
+    if (isDemoMode) {
+      console.log("🎭 DEMO MODE - Bypassing signup, redirecting to dashboard");
+      router.push("/dashboard");
+      return;
+    }
+
+    // PRODUCTION MODE: Real signup flow
     setLoading(true);
     setError("");
 
     try {
-      // Validation
       if (!formData.companyName || !formData.ownerName || !formData.email || !formData.password) {
         throw new Error("Please fill in all required fields");
       }
@@ -53,7 +64,6 @@ export default function SignupPage() {
         company: formData.companyName
       });
 
-      // Create company with 14-day trial
       const response = await fetch("/api/admin/create-company", {
         method: "POST",
         headers: {
@@ -93,7 +103,6 @@ export default function SignupPage() {
 
       console.log("Trial account created:", data.companyId);
 
-      // Sign in the user
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: formData.email,
         password: formData.password
@@ -101,12 +110,10 @@ export default function SignupPage() {
 
       if (signInError) {
         console.error("Auto sign-in failed:", signInError);
-        // Don't throw - account was created, just redirect to login
         router.push("/login?message=Account created successfully. Please sign in.");
         return;
       }
 
-      // Success - redirect to dashboard
       router.push("/dashboard");
 
     } catch (err) {
@@ -124,6 +131,58 @@ export default function SignupPage() {
     });
   };
 
+  // DEMO MODE: Show simplified signup with bypass notice
+  if (isDemoMode) {
+    return (
+      <>
+        <SEO 
+          title="Demo Mode - WorkshopPro"
+          description="Demo mode enabled - development access"
+        />
+
+        <div className="min-h-screen bg-background flex items-center justify-center p-4">
+          <Card className="w-full max-w-xl">
+            <CardHeader className="text-center">
+              <div className="flex justify-center mb-4">
+                <div className="bg-primary text-primary-foreground p-3 rounded-lg">
+                  <Wrench className="h-8 w-8" />
+                </div>
+              </div>
+              <CardTitle className="text-3xl">🎭 Demo Mode - Signup Bypassed</CardTitle>
+              <CardDescription className="text-base">
+                Real signup is disabled in demo mode. Click below to continue.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  Demo mode is enabled. No actual account will be created.
+                </AlertDescription>
+              </Alert>
+
+              <Button 
+                size="lg" 
+                className="w-full" 
+                onClick={() => router.push("/dashboard")}
+              >
+                Continue to Dashboard
+              </Button>
+
+              <p className="text-center text-sm text-muted-foreground">
+                Already have an account?{" "}
+                <Link href="/login" className="text-primary hover:underline">
+                  Sign in
+                </Link>
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </>
+    );
+  }
+
+  // PRODUCTION MODE: Normal signup form
   return (
     <>
       <SEO 
