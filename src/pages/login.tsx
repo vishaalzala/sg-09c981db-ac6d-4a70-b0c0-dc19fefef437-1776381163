@@ -23,55 +23,64 @@ export default function LoginPage() {
     setError("");
 
     try {
-      console.log("Login attempt:", email);
+      console.log("Attempting login for:", email);
 
       // Sign in with Supabase Auth
-      const { data: result, error: signInError } = await supabase.auth.signInWithPassword({
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password
       });
 
-      if (signInError) {
-        console.error("Sign in error:", signInError);
-        throw signInError;
+      if (authError) {
+        console.error("Auth error:", authError);
+        throw new Error(authError.message);
       }
 
-      if (!result.user) {
-        throw new Error("No user returned from sign in");
+      if (!authData.user) {
+        throw new Error("Login failed - no user returned");
       }
 
-      console.log("Auth successful, user ID:", result.user.id);
+      console.log("Auth successful, user ID:", authData.user.id);
 
-      // Fetch role from profiles table ONLY (source of truth for authorization)
+      // Fetch user role from profiles table
+      // Using profiles.role as source of truth for authorization
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
-        .select("role")
-        .eq("id", result.user.id)
+        .select("role, email, full_name")
+        .eq("id", authData.user.id)
         .single();
 
       if (profileError) {
-        console.error("Profile fetch error:", profileError);
-        throw new Error(`Failed to load user profile: ${profileError.message}`);
+        console.error("Profile query error:", profileError);
+        // Provide more specific error message
+        if (profileError.code === "PGRST116") {
+          throw new Error("User profile not found. Please contact support.");
+        } else if (profileError.message.includes("permission")) {
+          throw new Error("Database permission error. Please contact support.");
+        } else {
+          throw new Error(`Database error: ${profileError.message}`);
+        }
       }
 
       if (!profile) {
-        throw new Error("User profile not found");
+        console.error("No profile found for user:", authData.user.id);
+        throw new Error("User profile not found. Please contact support.");
       }
 
-      console.log("User role from profiles:", profile.role);
+      console.log("Profile loaded:", { role: profile.role, email: profile.email });
 
-      // Route based on role from profiles table
+      // Route based on role (profiles.role is source of truth)
       if (profile.role === "super_admin") {
-        console.log("Redirecting to admin panel");
+        console.log("Redirecting super admin to /admin");
         router.push("/admin");
       } else {
-        console.log("Redirecting to dashboard");
+        console.log("Redirecting user to /dashboard");
         router.push("/dashboard");
       }
 
     } catch (err) {
       console.error("Login error:", err);
-      setError(err instanceof Error ? err.message : "Invalid email or password");
+      setError(err instanceof Error ? err.message : "Login failed. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -102,14 +111,6 @@ export default function LoginPage() {
               <Alert variant="destructive" className="mb-6">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-
-            {router.query.message && (
-              <Alert className="mb-6 border-green-500 bg-green-50">
-                <AlertDescription className="text-green-800">
-                  {router.query.message}
-                </AlertDescription>
               </Alert>
             )}
 
@@ -149,7 +150,7 @@ export default function LoginPage() {
                 {loading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Signing in...
+                    Signing In...
                   </>
                 ) : (
                   "Sign In"
@@ -158,7 +159,7 @@ export default function LoginPage() {
 
               <p className="text-center text-sm text-muted-foreground">
                 Don't have an account?{" "}
-                <Link href="/signup" className="text-primary hover:underline">
+                <Link href="/signup" className="text-primary hover:underline font-medium">
                   Start free trial
                 </Link>
               </p>
