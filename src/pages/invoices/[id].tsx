@@ -84,7 +84,7 @@ export default function InvoiceDetailPage() {
     const company = await companyService.getCurrentCompany();
     if (company) {
       setCompanyId(company.id);
-      const data = await invoiceService.getInvoiceById(id as string);
+      const data = await invoiceService.getInvoice(id as string);
       setInvoice(data);
     }
     setLoading(false);

@@ -128,20 +128,12 @@ export default function JobDetail() {
 
       {showFinishModal && (
         <JobFinishModal
-          isOpen={showFinishModal}
+          open={showFinishModal}
           onClose={() => setShowFinishModal(false)}
-          jobId={job.id}
-          customerId={job.customer_id}
-          vehicleId={job.vehicle_id}
-          companyId={job.company_id}
-          currentOdometer={job.odometer || 0}
-          onFinishComplete={() => {
+          job={job}
+          onComplete={() => {
             setShowFinishModal(false);
             loadData();
-          }}
-          onFinishAndPay={() => {
-            setShowFinishModal(false);
-            handleGenerateInvoice(); // Auto-generates invoice and routes to it for payment
           }}
         />
       )}
