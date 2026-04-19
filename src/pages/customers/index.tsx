@@ -29,6 +29,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { demoCustomers } from "@/lib/demoData";
 
 export default function Customers() {
   const { toast } = useToast();
@@ -49,19 +50,48 @@ export default function Customers() {
     physical_address: "",
   });
 
+  // DEMO MODE: Check if demo mode is enabled
+  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+
   const handleAddCustomer = async () => {
     if (!newCustomer.full_name) {
       toast({ title: "Error", description: "Name is required", variant: "destructive" });
       return;
     }
 
-    if (!companyId) {
+    if (!companyId && !isDemoMode) {
       toast({ title: "Error", description: "No company context found. Please log in again.", variant: "destructive" });
       return;
     }
 
     setIsSubmitting(true);
     try {
+      // DEMO MODE: Just add to local state
+      if (isDemoMode) {
+        const mockCustomer = {
+          id: `cust-${Date.now()}`,
+          ...newCustomer,
+          name: newCustomer.is_company ? newCustomer.company_name : newCustomer.full_name,
+          created_at: new Date().toISOString()
+        };
+        setCustomers([mockCustomer, ...customers]);
+        toast({ title: "Success", description: "Customer created successfully (Demo)" });
+        setShowAddDialog(false);
+        setNewCustomer({
+          full_name: "",
+          email: "",
+          mobile: "",
+          phone: "",
+          is_company: false,
+          company_name: "",
+          postal_address: "",
+          physical_address: "",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
+      // PRODUCTION MODE: Create in database
       await customerService.createCustomer({
         ...newCustomer,
         company_id: companyId,
@@ -95,6 +125,16 @@ export default function Customers() {
 
   const loadData = async () => {
     try {
+      // DEMO MODE: Use mock data
+      if (isDemoMode) {
+        console.log("🎭 DEMO MODE - Using mock customer data");
+        setCustomers(demoCustomers);
+        setCompanyId("demo-company-id");
+        setLoading(false);
+        return;
+      }
+
+      // PRODUCTION MODE: Load real data
       const company = await companyService.getCurrentCompany();
       if (company) {
         setCompanyId(company.id);
@@ -116,11 +156,29 @@ export default function Customers() {
   };
 
   const searchCustomers = async () => {
-    if (companyId) {
+    if (isDemoMode) {
+      // Demo mode: Filter local data
+      const filtered = demoCustomers.filter(c => 
+        c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.mobile?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.phone?.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+      setCustomers(filtered);
+    } else if (companyId) {
       const results = await customerService.searchCustomers(searchQuery, companyId, 50);
       setCustomers(results);
     }
   };
+
+  // Trigger search when query changes
+  useEffect(() => {
+    if (searchQuery) {
+      searchCustomers();
+    } else {
+      loadData();
+    }
+  }, [searchQuery]);
 
   if (loading) {
     return <LoadingSpinner />;
@@ -178,7 +236,7 @@ export default function Customers() {
                   description="Get started by adding your first customer to the system"
                   action={{
                     label: "Add Customer",
-                    onClick: () => window.location.href = "/customers/new",
+                    onClick: () => setShowAddDialog(true),
                   }}
                 />
               ) : (

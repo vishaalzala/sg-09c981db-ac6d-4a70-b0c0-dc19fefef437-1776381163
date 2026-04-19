@@ -29,6 +29,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { CustomerSelector } from "@/components/CustomerSelector";
+import { demoVehicles } from "@/lib/demoData";
 
 export default function VehiclesPage() {
   const { toast } = useToast();
@@ -48,6 +49,9 @@ export default function VehiclesPage() {
     colour: "",
   });
 
+  // DEMO MODE: Check if demo mode is enabled
+  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+
   const handleAddVehicle = async () => {
     if (!newVehicle.customer_id || !newVehicle.registration_number) {
       toast({ title: "Error", description: "Customer and Registration are required", variant: "destructive" });
@@ -56,6 +60,23 @@ export default function VehiclesPage() {
 
     setIsSubmitting(true);
     try {
+      // DEMO MODE: Just add to local state
+      if (isDemoMode) {
+        const mockVehicle = {
+          id: `veh-${Date.now()}`,
+          ...newVehicle,
+          customer: [{ name: "Demo Customer" }],
+          created_at: new Date().toISOString()
+        };
+        setVehicles([mockVehicle, ...vehicles]);
+        toast({ title: "Success", description: "Vehicle created successfully (Demo)" });
+        setShowAddDialog(false);
+        setNewVehicle({ customer_id: "", registration_number: "", make: "", model: "", year: "", vin: "", colour: "" });
+        setIsSubmitting(false);
+        return;
+      }
+
+      // PRODUCTION MODE: Create in database
       const company = await companyService.getCurrentCompany();
       if (!company) throw new Error("No company context found");
 
@@ -81,16 +102,27 @@ export default function VehiclesPage() {
   }, []);
 
   useEffect(() => {
-    if (companyId && searchQuery) {
+    if (searchQuery) {
       searchVehicles();
+    } else {
+      loadData();
     }
-  }, [searchQuery, companyId]);
+  }, [searchQuery]);
 
   const loadData = async () => {
+    // DEMO MODE: Use mock data
+    if (isDemoMode) {
+      console.log("🎭 DEMO MODE - Using mock vehicle data");
+      setVehicles(demoVehicles);
+      setCompanyId("demo-company-id");
+      setLoading(false);
+      return;
+    }
+
+    // PRODUCTION MODE: Load real data
     const company = await companyService.getCurrentCompany();
     if (company) {
       setCompanyId(company.id);
-      // Load recent vehicles by default
       const results = await vehicleService.searchVehicles("", company.id, 50);
       setVehicles(results);
     }
@@ -98,7 +130,16 @@ export default function VehiclesPage() {
   };
 
   const searchVehicles = async () => {
-    if (companyId) {
+    if (isDemoMode) {
+      // Demo mode: Filter local data
+      const filtered = demoVehicles.filter(v => 
+        v.registration_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        v.make?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        v.model?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        v.vin?.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+      setVehicles(filtered);
+    } else if (companyId) {
       const results = await vehicleService.searchVehicles(searchQuery, companyId, 50);
       setVehicles(results);
     }
@@ -160,7 +201,7 @@ export default function VehiclesPage() {
                   description="Get started by adding your first vehicle to the system"
                   action={{
                     label: "Add Vehicle",
-                    onClick: () => window.location.href = "/vehicles/new",
+                    onClick: () => setShowAddDialog(true),
                   }}
                 />
               ) : (
@@ -256,11 +297,18 @@ export default function VehiclesPage() {
             <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <Label htmlFor="customer">Customer *</Label>
-                <CustomerSelector
-                  companyId={companyId}
-                  value={newVehicle.customer_id}
-                  onChange={(customerId) => setNewVehicle({ ...newVehicle, customer_id: customerId })}
-                />
+                {isDemoMode ? (
+                  <Input
+                    placeholder="Select customer (demo mode)"
+                    disabled
+                  />
+                ) : (
+                  <CustomerSelector
+                    companyId={companyId}
+                    value={newVehicle.customer_id}
+                    onChange={(customerId) => setNewVehicle({ ...newVehicle, customer_id: customerId })}
+                  />
+                )}
               </div>
 
               <div className="grid md:grid-cols-2 gap-4">
