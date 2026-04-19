@@ -28,7 +28,9 @@ import { cn } from "@/lib/utils";
 
 interface AppLayoutProps {
   children: ReactNode;
-  companyId: string;
+  companyId?: any;
+  companyName?: string;
+  userName?: string;
 }
 
 const navigationGroups = [
