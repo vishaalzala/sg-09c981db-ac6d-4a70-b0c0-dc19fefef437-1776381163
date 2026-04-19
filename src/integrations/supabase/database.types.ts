@@ -1,4 +1,4 @@
- 
+/* eslint-disable @typescript-eslint/no-empty-object-type */
 export type Json =
   | string
   | number
@@ -1741,10 +1741,15 @@ export type Database = {
           description: string
           id: string
           is_active: boolean | null
+          location: string | null
+          notes: string | null
           part_number: string | null
+          quantity_allocated: number | null
+          quantity_on_hand: number | null
           reorder_level: number | null
           sell_price: number | null
           supplier_id: string | null
+          supplier_name: string | null
           tax_rate: number | null
           updated_at: string | null
         }
@@ -1756,10 +1761,15 @@ export type Database = {
           description: string
           id?: string
           is_active?: boolean | null
+          location?: string | null
+          notes?: string | null
           part_number?: string | null
+          quantity_allocated?: number | null
+          quantity_on_hand?: number | null
           reorder_level?: number | null
           sell_price?: number | null
           supplier_id?: string | null
+          supplier_name?: string | null
           tax_rate?: number | null
           updated_at?: string | null
         }
@@ -1771,10 +1781,15 @@ export type Database = {
           description?: string
           id?: string
           is_active?: boolean | null
+          location?: string | null
+          notes?: string | null
           part_number?: string | null
+          quantity_allocated?: number | null
+          quantity_on_hand?: number | null
           reorder_level?: number | null
           sell_price?: number | null
           supplier_id?: string | null
+          supplier_name?: string | null
           tax_rate?: number | null
           updated_at?: string | null
         }
@@ -2561,20 +2576,32 @@ export type Database = {
       }
       job_types: {
         Row: {
+          category: string | null
           company_id: string
           created_at: string | null
+          description: string | null
+          estimated_cost: number | null
+          estimated_hours: number | null
           id: string
           name: string
         }
         Insert: {
+          category?: string | null
           company_id: string
           created_at?: string | null
+          description?: string | null
+          estimated_cost?: number | null
+          estimated_hours?: number | null
           id?: string
           name: string
         }
         Update: {
+          category?: string | null
           company_id?: string
           created_at?: string | null
+          description?: string | null
+          estimated_cost?: number | null
+          estimated_hours?: number | null
           id?: string
           name?: string
         }
@@ -4567,6 +4594,7 @@ export type Database = {
           address: string | null
           city: string | null
           company_id: string
+          contact_person: string | null
           country: string | null
           created_at: string | null
           deleted_at: string | null
@@ -4575,6 +4603,7 @@ export type Database = {
           is_active: boolean | null
           is_preferred: boolean | null
           name: string
+          notes: string | null
           payment_terms: string | null
           phone: string | null
           postal_code: string | null
@@ -4587,6 +4616,7 @@ export type Database = {
           address?: string | null
           city?: string | null
           company_id: string
+          contact_person?: string | null
           country?: string | null
           created_at?: string | null
           deleted_at?: string | null
@@ -4595,6 +4625,7 @@ export type Database = {
           is_active?: boolean | null
           is_preferred?: boolean | null
           name: string
+          notes?: string | null
           payment_terms?: string | null
           phone?: string | null
           postal_code?: string | null
@@ -4607,6 +4638,7 @@ export type Database = {
           address?: string | null
           city?: string | null
           company_id?: string
+          contact_person?: string | null
           country?: string | null
           created_at?: string | null
           deleted_at?: string | null
@@ -4615,6 +4647,7 @@ export type Database = {
           is_active?: boolean | null
           is_preferred?: boolean | null
           name?: string
+          notes?: string | null
           payment_terms?: string | null
           phone?: string | null
           postal_code?: string | null
