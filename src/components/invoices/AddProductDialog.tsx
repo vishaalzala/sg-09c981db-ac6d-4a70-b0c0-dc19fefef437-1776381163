@@ -28,21 +28,21 @@ export function AddProductDialog({ open, onClose, onAdd }: AddProductDialogProps
 
   const loadProducts = async () => {
     const { data } = await supabase
-      .from("inventory")
+      .from("inventory_items")
       .select("*")
-      .order("name");
+      .order("description");
     setProducts(data || []);
   };
 
   const filteredProducts = products.filter(p =>
-    p.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.sku?.toLowerCase().includes(searchTerm.toLowerCase())
+    p.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    p.part_number?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleAdd = () => {
     if (selectedProduct) {
       onAdd({
-        description: selectedProduct.name,
+        description: selectedProduct.description,
         qty: quantity,
         rate: parseFloat(rate) || selectedProduct.sell_price || 0,
         total: quantity * (parseFloat(rate) || selectedProduct.sell_price || 0)
@@ -84,9 +84,9 @@ export function AddProductDialog({ open, onClose, onAdd }: AddProductDialogProps
                     selectedProduct?.id === product.id ? "bg-muted" : ""
                   }`}
                 >
-                  <div className="font-medium">{product.name}</div>
+                  <div className="font-medium">{product.description}</div>
                   <div className="text-sm text-muted-foreground">
-                    SKU: {product.sku} | ${product.sell_price?.toFixed(2)}
+                    Part: {product.part_number} | ${product.sell_price?.toFixed(2)}
                   </div>
                 </button>
               ))}
