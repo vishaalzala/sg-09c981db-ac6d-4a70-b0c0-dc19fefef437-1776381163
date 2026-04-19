@@ -104,24 +104,35 @@ export default function AdminPage() {
 
   const loadData = async () => {
     try {
+      setLoading(true);
+      setError("");
+
       // DEMO MODE: Use mock data
       if (isDemoMode) {
-        console.log("🎭 DEMO MODE - Using mock company data");
-        setCompanies(demoCompanies);
-        setStats({
-          totalCompanies: demoCompanies.length,
-          activeSubscriptions: demoCompanies.filter(c => c.subscription_status === "trial_active").length,
-          trialAccounts: demoCompanies.length,
-          totalRevenue: 0
-        });
+        console.log("🎭 DEMO MODE - Loading data for tab:", activeTab);
+        
+        if (activeTab === "dashboard") {
+          setStats({
+            totalCompanies: demoCompanies.length,
+            activeCompanies: demoCompanies.length,
+            inactiveCompanies: 0,
+            totalUsers: demoCompanies.length * 5,
+            trialCompanies: demoCompanies.length,
+            paidCompanies: 0,
+            totalRevenue: 0,
+            alerts: [],
+            recentSignups: demoCompanies,
+            recentChanges: []
+          } as DashboardStats);
+        } else if (activeTab === "companies") {
+          setCompanies(demoCompanies);
+        }
+        
         setLoading(false);
         return;
       }
 
       // PRODUCTION MODE: Load real data
-      setLoading(true);
-      setError("");
-
       console.log("Loading data for tab:", activeTab);
 
       if (activeTab === "dashboard") {
