@@ -1,535 +1,409 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import { AppLayout } from "@/components/AppLayout";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
-  User, 
-  Mail, 
-  Phone, 
-  MapPin, 
-  Car, 
-  FileText, 
-  DollarSign, 
-  Calendar,
-  Building2,
-  AlertCircle,
-  Edit,
-  Save,
-  X,
-  Trash2,
-  Merge
+  User, Mail, Phone, MapPin, CreditCard, FileText, Car,
+  Send, Merge, Trash2, Printer, MessageSquare, Copy
 } from "lucide-react";
-import { customerService } from "@/services/customerService";
-import { vehicleService } from "@/services/vehicleService";
-import { companyService } from "@/services/companyService";
+import { supabase } from "@/integrations/supabase/client";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
-import { EmptyState } from "@/components/EmptyState";
-import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
-export default function CustomerDetailPage() {
+export default function CustomerDetail() {
   const router = useRouter();
   const { id } = router.query;
-  const [companyId, setCompanyId] = useState<string>("");
+  const { toast } = useToast();
   const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(false);
   const [customer, setCustomer] = useState<any>(null);
   const [vehicles, setVehicles] = useState<any[]>([]);
-  const [jobs, setJobs] = useState<any[]>([]);
   const [invoices, setInvoices] = useState<any[]>([]);
-  const [reminders, setReminders] = useState<any[]>([]);
-
-  // Form state
-  const [formData, setFormData] = useState({
-    name: "",
-    is_company: false,
-    mobile: "",
-    phone: "",
-    email: "",
-    postal_address: "",
-    postal_city: "",
-    postal_postal_code: "",
-    physical_address: "",
-    physical_city: "",
-    physical_postal_code: "",
-    marketing_consent: false,
-    notes: "",
-  });
+  const [showMergeDialog, setShowMergeDialog] = useState(false);
+  const [showSendDialog, setShowSendDialog] = useState(false);
+  const [showStatementDialog, setShowStatementDialog] = useState(false);
+  const [sendMethod, setSendMethod] = useState<"sms" | "email">("email");
 
   useEffect(() => {
     if (id) {
-      loadData();
+      loadCustomerData();
     }
   }, [id]);
 
-  const loadData = async () => {
+  const loadCustomerData = async () => {
     setLoading(true);
-    const company = await companyService.getCurrentCompany();
-    if (company) {
-      setCompanyId(company.id);
-      const custData = await customerService.getCustomer(id as string);
-      setCustomer(custData);
-      setFormData({
-        name: custData.name || "",
-        is_company: custData.is_company || false,
-        mobile: custData.mobile || "",
-        phone: custData.phone || "",
-        email: custData.email || "",
-        postal_address: custData.postal_address || "",
-        postal_city: custData.postal_city || "",
-        postal_postal_code: custData.postal_postal_code || "",
-        physical_address: custData.physical_address || "",
-        physical_city: custData.physical_city || "",
-        physical_postal_code: custData.physical_postal_code || "",
-        marketing_consent: custData.marketing_consent || false,
-        notes: custData.notes || "",
-      });
 
-      const vehData = await vehicleService.getCustomerVehicles(id as string);
-      setVehicles(vehData);
+    // Load customer
+    const { data: customerData } = await supabase
+      .from("customers")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (customerData) {
+      setCustomer(customerData);
+
+      // Load vehicles
+      const { data: vehiclesData } = await supabase
+        .from("vehicles")
+        .select("*")
+        .eq("customer_id", id);
+      setVehicles(vehiclesData || []);
+
+      // Load invoices
+      const { data: invoicesData } = await supabase
+        .from("invoices")
+        .select("*")
+        .eq("customer_id", id)
+        .order("created_at", { ascending: false });
+      setInvoices(invoicesData || []);
     }
+
     setLoading(false);
   };
 
-  const handleSave = async () => {
-    await customerService.updateCustomer(id as string, formData);
-    setEditing(false);
-    loadData();
-  };
-
-  const handleCancel = () => {
-    setEditing(false);
-    setFormData({
-      name: customer.name || "",
-      is_company: customer.is_company || false,
-      mobile: customer.mobile || "",
-      phone: customer.phone || "",
-      email: customer.email || "",
-      postal_address: customer.postal_address || "",
-      postal_city: customer.postal_city || "",
-      postal_postal_code: customer.postal_postal_code || "",
-      physical_address: customer.physical_address || "",
-      physical_city: customer.physical_city || "",
-      physical_postal_code: customer.physical_postal_code || "",
-      marketing_consent: customer.marketing_consent || false,
-      notes: customer.notes || "",
+  const handleSendStatement = () => {
+    toast({
+      title: "Statement Sent",
+      description: `Statement sent via ${sendMethod === "email" ? "email" : "SMS"}`,
     });
+    setShowStatementDialog(false);
   };
 
-  if (loading || !customer) {
+  if (loading) {
     return <LoadingSpinner />;
   }
 
+  if (!customer) {
+    return (
+      <AppLayout companyId="">
+        <div className="p-6">
+          <Card>
+            <CardContent className="py-12 text-center">
+              <p className="text-muted-foreground">Customer not found</p>
+              <Button onClick={() => router.push("/customers")} className="mt-4">
+                Back to Customers
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </AppLayout>
+    );
+  }
+
   return (
-    <AppLayout companyId={companyId} companyName="AutoTech Workshop" userName="Service Manager">
-      <div className="space-y-6">
+    <AppLayout companyId="">
+      <div className="p-6 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" onClick={() => router.push("/customers")}>
-              ← Back
-            </Button>
-            <div>
-              <h1 className="font-heading text-3xl font-bold">{customer.name}</h1>
-              <p className="text-muted-foreground mt-1">
-                Customer #{customer.customer_number || customer.id.slice(0, 8)}
-              </p>
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="font-heading text-3xl font-bold">#{customer.id} - {customer.name}</h1>
+              <Badge variant="outline">Add tag</Badge>
+            </div>
+            <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+              {customer.email && (
+                <div className="flex items-center gap-1">
+                  <Mail className="h-4 w-4" />
+                  <button className="hover:underline">{customer.email}</button>
+                  <Copy className="h-3 w-3 cursor-pointer" />
+                </div>
+              )}
+              {customer.mobile && (
+                <div className="flex items-center gap-1">
+                  <Phone className="h-4 w-4" />
+                  <span>{customer.mobile}</span>
+                  <Copy className="h-3 w-3 cursor-pointer" />
+                </div>
+              )}
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {!editing ? (
-              <>
-                <Button variant="outline" size="sm">
+
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setShowStatementDialog(true)}>
+              <FileText className="h-4 w-4 mr-2" />
+              Statement
+            </Button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline">
+                  <Send className="h-4 w-4 mr-2" />
+                  Send
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={() => { setSendMethod("sms"); setShowSendDialog(true); }}>
+                  <MessageSquare className="h-4 w-4 mr-2" />
+                  Send SMS
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { setSendMethod("email"); setShowSendDialog(true); }}>
+                  <Mail className="h-4 w-4 mr-2" />
+                  Send Email
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <Button variant="outline">
+              New
+            </Button>
+
+            <Button variant="outline">
+              Payment Instruction
+            </Button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline">
+                  Merge/Delete
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={() => setShowMergeDialog(true)}>
                   <Merge className="h-4 w-4 mr-2" />
-                  Merge Customer
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
-                  <Edit className="h-4 w-4 mr-2" />
-                  Edit
-                </Button>
-                <Button variant="destructive" size="sm">
+                  Merge
+                </DropdownMenuItem>
+                <DropdownMenuItem className="text-destructive">
                   <Trash2 className="h-4 w-4 mr-2" />
-                  Archive
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button variant="outline" size="sm" onClick={handleCancel}>
-                  <X className="h-4 w-4 mr-2" />
-                  Cancel
-                </Button>
-                <Button size="sm" onClick={handleSave}>
-                  <Save className="h-4 w-4 mr-2" />
-                  Save Changes
-                </Button>
-              </>
-            )}
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
-        {/* Customer Info Cards */}
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-primary/10 rounded-lg">
-                  <Car className="h-6 w-6 text-primary" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{vehicles.length}</p>
-                  <p className="text-xs text-muted-foreground">Vehicles</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-3 gap-6">
+          {/* Left Column - Customer Details */}
+          <div className="col-span-2 space-y-6">
+            <Tabs defaultValue="invoices">
+              <TabsList>
+                <TabsTrigger value="invoices">Invoices</TabsTrigger>
+                <TabsTrigger value="payments">Payments</TabsTrigger>
+                <TabsTrigger value="quotes">Quotes</TabsTrigger>
+              </TabsList>
 
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-accent/10 rounded-lg">
-                  <FileText className="h-6 w-6 text-accent" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{jobs.length}</p>
-                  <p className="text-xs text-muted-foreground">Jobs</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              <TabsContent value="invoices">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Invoices</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Invoice No</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Description</TableHead>
+                          <TableHead>Balance</TableHead>
+                          <TableHead>Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {invoices.map((invoice) => (
+                          <TableRow 
+                            key={invoice.id}
+                            className="cursor-pointer hover:bg-muted/50"
+                            onClick={() => router.push(`/invoices/${invoice.id}`)}
+                          >
+                            <TableCell>{invoice.invoice_number}</TableCell>
+                            <TableCell>{new Date(invoice.invoice_date).toLocaleDateString()}</TableCell>
+                            <TableCell>{invoice.notes || "-"}</TableCell>
+                            <TableCell>${(invoice.balance || 0).toFixed(2)}</TableCell>
+                            <TableCell>
+                              <Badge variant={invoice.status === "paid" ? "default" : "secondary"}>
+                                {invoice.status}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              </TabsContent>
 
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-success/10 rounded-lg">
-                  <DollarSign className="h-6 w-6 text-success" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">$0.00</p>
-                  <p className="text-xs text-muted-foreground">Outstanding</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+              <TabsContent value="payments">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Payment History</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground">No payments recorded</p>
+                  </CardContent>
+                </Card>
+              </TabsContent>
 
-        {/* Tabs */}
-        <Tabs defaultValue="details" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="details">Details</TabsTrigger>
-            <TabsTrigger value="vehicles">Vehicles</TabsTrigger>
-            <TabsTrigger value="jobs">Jobs</TabsTrigger>
-            <TabsTrigger value="invoices">Invoices</TabsTrigger>
-            <TabsTrigger value="reminders">Reminders</TabsTrigger>
-          </TabsList>
+              <TabsContent value="quotes">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Quotes</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground">No quotes</p>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          </div>
 
-          <TabsContent value="details" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Customer Information</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>Name</Label>
-                    {editing ? (
-                      <Input
-                        value={formData.name}
-                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      />
-                    ) : (
-                      <p className="text-sm font-medium">{customer.name || "—"}</p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Type</Label>
-                    {editing ? (
-                      <div className="flex items-center space-x-2">
-                        <Switch
-                          checked={formData.is_company}
-                          onCheckedChange={(checked) => setFormData({ ...formData, is_company: checked })}
-                        />
-                        <Label>Business/Company</Label>
-                      </div>
-                    ) : (
-                      <Badge variant={customer.is_company ? "default" : "outline"}>
-                        {customer.is_company ? "Business" : "Individual"}
-                      </Badge>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Mobile</Label>
-                    {editing ? (
-                      <Input
-                        value={formData.mobile}
-                        onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
-                      />
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <Phone className="h-4 w-4 text-muted-foreground" />
-                        <p className="text-sm">{customer.mobile || "—"}</p>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Phone</Label>
-                    {editing ? (
-                      <Input
-                        value={formData.phone}
-                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      />
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <Phone className="h-4 w-4 text-muted-foreground" />
-                        <p className="text-sm">{customer.phone || "—"}</p>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Email</Label>
-                    {editing ? (
-                      <Input
-                        type="email"
-                        value={formData.email}
-                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      />
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <Mail className="h-4 w-4 text-muted-foreground" />
-                        <p className="text-sm">{customer.email || "—"}</p>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Marketing Consent</Label>
-                    {editing ? (
-                      <div className="flex items-center space-x-2">
-                        <Switch
-                          checked={formData.marketing_consent}
-                          onCheckedChange={(checked) => setFormData({ ...formData, marketing_consent: checked })}
-                        />
-                        <Label>Consent given</Label>
-                      </div>
-                    ) : (
-                      <Badge variant={customer.marketing_consent ? "outline" : "secondary"}>
-                        {customer.marketing_consent ? "Yes" : "No"}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Notes</Label>
-                  {editing ? (
-                    <Textarea
-                      value={formData.notes}
-                      onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                      rows={4}
-                    />
-                  ) : (
-                    <p className="text-sm whitespace-pre-wrap">{customer.notes || "—"}</p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Addresses</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <h4 className="font-semibold mb-2">Postal Address</h4>
-                  {editing ? (
-                    <div className="space-y-2">
-                      <Input
-                        placeholder="Address"
-                        value={formData.postal_address}
-                        onChange={(e) => setFormData({ ...formData, postal_address: e.target.value })}
-                      />
-                      <div className="grid gap-2 md:grid-cols-2">
-                        <Input
-                          placeholder="City"
-                          value={formData.postal_city}
-                          onChange={(e) => setFormData({ ...formData, postal_city: e.target.value })}
-                        />
-                        <Input
-                          placeholder="Postal Code"
-                          value={formData.postal_postal_code}
-                          onChange={(e) => setFormData({ ...formData, postal_postal_code: e.target.value })}
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-start gap-2 text-sm">
-                      <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
-                      <div>
-                        <p>{customer.postal_address || "—"}</p>
-                        {customer.postal_city && (
-                          <p className="text-muted-foreground">
-                            {customer.postal_city} {customer.postal_postal_code}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <h4 className="font-semibold mb-2">Physical Address</h4>
-                  {editing ? (
-                    <div className="space-y-2">
-                      <Input
-                        placeholder="Address"
-                        value={formData.physical_address}
-                        onChange={(e) => setFormData({ ...formData, physical_address: e.target.value })}
-                      />
-                      <div className="grid gap-2 md:grid-cols-2">
-                        <Input
-                          placeholder="City"
-                          value={formData.physical_city}
-                          onChange={(e) => setFormData({ ...formData, physical_city: e.target.value })}
-                        />
-                        <Input
-                          placeholder="Postal Code"
-                          value={formData.physical_postal_code}
-                          onChange={(e) => setFormData({ ...formData, physical_postal_code: e.target.value })}
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-start gap-2 text-sm">
-                      <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
-                      <div>
-                        <p>{customer.physical_address || "—"}</p>
-                        {customer.physical_city && (
-                          <p className="text-muted-foreground">
-                            {customer.physical_city} {customer.physical_postal_code}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="vehicles" className="space-y-4">
+          {/* Right Column - Vehicle List */}
+          <div className="space-y-6">
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Vehicles</CardTitle>
-                    <CardDescription>Customer vehicles</CardDescription>
-                  </div>
-                  <Button size="sm" onClick={() => router.push("/vehicles/new?customer=" + id)}>
-                    <Car className="h-4 w-4 mr-2" />
+                  <CardTitle>Vehicles</CardTitle>
+                  <Button size="sm" variant="outline">
                     Add Vehicle
                   </Button>
                 </div>
               </CardHeader>
               <CardContent>
-                {vehicles.length === 0 ? (
-                  <EmptyState
-                    icon={Car}
-                    title="No vehicles"
-                    description="Add a vehicle to get started"
-                  />
-                ) : (
-                  <div className="space-y-3">
-                    {vehicles.map((vehicle) => (
-                      <div
-                        key={vehicle.id}
-                        className="p-4 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
-                        onClick={() => router.push(`/vehicles/${vehicle.id}`)}
-                      >
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1 space-y-1">
-                            <p className="font-semibold">{vehicle.registration_number}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {vehicle.make} {vehicle.model} {vehicle.year}
-                            </p>
-                            {vehicle.vin && (
-                              <p className="text-xs text-muted-foreground">VIN: {vehicle.vin}</p>
-                            )}
-                          </div>
-                          {vehicle.wof_expiry && (
-                            <div className="text-right">
-                              <p className="text-xs text-muted-foreground">WOF Expiry</p>
-                              <p className="text-sm font-medium">
-                                {new Date(vehicle.wof_expiry).toLocaleDateString()}
-                              </p>
-                            </div>
-                          )}
+                <div className="space-y-2">
+                  {vehicles.map((vehicle) => (
+                    <button
+                      key={vehicle.id}
+                      onClick={() => router.push(`/vehicles/${vehicle.id}`)}
+                      className="w-full text-left p-3 rounded border hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Car className="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <p className="font-medium">{vehicle.registration_number}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {vehicle.year} {vehicle.make} {vehicle.model}
+                          </p>
                         </div>
                       </div>
-                    ))}
+                    </button>
+                  ))}
+                  {vehicles.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No vehicles registered
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Customer Details</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div>
+                  <Label className="text-xs text-muted-foreground">Name</Label>
+                  <p className="text-sm font-medium">{customer.name}</p>
+                </div>
+                {customer.email && (
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Email</Label>
+                    <p className="text-sm font-medium">{customer.email}</p>
                   </div>
                 )}
+                {customer.mobile && (
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Mobile</Label>
+                    <p className="text-sm font-medium">{customer.mobile}</p>
+                  </div>
+                )}
+                {customer.payment_term && (
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Payment Term</Label>
+                    <p className="text-sm font-medium">{customer.payment_term}</p>
+                  </div>
+                )}
+                <div>
+                  <Label className="text-xs text-muted-foreground">Balance</Label>
+                  <p className="text-sm font-medium">${(customer.balance || 0).toFixed(2)}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Credit Limit</Label>
+                  <p className="text-sm font-medium">${(customer.credit_limit || 0).toFixed(2)}</p>
+                </div>
               </CardContent>
             </Card>
-          </TabsContent>
-
-          <TabsContent value="jobs" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Job History</CardTitle>
-                <CardDescription>Service and repair jobs</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <EmptyState
-                  icon={FileText}
-                  title="No jobs yet"
-                  description="Job history will appear here"
-                />
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="invoices" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Invoice History</CardTitle>
-                <CardDescription>Billing and payment records</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <EmptyState
-                  icon={DollarSign}
-                  title="No invoices"
-                  description="Invoice history will appear here"
-                />
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="reminders" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Reminders</CardTitle>
-                <CardDescription>Service and WOF reminders</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <EmptyState
-                  icon={Calendar}
-                  title="No reminders"
-                  description="Reminders will appear here"
-                />
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+          </div>
+        </div>
       </div>
+
+      {/* Merge Dialog */}
+      <Dialog open={showMergeDialog} onOpenChange={setShowMergeDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Merge Customer</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Search for the customer you want to merge this customer into:
+            </p>
+            <Input placeholder="Search customer..." />
+            <div className="flex gap-2 pt-4">
+              <Button onClick={() => setShowMergeDialog(false)} variant="outline" className="flex-1">
+                Cancel
+              </Button>
+              <Button className="flex-1">Merge</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Send Dialog */}
+      <Dialog open={showSendDialog} onOpenChange={setShowSendDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Send {sendMethod === "email" ? "Email" : "SMS"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Subject</Label>
+              <Input defaultValue="Message from Workshop" className="mt-1" />
+            </div>
+            <div>
+              <Label>Message</Label>
+              <Textarea 
+                rows={6}
+                defaultValue="Dear customer,&#10;&#10;Thank you for your business.&#10;&#10;Best regards"
+                className="mt-1"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={() => setShowSendDialog(false)} variant="outline" className="flex-1">
+                Cancel
+              </Button>
+              <Button className="flex-1">Send</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Statement Dialog */}
+      <Dialog open={showStatementDialog} onOpenChange={setShowStatementDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Customer Statement</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={handleSendStatement}>
+                <Mail className="h-4 w-4 mr-2" />
+                Email Statement
+              </Button>
+              <Button variant="outline" className="flex-1">
+                <Printer className="h-4 w-4 mr-2" />
+                Print
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }

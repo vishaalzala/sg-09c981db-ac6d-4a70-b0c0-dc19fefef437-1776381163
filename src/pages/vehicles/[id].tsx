@@ -1,68 +1,67 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import { AppLayout } from "@/components/AppLayout";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { 
-  Car, Calendar, FileText, DollarSign, Bell, 
-  ArrowLeft, Edit, Trash2, AlertCircle, Download,
-  Wrench, ClipboardList, Package, Upload, ExternalLink
-} from "lucide-react";
-import { vehicleService } from "@/services/vehicleService";
-import { companyService } from "@/services/companyService";
+import { Car, Calendar, FileText, Wrench, Merge, Trash2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
-import { StatusBadge } from "@/components/StatusBadge";
-import { cn } from "@/lib/utils";
-import type { Tables } from "@/integrations/supabase/types";
-
-type Vehicle = Tables<"vehicles">;
-type Job = Tables<"jobs">;
-type Quote = Tables<"quotes">;
-type Invoice = Tables<"invoices">;
-type Reminder = Tables<"reminders">;
+import { useToast } from "@/hooks/use-toast";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 export default function VehicleDetail() {
   const router = useRouter();
   const { id } = router.query;
-  const [vehicle, setVehicle] = useState<Vehicle | null>(null);
-  const [customer, setCustomer] = useState<any>(null);
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [quotes, setQuotes] = useState<Quote[]>([]);
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [reminders, setReminders] = useState<Reminder[]>([]);
-  const [files, setFiles] = useState<any[]>([]);
-  const [wofHistory, setWofHistory] = useState<any[]>([]);
+  const { toast } = useToast();
   const [loading, setLoading] = useState(true);
-  const [companyId, setCompanyId] = useState("");
+  const [vehicle, setVehicle] = useState<any>(null);
+  const [customer, setCustomer] = useState<any>(null);
+  const [serviceHistory, setServiceHistory] = useState<any[]>([]);
+  const [showTransferDialog, setShowTransferDialog] = useState(false);
+  const [showPaymentInstructionDialog, setShowPaymentInstructionDialog] = useState(false);
 
   useEffect(() => {
     if (id) {
-      loadData();
+      loadVehicleData();
     }
   }, [id]);
 
-  const loadData = async () => {
+  const loadVehicleData = async () => {
     setLoading(true);
-    const company = await companyService.getCurrentCompany();
-    if (company) {
-      setCompanyId(company.id);
+
+    const { data: vehicleData } = await supabase
+      .from("vehicles")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (vehicleData) {
+      setVehicle(vehicleData);
+
+      // Load customer
+      if (vehicleData.customer_id) {
+        const { data: customerData } = await supabase
+          .from("customers")
+          .select("*")
+          .eq("id", vehicleData.customer_id)
+          .single();
+        setCustomer(customerData);
+      }
+
+      // Load service history (invoices)
+      const { data: historyData } = await supabase
+        .from("invoices")
+        .select("*")
+        .eq("vehicle_id", id)
+        .order("invoice_date", { ascending: false });
+      setServiceHistory(historyData || []);
     }
 
-    if (typeof id === "string") {
-      const vehicleData = await vehicleService.getVehicle(id);
-      setVehicle(vehicleData);
-      
-      // Load related data (simplified - would use actual service calls)
-      setJobs([]);
-      setQuotes([]);
-      setInvoices([]);
-      setReminders([]);
-      setFiles([]);
-      setWofHistory([]);
-    }
     setLoading(false);
   };
 
@@ -72,315 +71,250 @@ export default function VehicleDetail() {
 
   if (!vehicle) {
     return (
-      <AppLayout companyId={companyId} companyName="AutoTech Workshop" userName="Service Advisor">
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">Vehicle not found</p>
-          <Button onClick={() => router.push("/vehicles")} className="mt-4">
-            Back to Vehicles
-          </Button>
+      <AppLayout companyId="">
+        <div className="p-6">
+          <Card>
+            <CardContent className="py-12 text-center">
+              <p className="text-muted-foreground">Vehicle not found</p>
+              <Button onClick={() => router.push("/vehicles")} className="mt-4">
+                Back to Vehicles
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </AppLayout>
     );
   }
 
-  const isWofDueSoon = vehicle.wof_expiry 
-    ? new Date(vehicle.wof_expiry).getTime() - Date.now() < 30 * 24 * 60 * 60 * 1000
-    : false;
-
-  const isRegoDueSoon = vehicle.rego_expiry
-    ? new Date(vehicle.rego_expiry).getTime() - Date.now() < 30 * 24 * 60 * 60 * 1000
-    : false;
-
   return (
-    <AppLayout companyId={companyId} companyName="AutoTech Workshop" userName="Service Advisor">
-      <div className="space-y-6">
+    <AppLayout companyId="">
+      <div className="p-6 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" onClick={() => router.push("/vehicles")}>
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
-            </Button>
-            <div>
-              <h1 className="text-3xl font-heading font-bold">{vehicle.registration_number}</h1>
-              <p className="text-muted-foreground">
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="font-heading text-3xl font-bold">
                 {vehicle.year} {vehicle.make} {vehicle.model}
-              </p>
+              </h1>
+              <Badge variant="outline">Add tag</Badge>
             </div>
+            <p className="text-muted-foreground mt-1">
+              Reg No#: {vehicle.registration_number}
+            </p>
           </div>
+
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => router.push(`/vehicles/${id}/edit`)}>
-              <Edit className="h-4 w-4 mr-2" />
-              Edit
+            <Button variant="outline" onClick={() => router.push(`/vehicles/${id}`)}>
+              Vehicle List
             </Button>
+
             <Button variant="outline">
-              <Download className="h-4 w-4 mr-2" />
-              Export History
+              Service History
             </Button>
+
+            <Button variant="outline">
+              New
+            </Button>
+
+            <Button variant="outline" onClick={() => setShowPaymentInstructionDialog(true)}>
+              Payment Instruction
+            </Button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline">
+                  Merge/Delete
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={() => setShowTransferDialog(true)}>
+                  Transfer Vehicle
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  Merge Vehicle
+                </DropdownMenuItem>
+                <DropdownMenuItem className="text-destructive">
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Vehicle
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
-        {/* Alert Banner */}
-        {(isWofDueSoon || isRegoDueSoon) && (
-          <Card className="border-warning bg-warning/5">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 text-warning">
-                <AlertCircle className="h-5 w-5" />
-                <div>
-                  {isWofDueSoon && <p className="font-medium">WOF expires soon: {new Date(vehicle.wof_expiry!).toLocaleDateString()}</p>}
-                  {isRegoDueSoon && <p className="font-medium">Rego expires soon: {new Date(vehicle.rego_expiry!).toLocaleDateString()}</p>}
+        <div className="grid grid-cols-3 gap-6">
+          {/* Main Content */}
+          <div className="col-span-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Vehicle Details</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Registration Number</Label>
+                    <p className="text-sm font-medium">{vehicle.registration_number}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Odometer Unit</Label>
+                    <p className="text-sm font-medium">Kms</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Make</Label>
+                    <p className="text-sm font-medium">{vehicle.make}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Model</Label>
+                    <p className="text-sm font-medium">{vehicle.model}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Year</Label>
+                    <p className="text-sm font-medium">{vehicle.year}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Body</Label>
+                    <p className="text-sm font-medium">{vehicle.body_type || "Ute"}</p>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
-        {/* Tabs */}
-        <Tabs defaultValue="details" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="details">Details</TabsTrigger>
-            <TabsTrigger value="jobs">Jobs ({jobs.length})</TabsTrigger>
-            <TabsTrigger value="quotes">Quotes ({quotes.length})</TabsTrigger>
-            <TabsTrigger value="invoices">Invoices ({invoices.length})</TabsTrigger>
-            <TabsTrigger value="wof">WOF History</TabsTrigger>
-            <TabsTrigger value="reminders">Reminders ({reminders.length})</TabsTrigger>
-            <TabsTrigger value="files">Files ({files.length})</TabsTrigger>
-          </TabsList>
-
-          {/* Details Tab */}
-          <TabsContent value="details" className="space-y-6">
-            <div className="grid md:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Vehicle Information</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="mt-6 space-y-2">
+                  <p className="text-sm font-medium">NEXT SERVICE NOTE/TODO: (Not Available)</p>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
-                      <p className="text-muted-foreground">Registration</p>
-                      <p className="font-medium">{vehicle.registration_number}</p>
+                      <span className="text-muted-foreground">WOF Due:</span> N/A
                     </div>
                     <div>
-                      <p className="text-muted-foreground">VIN</p>
-                      <p className="font-medium">{vehicle.vin || "—"}</p>
+                      <span className="text-muted-foreground">Registration Due:</span>
                     </div>
                     <div>
-                      <p className="text-muted-foreground">Make</p>
-                      <p className="font-medium">{vehicle.make || "—"}</p>
+                      <span className="text-muted-foreground">Last Job Date:</span>
                     </div>
                     <div>
-                      <p className="text-muted-foreground">Model</p>
-                      <p className="font-medium">{vehicle.model || "—"}</p>
+                      <span className="text-muted-foreground">Next Service:</span>
                     </div>
                     <div>
-                      <p className="text-muted-foreground">Year</p>
-                      <p className="font-medium">{vehicle.year || "—"}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Body Type</p>
-                      <p className="font-medium">{vehicle.body_type || "—"}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Colour</p>
-                      <p className="font-medium">{vehicle.colour || "—"}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Fuel Type</p>
-                      <p className="font-medium">{vehicle.fuel_type || "—"}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Transmission</p>
-                      <p className="font-medium">{vehicle.transmission || "—"}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Engine Size</p>
-                      <p className="font-medium">{vehicle.engine_size || "—"}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Odometer</p>
-                      <p className="font-medium">{vehicle.odometer ? `${vehicle.odometer.toLocaleString()} ${vehicle.odometer_unit}` : "—"}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Courtesy Vehicle</p>
-                      <p className="font-medium">{vehicle.is_courtesy_vehicle ? "Yes" : "No"}</p>
+                      <span className="text-muted-foreground">Next Service Odometer:</span> Kms
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </CardContent>
+            </Card>
 
+            <Card className="mt-6">
+              <CardHeader>
+                <CardTitle>Service History</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead>More Info</TableHead>
+                      <TableHead>Total</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {serviceHistory.map((service) => (
+                      <TableRow 
+                        key={service.id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => router.push(`/invoices/${service.id}`)}
+                      >
+                        <TableCell>{new Date(service.invoice_date).toLocaleDateString()}</TableCell>
+                        <TableCell>{service.notes || "-"}</TableCell>
+                        <TableCell>-</TableCell>
+                        <TableCell>${(service.total_amount || 0).toFixed(2)}</TableCell>
+                      </TableRow>
+                    ))}
+                    {serviceHistory.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center text-muted-foreground">
+                          No service history
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+
+                <div className="flex items-center justify-center gap-2 mt-4">
+                  <Button variant="outline" size="sm">←</Button>
+                  <span className="text-sm">1</span>
+                  <Button variant="outline" size="sm">→</Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Sidebar */}
+          <div className="space-y-6">
+            {customer && (
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Compliance & Service</CardTitle>
+                  <CardTitle>Owner</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <p className="text-muted-foreground">WOF Expiry</p>
-                      <p className={cn("font-medium", isWofDueSoon && "text-warning")}>
-                        {vehicle.wof_expiry ? new Date(vehicle.wof_expiry).toLocaleDateString() : "—"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Rego Expiry</p>
-                      <p className={cn("font-medium", isRegoDueSoon && "text-warning")}>
-                        {vehicle.rego_expiry ? new Date(vehicle.rego_expiry).toLocaleDateString() : "—"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Last Service</p>
-                      <p className="font-medium">
-                        {vehicle.last_service_date ? new Date(vehicle.last_service_date).toLocaleDateString() : "—"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Service Due</p>
-                      <p className="font-medium">
-                        {vehicle.service_due_date ? new Date(vehicle.service_due_date).toLocaleDateString() : "—"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Last Service ODO</p>
-                      <p className="font-medium">
-                        {vehicle.last_service_odometer ? `${vehicle.last_service_odometer.toLocaleString()} ${vehicle.odometer_unit}` : "—"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Service Due ODO</p>
-                      <p className="font-medium">
-                        {vehicle.service_due_odometer ? `${vehicle.service_due_odometer.toLocaleString()} ${vehicle.odometer_unit}` : "—"}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  {vehicle.carjam_last_fetched && (
-                    <div className="pt-3 border-t">
-                      <p className="text-xs text-muted-foreground">
-                        CARJAM data last fetched: {new Date(vehicle.carjam_last_fetched).toLocaleString()}
-                      </p>
-                    </div>
+                <CardContent>
+                  <button
+                    onClick={() => router.push(`/customers/${customer.id}`)}
+                    className="text-primary hover:underline font-medium"
+                  >
+                    {customer.name}
+                  </button>
+                  {customer.mobile && (
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Tel: {customer.mobile}
+                    </p>
                   )}
                 </CardContent>
               </Card>
-            </div>
-
-            {vehicle.notes && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Notes</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm whitespace-pre-wrap">{vehicle.notes}</p>
-                </CardContent>
-              </Card>
             )}
-          </TabsContent>
-
-          {/* Jobs Tab */}
-          <TabsContent value="jobs">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Service History</CardTitle>
-                  <Button onClick={() => router.push(`/jobs/new?vehicle=${id}`)}>
-                    <Wrench className="h-4 w-4 mr-2" />
-                    New Job
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {jobs.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">No jobs yet</p>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Order #</TableHead>
-                        <TableHead>Job</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Amount</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {jobs.map((job) => (
-                        <TableRow key={job.id} className="cursor-pointer" onClick={() => router.push(`/jobs/${job.id}`)}>
-                          <TableCell className="font-medium">{job.order_number}</TableCell>
-                          <TableCell>{job.job_title}</TableCell>
-                          <TableCell>{new Date(job.created_at).toLocaleDateString()}</TableCell>
-                          <TableCell><StatusBadge type="job" status={job.status} /></TableCell>
-                          <TableCell className="text-right">—</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Other tabs similar structure... */}
-          <TabsContent value="quotes">
-            <Card>
-              <CardHeader>
-                <CardTitle>Quotes</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-center text-muted-foreground py-8">No quotes yet</p>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="invoices">
-            <Card>
-              <CardHeader>
-                <CardTitle>Invoices</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-center text-muted-foreground py-8">No invoices yet</p>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="wof">
-            <Card>
-              <CardHeader>
-                <CardTitle>WOF Inspection History</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-center text-muted-foreground py-8">No WOF inspections yet</p>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="reminders">
-            <Card>
-              <CardHeader>
-                <CardTitle>Reminders</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-center text-muted-foreground py-8">No reminders set</p>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="files">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Files & Photos</CardTitle>
-                  <Button>
-                    <Upload className="h-4 w-4 mr-2" />
-                    Upload
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <p className="text-center text-muted-foreground py-8">No files uploaded yet</p>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+          </div>
+        </div>
       </div>
+
+      {/* Transfer Vehicle Dialog */}
+      <Dialog open={showTransferDialog} onOpenChange={setShowTransferDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{vehicle.year} {vehicle.make} {vehicle.model}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Change Vehicle To</Label>
+              <div className="relative mt-1">
+                <Input placeholder="Search customer..." />
+                <Button size="sm" className="absolute right-1 top-1">
+                  🔍
+                </Button>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={() => setShowTransferDialog(false)} variant="outline" className="flex-1">
+                Cancel
+              </Button>
+              <Button className="flex-1">Change</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Payment Instruction Dialog */}
+      <Dialog open={showPaymentInstructionDialog} onOpenChange={setShowPaymentInstructionDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Payment Instruction</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Input placeholder="Enter payment instructions..." />
+            <div className="flex gap-2">
+              <Button onClick={() => setShowPaymentInstructionDialog(false)} variant="outline" className="flex-1">
+                Close
+              </Button>
+              <Button className="flex-1">Save</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }
