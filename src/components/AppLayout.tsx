@@ -3,183 +3,192 @@ import { useRouter } from "next/router";
 import Link from "next/link";
 import { 
   LayoutDashboard, 
-  Users, 
-  Car, 
-  Calendar, 
-  Wrench, 
-  FileText, 
+  Briefcase,
+  Calendar,
+  FileText,
   Receipt,
-  Package,
-  Truck,
-  Settings,
-  Menu,
-  X,
-  Bell,
-  User,
-  LogOut,
   ShieldCheck,
-  Gift,
-  Globe,
-  TrendingUp,
-  MessageSquare,
-  BarChart3,
+  Users,
+  Car,
+  Layers,
+  Package,
+  Warehouse,
+  ShoppingCart,
+  UserCircle,
   Clock,
-  CreditCard,
-  HelpCircle
+  Bell,
+  BarChart3,
+  Settings,
+  HelpCircle,
+  ChevronRight,
+  Menu,
+  X
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { GlobalSearchBar } from "./GlobalSearchBar";
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger 
-} from "@/components/ui/dropdown-menu";
-import { supabase } from "@/integrations/supabase/client";
 
 interface AppLayoutProps {
   children: ReactNode;
-  companyId?: string | null;
-  userRole?: string;
-  companyName?: string;
-  userName?: string;
+  companyId: string;
 }
 
-export function AppLayout({ children, companyId, userRole = "service_advisor", companyName = "Workshop", userName = "User" }: AppLayoutProps) {
-  const router = useRouter();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+const navigationGroups = [
+  {
+    items: [
+      { name: "Dashboard", href: "/dashboard/job-centre", icon: LayoutDashboard },
+      { name: "Job Board", href: "/dashboard/job-centre", icon: Briefcase }
+    ]
+  },
+  {
+    title: "Operations",
+    items: [
+      { name: "Bookings", href: "/dashboard/bookings", icon: Calendar },
+      { name: "Jobs", href: "/dashboard/jobs", icon: FileText },
+      { name: "Quotes", href: "/dashboard/quotes", icon: Receipt },
+      { name: "Invoices", href: "/dashboard/invoices", icon: Receipt },
+      { name: "WOF", href: "/dashboard/wof", icon: ShieldCheck }
+    ]
+  },
+  {
+    title: "CRM",
+    items: [
+      { name: "Customers", href: "/dashboard/customers", icon: Users },
+      { name: "Vehicles", href: "/dashboard/vehicles", icon: Car },
+      { name: "Job Types", href: "/dashboard/job-types", icon: Layers }
+    ]
+  },
+  {
+    title: "Parts & Suppliers",
+    items: [
+      { name: "Suppliers", href: "/dashboard/suppliers", icon: Warehouse },
+      { name: "Inventory", href: "/dashboard/inventory", icon: Package },
+      { name: "Purchase Orders", href: "/dashboard/purchase-orders", icon: ShoppingCart }
+    ]
+  },
+  {
+    title: "Staff",
+    items: [
+      { name: "Staff", href: "/dashboard/staff", icon: UserCircle },
+      { name: "Time Sheet", href: "/dashboard/timesheets", icon: Clock }
+    ]
+  },
+  {
+    title: "Office",
+    items: [
+      { name: "Reminders", href: "/dashboard/reminders", icon: Bell },
+      { name: "Reports", href: "/dashboard/reports", icon: BarChart3 },
+      { name: "Settings", href: "/dashboard/settings", icon: Settings },
+      { name: "Help", href: "/dashboard/help", icon: HelpCircle }
+    ]
+  }
+];
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    router.push("/");
-  };
+export function AppLayout({ children, companyId }: AppLayoutProps) {
+  const router = useRouter();
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return null;
+  }
 
   const isActive = (href: string) => {
-    if (href === "/dashboard/job-centre" && router.pathname === "/job-centre") return true;
     return router.pathname === href || router.pathname.startsWith(href + "/");
   };
 
-  const navItems = [
-    { label: "Diary", href: "/dashboard", icon: Calendar },
-    { label: "Job Centre", href: "/dashboard/job-centre", icon: Wrench },
-    { label: "Customers & Vehicles", href: "/dashboard/customers", icon: Users },
-    { label: "Invoices & Bills", href: "/dashboard/invoices", icon: Receipt },
-    { label: "Inventory & Suppliers", href: "/dashboard/inventory", icon: Package },
-    { label: "Service Schedules", href: "/dashboard/service-schedules", icon: Clock },
-    { label: "Reports", href: "/dashboard/reports", icon: BarChart3 },
-    { label: "Timesheets", href: "/dashboard/timesheets", icon: Clock },
-    { label: "POS", href: "/dashboard/pos", icon: CreditCard },
-    { label: "Settings", href: "/dashboard/settings", icon: Settings },
-    { label: "Help", href: "/dashboard/help", icon: HelpCircle },
-  ];
-
   return (
-    <div className="min-h-screen bg-background">
-      {/* Top Navigation Bar */}
-      <header className="sticky top-0 z-50 w-full border-b bg-[#2c3e50] text-white">
-        <div className="flex h-12 items-center px-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="md:hidden text-white hover:bg-white/10"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+    <div className="flex h-screen bg-background">
+      {/* Sidebar */}
+      <aside
+        className={cn(
+          "fixed left-0 top-0 z-40 h-screen transition-all duration-300 bg-card border-r",
+          sidebarOpen ? "w-64" : "w-16"
+        )}
+      >
+        {/* Sidebar Header */}
+        <div className="flex h-16 items-center justify-between px-4 border-b">
+          {sidebarOpen && (
+            <Link href="/dashboard/job-centre" className="flex items-center gap-2">
+              <div className="h-8 w-8 rounded bg-primary" />
+              <span className="font-heading font-bold text-lg">Workshop</span>
+            </Link>
+          )}
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="p-2 hover:bg-muted rounded-md"
           >
-            {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </Button>
-
-          <Link href="/dashboard/job-centre" className="flex items-center gap-2 mr-4">
-            <div className="h-8 w-8 rounded bg-white flex items-center justify-center">
-              <Wrench className="h-5 w-5 text-[#2c3e50]" />
-            </div>
-            <span className="font-semibold text-sm hidden sm:inline">{companyName}</span>
-          </Link>
-
-          {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-1 flex-1">
-            {navItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "px-3 py-2 text-xs font-medium rounded transition-colors flex items-center gap-2",
-                  isActive(item.href)
-                    ? "bg-white/20 text-white"
-                    : "text-white/80 hover:bg-white/10 hover:text-white"
-                )}
-              >
-                <item.icon className="h-4 w-4" />
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-
-          <div className="flex items-center gap-2 ml-auto">
-            <div className="hidden lg:block w-64">
-              <GlobalSearchBar companyId={companyId} />
-            </div>
-
-            <Button variant="ghost" size="icon" className="relative text-white hover:bg-white/10">
-              <Bell className="h-5 w-5" />
-              <span className="absolute top-1 right-1 h-2 w-2 bg-orange-500 rounded-full"></span>
-            </Button>
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="text-white hover:bg-white/10">
-                  <User className="h-5 w-5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <div className="px-2 py-1.5">
-                  <p className="text-sm font-medium">{userName}</p>
-                  <p className="text-xs text-muted-foreground">{userRole}</p>
-                </div>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => router.push("/dashboard/settings")}>
-                  <Settings className="h-4 w-4 mr-2" />
-                  Settings
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Sign Out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+            {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
         </div>
 
-        {/* Mobile Menu */}
-        {mobileMenuOpen && (
-          <div className="md:hidden border-t border-white/10">
-            <nav className="flex flex-col p-2">
-              {navItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "px-3 py-2 text-sm font-medium rounded transition-colors flex items-center gap-2",
-                    isActive(item.href)
-                      ? "bg-white/20 text-white"
-                      : "text-white/80 hover:bg-white/10 hover:text-white"
-                  )}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <item.icon className="h-4 w-4" />
-                  {item.label}
-                </Link>
-              ))}
-            </nav>
-          </div>
-        )}
-      </header>
+        {/* Navigation */}
+        <nav className="flex-1 overflow-y-auto p-4 space-y-6">
+          {navigationGroups.map((group, groupIndex) => (
+            <div key={groupIndex} className="space-y-2">
+              {group.title && sidebarOpen && (
+                <h3 className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  {group.title}
+                </h3>
+              )}
+              <div className="space-y-1">
+                {group.items.map((item) => {
+                  const Icon = item.icon;
+                  const active = isActive(item.href);
+                  
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={cn(
+                        "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                        active
+                          ? "bg-primary text-primary-foreground"
+                          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                      )}
+                    >
+                      <Icon className="h-5 w-5 shrink-0" />
+                      {sidebarOpen && <span>{item.name}</span>}
+                      {sidebarOpen && active && <ChevronRight className="ml-auto h-4 w-4" />}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </nav>
+      </aside>
 
       {/* Main Content */}
-      <main className="flex-1">
-        {children}
-      </main>
+      <div
+        className={cn(
+          "flex-1 transition-all duration-300",
+          sidebarOpen ? "ml-64" : "ml-16"
+        )}
+      >
+        {/* Top Bar */}
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background px-6">
+          <div className="flex flex-1 items-center justify-between">
+            <div className="flex items-center gap-4">
+              <h1 className="text-lg font-semibold">
+                {router.pathname.split('/').pop()?.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+              </h1>
+            </div>
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-muted-foreground">
+                Company ID: {companyId?.slice(0, 8)}
+              </span>
+            </div>
+          </div>
+        </header>
+
+        {/* Page Content */}
+        <main className="flex-1 overflow-y-auto">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }

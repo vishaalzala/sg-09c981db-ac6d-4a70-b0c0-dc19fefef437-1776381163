@@ -5631,14 +5631,15 @@ export type Database = {
           id: string
           inspection_date: string
           inspection_number: string | null
-          inspection_type: string
-          inspector_id: string
+          inspection_type: string | null
+          inspector_id: string | null
+          inspector_name: string | null
           is_recheck: boolean | null
           is_voided: boolean | null
           notes: string | null
           odometer: number | null
           original_inspection_id: string | null
-          overall_result: string
+          overall_result: string | null
           pass_date: string | null
           recheck_started_at: string | null
           repair_job_id: string | null
@@ -5664,14 +5665,15 @@ export type Database = {
           id?: string
           inspection_date?: string
           inspection_number?: string | null
-          inspection_type: string
-          inspector_id: string
+          inspection_type?: string | null
+          inspector_id?: string | null
+          inspector_name?: string | null
           is_recheck?: boolean | null
           is_voided?: boolean | null
           notes?: string | null
           odometer?: number | null
           original_inspection_id?: string | null
-          overall_result: string
+          overall_result?: string | null
           pass_date?: string | null
           recheck_started_at?: string | null
           repair_job_id?: string | null
@@ -5697,14 +5699,15 @@ export type Database = {
           id?: string
           inspection_date?: string
           inspection_number?: string | null
-          inspection_type?: string
-          inspector_id?: string
+          inspection_type?: string | null
+          inspector_id?: string | null
+          inspector_name?: string | null
           is_recheck?: boolean | null
           is_voided?: boolean | null
           notes?: string | null
           odometer?: number | null
           original_inspection_id?: string | null
-          overall_result?: string
+          overall_result?: string | null
           pass_date?: string | null
           recheck_started_at?: string | null
           repair_job_id?: string | null

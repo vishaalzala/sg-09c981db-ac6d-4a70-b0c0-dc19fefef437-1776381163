@@ -1,0 +1,1 @@
+ALTER TABLE wof_inspections ADD COLUMN IF NOT EXISTS inspector_name TEXT;
