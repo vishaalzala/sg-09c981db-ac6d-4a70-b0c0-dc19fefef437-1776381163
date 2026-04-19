@@ -14,7 +14,8 @@ export const invoiceService = {
         *,
         customer:customers!invoices_customer_id_fkey(id, name, mobile, email),
         vehicle:vehicles!invoices_vehicle_id_fkey(id, registration_number, make, model),
-        payments:payments(amount, payment_date)
+        payments:payments(amount, payment_date),
+        invoice_items:invoice_line_items(quantity, unit_price, discount)
       `)
       .eq("company_id", companyId)
       .is("deleted_at", null)
