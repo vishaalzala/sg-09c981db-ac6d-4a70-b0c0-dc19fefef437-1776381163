@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import type { NextApiRequest } from "next";
 
-export async function verifyAdminAuth(req: NextApiRequest) {
+export async function verifyAdmin(req: NextApiRequest) {
   try {
     const authHeader = req.headers.authorization;
     

@@ -1,5 +1,12 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { Tables } from "@/integrations/supabase/types";
+import type { Tables, Database } from "@/integrations/supabase/types";
+
+export type CompanyWithDetails = Tables<"companies"> & {
+  subscription: any;
+  users: any[];
+  addons: any[];
+  branches: any[];
+};
 
 export interface DashboardStats {
   totalCompanies: number;
@@ -163,14 +170,10 @@ export async function enableCompany(companyId: string) {
 // ============================================
 
 export async function getAllUsers() {
-  // Fetch users with profiles to get role (NO users.role_id dependency)
-  const { data, error } = await supabase
+  // Fetch users (without role_id dependency)
+  const { data: usersData, error } = await supabase
     .from("users")
-    .select(`
-      *,
-      company:companies(name),
-      profile:profiles!users_id_fkey(role)
-    `)
+    .select(`*, company:companies(name)`)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -178,17 +181,18 @@ export async function getAllUsers() {
     throw error;
   }
 
+  // Fetch profiles separately since there is no direct FK between users and profiles
+  const { data: profilesData } = await supabase.from("profiles").select("id, role");
+
   // Map profile.role to display format
-  const usersWithRoles = data?.map(user => {
-    const role = Array.isArray(user.profile) && user.profile.length > 0
-      ? user.profile[0]?.role
-      : user.profile?.role;
+  const usersWithRoles = usersData?.map(user => {
+    const roleStr = profilesData?.find(p => p.id === user.id)?.role || "unknown";
 
     return {
       ...user,
       role: {
-        name: role || "unknown",
-        display_name: formatRoleName(role || "unknown")
+        name: roleStr,
+        display_name: formatRoleName(roleStr)
       }
     };
   });
@@ -197,12 +201,9 @@ export async function getAllUsers() {
 }
 
 export async function getUsersByCompany(companyId: string) {
-  const { data, error } = await supabase
+  const { data: usersData, error } = await supabase
     .from("users")
-    .select(`
-      *,
-      profile:profiles!users_id_fkey(role)
-    `)
+    .select(`*`)
     .eq("company_id", companyId)
     .order("created_at", { ascending: false });
 
@@ -211,16 +212,16 @@ export async function getUsersByCompany(companyId: string) {
     throw error;
   }
 
-  const usersWithRoles = data?.map(user => {
-    const role = Array.isArray(user.profile) && user.profile.length > 0
-      ? user.profile[0]?.role
-      : user.profile?.role;
+  const { data: profilesData } = await supabase.from("profiles").select("id, role");
+
+  const usersWithRoles = usersData?.map(user => {
+    const roleStr = profilesData?.find(p => p.id === user.id)?.role || "unknown";
 
     return {
       ...user,
       role: {
-        name: role || "unknown",
-        display_name: formatRoleName(role || "unknown")
+        name: roleStr,
+        display_name: formatRoleName(roleStr)
       }
     };
   });
