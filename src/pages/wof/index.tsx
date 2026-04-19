@@ -47,7 +47,7 @@ export default function WofPage() {
     if (company) {
       setCompanyId(company.id);
       const status = activeTab === "all" ? undefined : activeTab;
-      const data = await wofService.getInspections(company.id, status);
+      const data = await wofService.getInspections(company.id, status ? { status } : undefined);
       setInspections(data);
     }
     setLoading(false);
