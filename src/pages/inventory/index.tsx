@@ -65,7 +65,7 @@ export default function Inventory() {
         part_number: newStock.part_number,
         description: newStock.description,
         location: newStock.location,
-        supplier: newStock.supplier,
+        supplier_name: newStock.supplier,
         quantity_on_hand: parseInt(newStock.quantity_on_hand) || 0,
         quantity_allocated: parseInt(newStock.quantity_allocated) || 0,
         cost_price: parseFloat(newStock.cost_price) || 0,
