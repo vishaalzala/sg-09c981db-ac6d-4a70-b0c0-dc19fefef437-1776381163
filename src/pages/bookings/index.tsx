@@ -9,6 +9,7 @@ import { bookingService } from "@/services/bookingService";
 import { companyService } from "@/services/companyService";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { EmptyState } from "@/components/EmptyState";
+import { demoBookings } from "@/lib/demoData";
 
 export default function BookingsPage() {
   const [companyId, setCompanyId] = useState<string>("");
@@ -16,12 +17,26 @@ export default function BookingsPage() {
   const [bookings, setBookings] = useState<any[]>([]);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
 
+  // DEMO MODE: Check if demo mode is enabled
+  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+
   useEffect(() => {
     loadData();
   }, [selectedDate]);
 
   const loadData = async () => {
     setLoading(true);
+    
+    // DEMO MODE: Use mock data
+    if (isDemoMode) {
+      console.log("🎭 DEMO MODE - Using mock booking data");
+      setBookings(demoBookings);
+      setCompanyId("demo-company-id");
+      setLoading(false);
+      return;
+    }
+
+    // PRODUCTION MODE: Load real data
     const company = await companyService.getCurrentCompany();
     if (company) {
       setCompanyId(company.id);
@@ -120,10 +135,10 @@ export default function BookingsPage() {
                         <div className="flex-1 space-y-2">
                           <div className="flex items-center gap-2">
                             <Clock className="h-4 w-4 text-muted-foreground" />
-                            <span className="font-semibold">{booking.start_time}</span>
-                            {booking.estimated_finish_time && (
+                            <span className="font-semibold">{new Date(booking.start_time).toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' })}</span>
+                            {booking.end_time && (
                               <span className="text-sm text-muted-foreground">
-                                - {booking.estimated_finish_time}
+                                - {new Date(booking.end_time).toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' })}
                               </span>
                             )}
                             <StatusBadge status={booking.status} type="booking" />
@@ -131,18 +146,13 @@ export default function BookingsPage() {
 
                           <div className="flex items-center gap-2">
                             <User className="h-4 w-4 text-muted-foreground" />
-                            <span className="font-medium">{customer?.name}</span>
-                            {customer?.mobile && (
-                              <span className="text-sm text-muted-foreground">
-                                {customer.mobile}
-                              </span>
-                            )}
+                            <span className="font-medium">{booking.customer_name || customer?.name}</span>
                           </div>
 
                           <div className="flex items-center gap-2">
                             <Car className="h-4 w-4 text-muted-foreground" />
                             <span>
-                              {vehicle?.registration_number} - {vehicle?.make} {vehicle?.model}
+                              {booking.vehicle_rego} {vehicle && `- ${vehicle.make} ${vehicle.model}`}
                             </span>
                           </div>
 
@@ -152,9 +162,9 @@ export default function BookingsPage() {
                             </div>
                           )}
 
-                          {booking.short_description && (
+                          {booking.notes && (
                             <p className="text-sm text-muted-foreground">
-                              {booking.short_description}
+                              {booking.notes}
                             </p>
                           )}
                         </div>

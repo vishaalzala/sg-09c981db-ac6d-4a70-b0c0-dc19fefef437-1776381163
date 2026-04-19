@@ -26,8 +26,9 @@ import {
   StopCircle,
   FileText
 } from "lucide-react";
+import { demoStaff } from "@/lib/demoData";
 
-export default function StaffManagement() {
+export default function StaffPage() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [companyId, setCompanyId] = useState("");
@@ -37,12 +38,26 @@ export default function StaffManagement() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeStaffId, setActiveStaffId] = useState<string | null>(null);
 
+  // DEMO MODE: Check if demo mode is enabled
+  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+
   useEffect(() => {
     loadData();
   }, []);
 
   const loadData = async () => {
     setLoading(true);
+    
+    // DEMO MODE: Use mock data
+    if (isDemoMode) {
+      console.log("🎭 DEMO MODE - Using mock staff data");
+      setStaff(demoStaff);
+      setCompanyId("demo-company-id");
+      setLoading(false);
+      return;
+    }
+
+    // PRODUCTION MODE: Load real data
     const company = await companyService.getCurrentCompany();
     if (company) {
       setCompanyId(company.id);

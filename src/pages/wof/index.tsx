@@ -12,6 +12,7 @@ import { companyService } from "@/services/companyService";
 import { wofService } from "@/services/wofService";
 import { StatusBadge } from "@/components/StatusBadge";
 import { cn } from "@/lib/utils";
+import { demoWofInspections } from "@/lib/demoData";
 
 export default function WofPage() {
   const [companyId, setCompanyId] = useState<string>("");
@@ -20,29 +21,34 @@ export default function WofPage() {
   const [inspections, setInspections] = useState<any[]>([]);
   const [certifications, setCertifications] = useState<any[]>([]);
   const [equipment, setEquipment] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState("all");
+
+  // DEMO MODE: Check if demo mode is enabled
+  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [activeTab]);
 
   const loadData = async () => {
     setLoading(true);
+    
+    // DEMO MODE: Use mock data
+    if (isDemoMode) {
+      console.log("🎭 DEMO MODE - Using mock WOF inspection data");
+      setInspections(demoWofInspections);
+      setCompanyId("demo-company-id");
+      setLoading(false);
+      return;
+    }
+
+    // PRODUCTION MODE: Load real data
     const company = await companyService.getCurrentCompany();
     if (company) {
       setCompanyId(company.id);
-      const access = await companyService.checkFeatureEntitlement(company.id, "wof_compliance");
-      setHasWofAccess(access);
-
-      if (access) {
-        const [inspData, certData, equipData] = await Promise.all([
-          wofService.getInspections(company.id),
-          wofService.getInspectorCertifications(company.id),
-          wofService.getEquipment(company.id),
-        ]);
-        setInspections(inspData);
-        setCertifications(certData);
-        setEquipment(equipData);
-      }
+      const status = activeTab === "all" ? undefined : activeTab;
+      const data = await wofService.getInspections(company.id, status);
+      setInspections(data);
     }
     setLoading(false);
   };

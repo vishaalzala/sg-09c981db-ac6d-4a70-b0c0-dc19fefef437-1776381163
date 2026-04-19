@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { CustomerSelector } from "@/components/CustomerSelector";
 import { VehicleSelector } from "@/components/VehicleSelector";
 import { useToast } from "@/hooks/use-toast";
+import { demoInvoices } from "@/lib/demoData";
 
 export default function InvoicesPage() {
   const [companyId, setCompanyId] = useState<string>("");
@@ -32,12 +33,26 @@ export default function InvoicesPage() {
   });
   const { toast } = useToast();
 
+  // DEMO MODE: Check if demo mode is enabled
+  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+
   useEffect(() => {
     loadData();
   }, [activeTab]);
 
   const loadData = async () => {
     setLoading(true);
+    
+    // DEMO MODE: Use mock data
+    if (isDemoMode) {
+      console.log("🎭 DEMO MODE - Using mock invoice data");
+      setInvoices(demoInvoices);
+      setCompanyId("demo-company-id");
+      setLoading(false);
+      return;
+    }
+
+    // PRODUCTION MODE: Load real data
     const company = await companyService.getCurrentCompany();
     if (company) {
       setCompanyId(company.id);

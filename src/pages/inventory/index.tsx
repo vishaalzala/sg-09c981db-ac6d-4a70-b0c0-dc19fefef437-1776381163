@@ -15,22 +15,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { demoInventory } from "@/lib/demoData";
 
 export default function InventoryPage() {
   const [companyId, setCompanyId] = useState<string>("");
   const [loading, setLoading] = useState(true);
-  const [items, setItems] = useState<any[]>([]);
-  const [showAddDialog, setShowAddDialog] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [newItem, setNewItem] = useState({
-    part_number: "",
-    description: "",
-    category: "",
-    cost_price: "",
-    sell_price: "",
-    reorder_level: "",
-  });
-  const { toast } = useToast();
+  const [inventory, setInventory] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // DEMO MODE: Check if demo mode is enabled
+  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 
   useEffect(() => {
     loadData();
@@ -38,50 +32,48 @@ export default function InventoryPage() {
 
   const loadData = async () => {
     setLoading(true);
+    
+    // DEMO MODE: Use mock data
+    if (isDemoMode) {
+      console.log("🎭 DEMO MODE - Using mock inventory data");
+      setInventory(demoInventory);
+      setCompanyId("demo-company-id");
+      setLoading(false);
+      return;
+    }
+
+    // PRODUCTION MODE: Load real data
     const company = await companyService.getCurrentCompany();
     if (company) {
       setCompanyId(company.id);
-      const data = await inventoryService.getInventoryItems(company.id);
-      setItems(data);
+      const data = await inventoryService.getInventory(company.id);
+      setInventory(data);
     }
     setLoading(false);
   };
 
-  const handleCreateItem = async () => {
-    if (!newItem.description) {
-      toast({ title: "Error", description: "Description is required", variant: "destructive" });
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const company = await companyService.getCurrentCompany();
-      if (!company) throw new Error("No company context found");
-
-      await inventoryService.createInventoryItem({
-        ...newItem,
-        company_id: company.id,
-        cost_price: newItem.cost_price ? parseFloat(newItem.cost_price) : null,
-        sell_price: newItem.sell_price ? parseFloat(newItem.sell_price) : null,
-        reorder_level: newItem.reorder_level ? parseInt(newItem.reorder_level) : null,
-      } as any);
-
-      toast({ title: "Success", description: "Inventory item created successfully" });
-      setShowAddDialog(false);
-      setNewItem({ part_number: "", description: "", category: "", cost_price: "", sell_price: "", reorder_level: "" });
+  const searchInventory = () => {
+    if (isDemoMode) {
+      const filtered = demoInventory.filter(item => 
+        item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.sku?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.description?.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+      setInventory(filtered);
+    } else {
       loadData();
-    } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
-  if (loading) {
-    return <LoadingSpinner />;
-  }
+  useEffect(() => {
+    if (searchQuery) {
+      searchInventory();
+    } else {
+      loadData();
+    }
+  }, [searchQuery]);
 
-  const lowStockItems = items.filter(item => 
+  const lowStockItems = inventory.filter(item => 
     // Currently stock is tracked via movements, defaulting to 0 for MVP list view
     (0) <= (item.reorder_level || 0)
   );
@@ -125,7 +117,7 @@ export default function InventoryPage() {
             <CardDescription>Parts and materials inventory</CardDescription>
           </CardHeader>
           <CardContent>
-            {items.length === 0 ? (
+            {inventory.length === 0 ? (
               <EmptyState
                 icon={Package}
                 title="No inventory items"
@@ -137,7 +129,7 @@ export default function InventoryPage() {
               />
             ) : (
               <div className="space-y-3">
-                {items.map((item) => {
+                {inventory.map((item) => {
                   const supplier = Array.isArray(item.supplier) ? item.supplier[0] : item.supplier;
                   const isLowStock = (0) <= (item.reorder_level || 0);
                   const stockLevel = 0; // Will be calculated from movements

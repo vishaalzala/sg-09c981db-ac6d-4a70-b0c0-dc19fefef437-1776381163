@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { CustomerSelector } from "@/components/CustomerSelector";
 import { VehicleSelector } from "@/components/VehicleSelector";
 import { useToast } from "@/hooks/use-toast";
+import { demoJobs } from "@/lib/demoData";
 
 export default function JobsPage() {
   const [companyId, setCompanyId] = useState<string>("");
@@ -34,12 +35,26 @@ export default function JobsPage() {
   });
   const { toast } = useToast();
 
+  // DEMO MODE: Check if demo mode is enabled
+  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+
   useEffect(() => {
     loadData();
   }, [activeTab]);
 
   const loadData = async () => {
     setLoading(true);
+    
+    // DEMO MODE: Use mock data
+    if (isDemoMode) {
+      console.log("🎭 DEMO MODE - Using mock job data");
+      setJobs(demoJobs);
+      setCompanyId("demo-company-id");
+      setLoading(false);
+      return;
+    }
+
+    // PRODUCTION MODE: Load real data
     const company = await companyService.getCurrentCompany();
     if (company) {
       setCompanyId(company.id);
@@ -148,27 +163,27 @@ export default function JobsPage() {
                             <div className="flex items-start justify-between gap-4">
                               <div className="flex-1 space-y-2">
                                 <div className="flex items-center gap-2">
-                                  <span className="font-semibold">{job.order_number}</span>
+                                  <span className="font-semibold">{job.job_number || `JOB-${job.id}`}</span>
                                   <StatusBadge status={job.status} type="job" />
                                 </div>
 
-                                <div className="font-medium">{job.job_title}</div>
+                                <div className="font-medium">{job.description || job.job_title}</div>
 
                                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                   <User className="h-3 w-3" />
-                                  <span>{customer?.name}</span>
+                                  <span>{job.customer_name || customer?.name}</span>
                                 </div>
 
                                 <div className="flex items-center gap-2 text-sm">
                                   <Car className="h-3 w-3 text-muted-foreground" />
                                   <span>
-                                    {vehicle?.registration_number} - {vehicle?.make} {vehicle?.model}
+                                    {job.vehicle_rego || job.vehicle_description || (vehicle && `${vehicle.registration_number} - ${vehicle.make} ${vehicle.model}`)}
                                   </span>
                                 </div>
 
-                                {job.short_description && (
+                                {job.technician_notes && (
                                   <p className="text-sm text-muted-foreground">
-                                    {job.short_description}
+                                    {job.technician_notes}
                                   </p>
                                 )}
                               </div>
@@ -181,9 +196,9 @@ export default function JobsPage() {
                                   </span>
                                 </div>
 
-                                {job.estimated_total && (
+                                {job.total_cost && (
                                   <div className="font-semibold text-primary">
-                                    ${job.estimated_total.toFixed(2)}
+                                    ${job.total_cost.toFixed(2)}
                                   </div>
                                 )}
                               </div>

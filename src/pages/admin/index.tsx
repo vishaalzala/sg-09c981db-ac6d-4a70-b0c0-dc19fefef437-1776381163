@@ -51,8 +51,9 @@ import {
 } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 import Link from "next/link";
+import { demoCompanies } from "@/lib/demoData";
 
-export default function AdminPanel() {
+export default function AdminPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -86,6 +87,9 @@ export default function AdminPanel() {
   const [permissionToDelete, setPermissionToDelete] = useState<any>(null);
   const [newPermission, setNewPermission] = useState({ name: "", category: "", description: "" });
 
+  // DEMO MODE: Check if demo mode is enabled
+  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+
   // Initialize tab from URL
   useEffect(() => {
     const tabFromUrl = router.query.tab as string;
@@ -100,6 +104,21 @@ export default function AdminPanel() {
 
   const loadData = async () => {
     try {
+      // DEMO MODE: Use mock data
+      if (isDemoMode) {
+        console.log("🎭 DEMO MODE - Using mock company data");
+        setCompanies(demoCompanies);
+        setStats({
+          totalCompanies: demoCompanies.length,
+          activeSubscriptions: demoCompanies.filter(c => c.subscription_status === "trial_active").length,
+          trialAccounts: demoCompanies.length,
+          totalRevenue: 0
+        });
+        setLoading(false);
+        return;
+      }
+
+      // PRODUCTION MODE: Load real data
       setLoading(true);
       setError("");
 
