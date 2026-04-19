@@ -87,7 +87,6 @@ export default function NewInvoice() {
         vehicle_id: selectedVehicle?.id || null,
         invoice_date: formData.invoice_date,
         due_date: formData.due_date || null,
-        description: formData.description,
         notes: formData.notes,
         status: "unpaid",
         total_amount: 0,
