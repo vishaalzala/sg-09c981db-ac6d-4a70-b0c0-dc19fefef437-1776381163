@@ -1,4 +1,4 @@
- 
+/* eslint-disable @typescript-eslint/no-empty-object-type */
 export type Json =
   | string
   | number
@@ -5796,6 +5796,7 @@ export type Database = {
         Returns: undefined
       }
       current_user_company_id: { Args: never; Returns: string }
+      get_user_company_id: { Args: never; Returns: string }
       get_user_permissions: {
         Args: { p_user_id: string }
         Returns: {
@@ -5816,6 +5817,10 @@ export type Database = {
           vehicle_id: string
         }
         Returns: Json
+      }
+      user_belongs_to_company: {
+        Args: { check_company_id: string }
+        Returns: boolean
       }
     }
     Enums: {
