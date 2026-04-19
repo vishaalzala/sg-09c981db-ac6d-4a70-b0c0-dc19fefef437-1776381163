@@ -1,254 +1,182 @@
 import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/AppLayout";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Building2, Phone, Mail } from "lucide-react";
-import { supplierService } from "@/services/supplierService";
-import { companyService } from "@/services/companyService";
-import { LoadingSpinner } from "@/components/LoadingSpinner";
-import { EmptyState } from "@/components/EmptyState";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Search, Plus, Download } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { demoSuppliers } from "@/lib/demoData";
 
-export default function SuppliersPage() {
-  const [companyId, setCompanyId] = useState<string>("");
-  const [loading, setLoading] = useState(true);
+export default function Suppliers() {
+  const { toast } = useToast();
+  const [searchTerm, setSearchTerm] = useState("");
   const [suppliers, setSuppliers] = useState<any[]>([]);
-  const [showAddDialog, setShowAddDialog] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showNewDialog, setShowNewDialog] = useState(false);
   const [newSupplier, setNewSupplier] = useState({
     name: "",
-    phone: "",
+    contact_person: "",
     email: "",
-    account_number: "",
-    notes: "",
-    is_preferred: false,
+    phone: "",
+    address: "",
+    notes: ""
   });
-  const { toast } = useToast();
-
-  // DEMO MODE: Check if demo mode is enabled
-  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 
   useEffect(() => {
-    loadData();
+    loadSuppliers();
   }, []);
 
-  const loadData = async () => {
-    setLoading(true);
-    
-    // DEMO MODE: Use mock data
-    if (isDemoMode) {
-      console.log("🎭 DEMO MODE - Using mock supplier data");
-      setSuppliers(demoSuppliers);
-      setCompanyId("demo-company-id");
-      setLoading(false);
+  const loadSuppliers = async () => {
+    const { data } = await supabase
+      .from("suppliers")
+      .select("*")
+      .order("name");
+    setSuppliers(data || []);
+  };
+
+  const handleCreate = async () => {
+    const { error } = await supabase
+      .from("suppliers")
+      .insert([newSupplier]);
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to create supplier",
+        variant: "destructive"
+      });
       return;
     }
 
-    // PRODUCTION MODE: Load real data
-    const company = await companyService.getCurrentCompany();
-    if (company) {
-      setCompanyId(company.id);
-      const data = await supplierService.getSuppliers(company.id);
-      setSuppliers(data);
-    }
-    setLoading(false);
+    toast({
+      title: "Success",
+      description: "Supplier created successfully"
+    });
+
+    setShowNewDialog(false);
+    setNewSupplier({
+      name: "",
+      contact_person: "",
+      email: "",
+      phone: "",
+      address: "",
+      notes: ""
+    });
+    loadSuppliers();
   };
 
-  const handleCreateSupplier = async () => {
-    if (!newSupplier.name) {
-      toast({ title: "Error", description: "Supplier name is required", variant: "destructive" });
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const company = await companyService.getCurrentCompany();
-      if (!company) throw new Error("No company context found");
-
-      await supplierService.createSupplier({
-        ...newSupplier,
-        company_id: company.id,
-      } as any);
-
-      toast({ title: "Success", description: "Supplier created successfully" });
-      setShowAddDialog(false);
-      setNewSupplier({ name: "", phone: "", email: "", account_number: "", notes: "", is_preferred: false });
-      loadData();
-    } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  if (loading) {
-    return <LoadingSpinner />;
-  }
+  const filteredSuppliers = suppliers.filter(s =>
+    s.name?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
-    <AppLayout companyId={companyId} companyName="AutoTech Workshop" userName="Service Manager">
-      <div className="space-y-6">
-        {/* Header */}
+    <AppLayout companyId="">
+      <div className="p-6 space-y-6">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="font-heading text-3xl font-bold">Suppliers</h1>
-            <p className="text-muted-foreground mt-1">
-              Manage parts suppliers and vendors
-            </p>
+          <h1 className="font-heading text-3xl font-bold">Suppliers</h1>
+          <div className="flex gap-2">
+            <Button onClick={() => setShowNewDialog(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              New Supplier
+            </Button>
+            <Button variant="outline">
+              <Download className="h-4 w-4 mr-2" />
+              Download
+            </Button>
           </div>
-          <Button onClick={() => setShowAddDialog(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Supplier
-          </Button>
         </div>
 
-        {/* Suppliers List */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search suppliers..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+
         <Card>
-          <CardHeader>
-            <CardTitle>Suppliers Directory</CardTitle>
-            <CardDescription>Your parts suppliers and service providers</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {suppliers.length === 0 ? (
-              <EmptyState
-                icon={Building2}
-                title="No suppliers"
-                description="Add your first supplier to start managing inventory and purchase orders"
-                action={{
-                  label: "Add Supplier",
-                  onClick: () => window.location.href = "/suppliers/new",
-                }}
-              />
-            ) : (
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {suppliers.map((supplier) => (
-                  <Card
-                    key={supplier.id}
-                    className="hover:shadow-md transition-shadow cursor-pointer"
-                    onClick={() => window.location.href = `/suppliers/${supplier.id}`}
-                  >
-                    <CardHeader>
-                      <div className="flex items-start justify-between">
-                        <Building2 className="h-8 w-8 text-primary" />
-                        {supplier.is_preferred && (
-                          <span className="text-xs bg-accent/10 text-accent px-2 py-1 rounded">
-                            Preferred
-                          </span>
-                        )}
-                      </div>
-                      <CardTitle className="text-lg mt-2">{supplier.name}</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2">
-                      {supplier.phone && (
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Phone className="h-3 w-3" />
-                          <span>{supplier.phone}</span>
-                        </div>
-                      )}
-                      {supplier.email && (
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Mail className="h-3 w-3" />
-                          <span>{supplier.email}</span>
-                        </div>
-                      )}
-                      {supplier.account_number && (
-                        <p className="text-xs text-muted-foreground mt-2">
-                          Account: {supplier.account_number}
-                        </p>
-                      )}
-                    </CardContent>
-                  </Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>NAME</TableHead>
+                  <TableHead>CONTACT PERSON</TableHead>
+                  <TableHead>EMAIL</TableHead>
+                  <TableHead>PHONE</TableHead>
+                  <TableHead>ADDRESS</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredSuppliers.map((supplier) => (
+                  <TableRow key={supplier.id} className="cursor-pointer hover:bg-muted/50">
+                    <TableCell className="font-medium">{supplier.name}</TableCell>
+                    <TableCell>{supplier.contact_person}</TableCell>
+                    <TableCell>{supplier.email}</TableCell>
+                    <TableCell>{supplier.phone}</TableCell>
+                    <TableCell>{supplier.address}</TableCell>
+                  </TableRow>
                 ))}
-              </div>
-            )}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
       </div>
 
-      {/* Add Supplier Dialog */}
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+      <Dialog open={showNewDialog} onOpenChange={setShowNewDialog}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Add New Supplier</DialogTitle>
+            <DialogTitle>New Supplier</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Supplier Name *</Label>
+              <Label>Name *</Label>
               <Input
-                id="name"
                 value={newSupplier.name}
                 onChange={(e) => setNewSupplier({ ...newSupplier, name: e.target.value })}
-                placeholder="Repco Auto Parts"
-                required
               />
             </div>
-
-            <div className="grid md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="phone">Phone</Label>
+                <Label>Contact Person</Label>
                 <Input
-                  id="phone"
+                  value={newSupplier.contact_person}
+                  onChange={(e) => setNewSupplier({ ...newSupplier, contact_person: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Phone</Label>
+                <Input
                   value={newSupplier.phone}
                   onChange={(e) => setNewSupplier({ ...newSupplier, phone: e.target.value })}
-                  placeholder="09 123 4567"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={newSupplier.email}
-                  onChange={(e) => setNewSupplier({ ...newSupplier, email: e.target.value })}
-                  placeholder="orders@supplier.co.nz"
                 />
               </div>
             </div>
-
             <div className="space-y-2">
-              <Label htmlFor="account_number">Account Number</Label>
+              <Label>Email</Label>
               <Input
-                id="account_number"
-                value={newSupplier.account_number}
-                onChange={(e) => setNewSupplier({ ...newSupplier, account_number: e.target.value })}
-                placeholder="ACC123456"
+                type="email"
+                value={newSupplier.email}
+                onChange={(e) => setNewSupplier({ ...newSupplier, email: e.target.value })}
               />
             </div>
-
             <div className="space-y-2">
-              <Label htmlFor="notes">Notes</Label>
-              <Textarea
-                id="notes"
-                value={newSupplier.notes}
-                onChange={(e) => setNewSupplier({ ...newSupplier, notes: e.target.value })}
-                placeholder="Delivery days, special terms, etc."
-                rows={3}
+              <Label>Address</Label>
+              <Input
+                value={newSupplier.address}
+                onChange={(e) => setNewSupplier({ ...newSupplier, address: e.target.value })}
               />
             </div>
-
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="is_preferred"
-                checked={newSupplier.is_preferred}
-                onCheckedChange={(checked) => setNewSupplier({ ...newSupplier, is_preferred: checked as boolean })}
-              />
-              <Label htmlFor="is_preferred">Mark as preferred supplier</Label>
+            <div className="flex gap-2 pt-4">
+              <Button onClick={handleCreate} className="flex-1">Save</Button>
+              <Button onClick={() => setShowNewDialog(false)} variant="outline" className="flex-1">
+                Cancel
+              </Button>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddDialog(false)} disabled={isSubmitting}>
-              Cancel
-            </Button>
-            <Button onClick={handleCreateSupplier} disabled={isSubmitting}>
-              {isSubmitting ? "Creating..." : "Add Supplier"}
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </AppLayout>

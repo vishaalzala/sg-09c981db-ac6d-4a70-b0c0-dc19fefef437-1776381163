@@ -1,337 +1,310 @@
 import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/AppLayout";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Plus, Package, AlertTriangle, TrendingDown, Building2 } from "lucide-react";
-import { inventoryService } from "@/services/inventoryService";
-import { companyService } from "@/services/companyService";
-import { LoadingSpinner } from "@/components/LoadingSpinner";
-import { EmptyState } from "@/components/EmptyState";
-import { cn } from "@/lib/utils";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Search, Plus, Download, Upload } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { demoInventory } from "@/lib/demoData";
 
-export default function InventoryPage() {
-  const [companyId, setCompanyId] = useState<string>("");
-  const [loading, setLoading] = useState(true);
-  const [inventory, setInventory] = useState<any[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showAddDialog, setShowAddDialog] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+export default function Inventory() {
   const { toast } = useToast();
-  const [newItem, setNewItem] = useState({
-    description: "",
+  const [searchTerm, setSearchTerm] = useState("");
+  const [inventory, setInventory] = useState<any[]>([]);
+  const [showNewStockDialog, setShowNewStockDialog] = useState(false);
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const [showDeletedOnly, setShowDeletedOnly] = useState(false);
+  const [newStock, setNewStock] = useState({
     part_number: "",
-    category: "",
+    description: "",
+    location: "",
+    supplier: "",
+    quantity_on_hand: "",
+    quantity_allocated: "",
     cost_price: "",
     sell_price: "",
-    reorder_level: "10"
+    reorder_level: "",
+    notes: ""
   });
 
-  // DEMO MODE: Check if demo mode is enabled
-  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
-
   useEffect(() => {
-    loadData();
+    loadInventory();
   }, []);
 
-  const loadData = async () => {
-    setLoading(true);
-    
-    // DEMO MODE: Use mock data
-    if (isDemoMode) {
-      console.log("🎭 DEMO MODE - Using mock inventory data");
-      setInventory(demoInventory);
-      setCompanyId("demo-company-id");
-      setLoading(false);
+  const loadInventory = async () => {
+    const { data } = await supabase
+      .from("inventory_items")
+      .select("*")
+      .order("description");
+    setInventory(data || []);
+  };
+
+  const handleCreateStock = async () => {
+    const { error } = await supabase
+      .from("inventory_items")
+      .insert([{
+        part_number: newStock.part_number,
+        description: newStock.description,
+        location: newStock.location,
+        supplier: newStock.supplier,
+        quantity_on_hand: parseInt(newStock.quantity_on_hand) || 0,
+        quantity_allocated: parseInt(newStock.quantity_allocated) || 0,
+        cost_price: parseFloat(newStock.cost_price) || 0,
+        sell_price: parseFloat(newStock.sell_price) || 0,
+        reorder_level: parseInt(newStock.reorder_level) || 0,
+        notes: newStock.notes
+      }]);
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to create stock item",
+        variant: "destructive"
+      });
       return;
     }
 
-    // PRODUCTION MODE: Load real data
-    const company = await companyService.getCurrentCompany();
-    if (company) {
-      setCompanyId(company.id);
-      const data = await inventoryService.getInventoryItems(company.id);
-      setInventory(data);
-    }
-    setLoading(false);
+    toast({
+      title: "Success",
+      description: "Stock item created successfully"
+    });
+
+    setShowNewStockDialog(false);
+    setNewStock({
+      part_number: "",
+      description: "",
+      location: "",
+      supplier: "",
+      quantity_on_hand: "",
+      quantity_allocated: "",
+      cost_price: "",
+      sell_price: "",
+      reorder_level: "",
+      notes: ""
+    });
+    loadInventory();
   };
 
-  const handleCreateItem = async () => {
-    setIsSubmitting(true);
-    try {
-      if (isDemoMode) {
-        const mockItem = {
-          id: `inv-item-${Date.now()}`,
-          ...newItem,
-          name: newItem.description,
-          sku: newItem.part_number,
-          quantity: 0,
-          created_at: new Date().toISOString()
-        };
-        setInventory([mockItem, ...inventory]);
-        toast({ title: "Success", description: "Item added (Demo)" });
-        setShowAddDialog(false);
-        return;
-      }
-      // Normal creation logic
-      toast({ title: "Success", description: "Item added" });
-      setShowAddDialog(false);
-      loadData();
-    } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } finally {
-      setIsSubmitting(false);
-    }
+  const toggleItem = (id: string) => {
+    setSelectedItems(prev =>
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
   };
 
-  const searchInventory = () => {
-    if (isDemoMode) {
-      const filtered = demoInventory.filter(item => 
-        item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.sku?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.description?.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-      setInventory(filtered);
+  const toggleAll = () => {
+    if (selectedItems.length === inventory.length) {
+      setSelectedItems([]);
     } else {
-      loadData();
+      setSelectedItems(inventory.map(i => i.id));
     }
   };
 
-  useEffect(() => {
-    if (searchQuery) {
-      searchInventory();
-    } else {
-      loadData();
-    }
-  }, [searchQuery]);
-
-  const lowStockItems = inventory.filter(item => 
-    // Currently stock is tracked via movements, defaulting to 0 for MVP list view
-    (0) <= (item.reorder_level || 0)
-  );
+  const filteredInventory = inventory.filter(item => {
+    const matchesSearch = 
+      item.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.part_number?.toLowerCase().includes(searchTerm.toLowerCase());
+    return matchesSearch;
+  });
 
   return (
-    <AppLayout companyId={companyId} companyName="AutoTech Workshop" userName="Service Manager">
-      <div className="space-y-6">
-        {/* Header */}
+    <AppLayout companyId="">
+      <div className="p-6 space-y-6">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="font-heading text-3xl font-bold">Inventory</h1>
-            <p className="text-muted-foreground mt-1">
-              Manage parts and stock levels
-            </p>
+          <h1 className="font-heading text-3xl font-bold">All Stocks</h1>
+          <div className="flex gap-2">
+            <Button variant="outline">
+              <Upload className="h-4 w-4 mr-2" />
+              Supplier
+            </Button>
+            <Button onClick={() => setShowNewStockDialog(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              New Stock
+            </Button>
+            <Button variant="outline">
+              Settings
+            </Button>
           </div>
-          <Button onClick={() => setShowAddDialog(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Item
-          </Button>
         </div>
 
-        {/* Low Stock Alert */}
-        {lowStockItems.length > 0 && (
-          <Card className="border-warning bg-warning/5">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-warning" />
-                <CardTitle className="text-lg">Low Stock Alert</CardTitle>
-              </div>
-              <CardDescription>
-                {lowStockItems.length} item{lowStockItems.length !== 1 ? "s" : ""} below reorder point
-              </CardDescription>
-            </CardHeader>
-          </Card>
-        )}
+        <div className="flex items-center gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="discontinued"
+              checked={showDeletedOnly}
+              onCheckedChange={(checked) => setShowDeletedOnly(checked as boolean)}
+            />
+            <Label htmlFor="discontinued">Discontinued</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox id="deleted" />
+            <Label htmlFor="deleted">Deleted</Label>
+          </div>
+        </div>
 
-        {/* Inventory List */}
         <Card>
-          <CardHeader>
-            <CardTitle>Stock Items</CardTitle>
-            <CardDescription>Parts and materials inventory</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {inventory.length === 0 ? (
-              <EmptyState
-                icon={Package}
-                title="No inventory items"
-                description="Add your first inventory item to start tracking stock"
-                action={{
-                  label: "Add Item",
-                  onClick: () => window.location.href = "/inventory/new",
-                }}
-              />
-            ) : (
-              <div className="space-y-3">
-                {inventory.map((item) => {
-                  const supplier = Array.isArray(item.supplier) ? item.supplier[0] : item.supplier;
-                  const isLowStock = (0) <= (item.reorder_level || 0);
-                  const stockLevel = 0; // Will be calculated from movements
-
-                  return (
-                    <div
-                      key={item.id}
-                      className={cn(
-                        "p-4 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer",
-                        isLowStock && "border-warning/50"
-                      )}
-                      onClick={() => window.location.href = `/inventory/${item.id}`}
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1 space-y-2">
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold">{item.description || "Unnamed Item"}</span>
-                            {isLowStock && (
-                              <Badge variant="outline" className="text-warning border-warning">
-                                <TrendingDown className="h-3 w-3 mr-1" />
-                                Low Stock
-                              </Badge>
-                            )}
-                          </div>
-
-                          {item.part_number && (
-                            <p className="text-sm text-muted-foreground">Part No: {item.part_number}</p>
-                          )}
-
-                          {supplier && (
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <Building2 className="h-3 w-3" />
-                              <span>{supplier.name}</span>
-                            </div>
-                          )}
-
-                          {item.category && (
-                            <p className="text-sm">Category: {item.category}</p>
-                          )}
-                        </div>
-
-                        <div className="text-right space-y-2">
-                          <div>
-                            <p className="text-xs text-muted-foreground">On Hand</p>
-                            <p className={cn(
-                              "text-2xl font-bold",
-                              isLowStock ? "text-warning" : "text-primary"
-                            )}>
-                              {stockLevel}
-                            </p>
-                          </div>
-
-                          {item.sell_price && (
-                            <p className="text-sm text-muted-foreground">
-                              ${item.sell_price.toFixed(2)}
-                            </p>
-                          )}
-
-                          {item.reorder_level && (
-                            <p className="text-xs text-muted-foreground">
-                              Reorder at: {item.reorder_level}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-12">
+                    <Checkbox
+                      checked={selectedItems.length === inventory.length}
+                      onCheckedChange={toggleAll}
+                    />
+                  </TableHead>
+                  <TableHead>No.</TableHead>
+                  <TableHead>NAME</TableHead>
+                  <TableHead>LOCATION</TableHead>
+                  <TableHead>AVAIL./TOTAL QUANTITY</TableHead>
+                  <TableHead>SELL PRICE</TableHead>
+                  <TableHead>PRICE (INCL. GST)</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredInventory.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedItems.includes(item.id)}
+                        onCheckedChange={() => toggleItem(item.id)}
+                      />
+                    </TableCell>
+                    <TableCell>{item.part_number}</TableCell>
+                    <TableCell>{item.description}</TableCell>
+                    <TableCell>{item.location}</TableCell>
+                    <TableCell>
+                      {item.quantity_on_hand - (item.quantity_allocated || 0)} / {item.quantity_on_hand}
+                    </TableCell>
+                    <TableCell>${item.sell_price?.toFixed(2) || "0.00"}</TableCell>
+                    <TableCell>${(item.sell_price * 1.15)?.toFixed(2) || "0.00"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
       </div>
 
-      {/* Add Item Dialog */}
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="max-w-2xl">
+      {/* New Stock Dialog */}
+      <Dialog open={showNewStockDialog} onOpenChange={setShowNewStockDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Add Inventory Item</DialogTitle>
+            <DialogTitle>New Stock</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Part Number</Label>
+                <Input
+                  value={newStock.part_number}
+                  onChange={(e) => setNewStock({ ...newStock, part_number: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Location</Label>
+                <Input
+                  value={newStock.location}
+                  onChange={(e) => setNewStock({ ...newStock, location: e.target.value })}
+                />
+              </div>
+            </div>
+
             <div className="space-y-2">
-              <Label htmlFor="description">Description *</Label>
+              <Label>Description *</Label>
               <Input
-                id="description"
-                value={newItem.description}
-                onChange={(e) => setNewItem({ ...newItem, description: e.target.value })}
-                placeholder="Brake Pads - Front"
-                required
+                value={newStock.description}
+                onChange={(e) => setNewStock({ ...newStock, description: e.target.value })}
               />
             </div>
 
-            <div className="grid md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Supplier</Label>
+              <Input
+                value={newStock.supplier}
+                onChange={(e) => setNewStock({ ...newStock, supplier: e.target.value })}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="part_number">Part Number</Label>
+                <Label>Quantity on Hand</Label>
                 <Input
-                  id="part_number"
-                  value={newItem.part_number}
-                  onChange={(e) => setNewItem({ ...newItem, part_number: e.target.value })}
-                  placeholder="BP-FR-001"
+                  type="number"
+                  value={newStock.quantity_on_hand}
+                  onChange={(e) => setNewStock({ ...newStock, quantity_on_hand: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="category">Category</Label>
-                <Select value={newItem.category} onValueChange={(value) => setNewItem({ ...newItem, category: value })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="brakes">Brakes</SelectItem>
-                    <SelectItem value="filters">Filters</SelectItem>
-                    <SelectItem value="fluids">Fluids</SelectItem>
-                    <SelectItem value="tyres">Tyres</SelectItem>
-                    <SelectItem value="electrical">Electrical</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label>Quantity Allocated</Label>
+                <Input
+                  type="number"
+                  value={newStock.quantity_allocated}
+                  onChange={(e) => setNewStock({ ...newStock, quantity_allocated: e.target.value })}
+                />
               </div>
             </div>
 
-            <div className="grid md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="cost_price">Cost Price</Label>
+                <Label>Cost Price</Label>
                 <Input
-                  id="cost_price"
                   type="number"
                   step="0.01"
-                  value={newItem.cost_price}
-                  onChange={(e) => setNewItem({ ...newItem, cost_price: e.target.value })}
-                  placeholder="0.00"
+                  value={newStock.cost_price}
+                  onChange={(e) => setNewStock({ ...newStock, cost_price: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="sell_price">Sell Price</Label>
+                <Label>Sell Price</Label>
                 <Input
-                  id="sell_price"
                   type="number"
                   step="0.01"
-                  value={newItem.sell_price}
-                  onChange={(e) => setNewItem({ ...newItem, sell_price: e.target.value })}
-                  placeholder="0.00"
+                  value={newStock.sell_price}
+                  onChange={(e) => setNewStock({ ...newStock, sell_price: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="reorder_level">Reorder Level</Label>
+                <Label>Reorder Level</Label>
                 <Input
-                  id="reorder_level"
                   type="number"
-                  value={newItem.reorder_level}
-                  onChange={(e) => setNewItem({ ...newItem, reorder_level: e.target.value })}
-                  placeholder="10"
+                  value={newStock.reorder_level}
+                  onChange={(e) => setNewStock({ ...newStock, reorder_level: e.target.value })}
                 />
               </div>
             </div>
+
+            <div className="space-y-2">
+              <Label>Notes</Label>
+              <Textarea
+                value={newStock.notes}
+                onChange={(e) => setNewStock({ ...newStock, notes: e.target.value })}
+                rows={3}
+              />
+            </div>
+
+            <div className="flex gap-2 pt-4">
+              <Button onClick={handleCreateStock} className="flex-1">
+                Save
+              </Button>
+              <Button onClick={() => setShowNewStockDialog(false)} variant="outline" className="flex-1">
+                Cancel
+              </Button>
+            </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddDialog(false)} disabled={isSubmitting}>
-              Cancel
-            </Button>
-            <Button onClick={handleCreateItem} disabled={isSubmitting}>
-              {isSubmitting ? "Creating..." : "Add Item"}
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </AppLayout>
