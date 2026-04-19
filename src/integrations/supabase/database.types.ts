@@ -4820,6 +4820,64 @@ export type Database = {
           },
         ]
       }
+      timesheets: {
+        Row: {
+          company_id: string
+          created_at: string | null
+          date: string
+          hours_worked: number
+          id: string
+          job_id: string | null
+          notes: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string | null
+          date: string
+          hours_worked: number
+          id?: string
+          job_id?: string | null
+          notes?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string | null
+          date?: string
+          hours_worked?: number
+          id?: string
+          job_id?: string | null
+          notes?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "timesheets_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timesheets_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timesheets_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       usage_records: {
         Row: {
           addon_id: string | null

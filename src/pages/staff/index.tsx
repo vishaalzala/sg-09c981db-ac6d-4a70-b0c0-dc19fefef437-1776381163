@@ -21,11 +21,10 @@ export default function Staff() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showTimesheetDialog, setShowTimesheetDialog] = useState(false);
   const [newStaff, setNewStaff] = useState({
-    name: "",
+    full_name: "",
     email: "",
-    phone: "",
-    role: "",
-    hourly_rate: ""
+    mobile: "",
+    role: ""
   });
   const [newTimesheet, setNewTimesheet] = useState({
     staff_id: "",
@@ -50,14 +49,14 @@ export default function Staff() {
       .from("users")
       .select("*")
       .eq("company_id", cId)
-      .order("name");
+      .order("full_name");
     setStaff(data || []);
   };
 
   const loadTimesheets = async (cId: string) => {
     const { data } = await supabase
       .from("timesheets")
-      .select("*, users(name)")
+      .select("*, users(full_name)")
       .eq("company_id", cId)
       .order("date", { ascending: false });
     setTimesheets(data || []);
@@ -70,10 +69,10 @@ export default function Staff() {
       .from("users")
       .insert([{
         company_id: companyId,
-        name: newStaff.name,
+        full_name: newStaff.full_name,
         email: newStaff.email,
-        phone: newStaff.phone,
-        role: newStaff.role
+        mobile: newStaff.mobile,
+        role_id: newStaff.role
       }]);
 
     if (error) {
@@ -83,7 +82,7 @@ export default function Staff() {
 
     toast({ title: "Success", description: "Staff member added successfully" });
     setShowAddDialog(false);
-    setNewStaff({ name: "", email: "", phone: "", role: "", hourly_rate: "" });
+    setNewStaff({ full_name: "", email: "", mobile: "", role: "" });
     loadStaff(companyId);
   };
 
@@ -113,7 +112,7 @@ export default function Staff() {
   };
 
   const filteredStaff = staff.filter(s =>
-    s.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    s.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     s.email?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -201,10 +200,10 @@ export default function Staff() {
                   <TableBody>
                     {filteredStaff.map((member) => (
                       <TableRow key={member.id}>
-                        <TableCell className="font-medium">{member.name}</TableCell>
+                        <TableCell className="font-medium">{member.full_name}</TableCell>
                         <TableCell>{member.email}</TableCell>
-                        <TableCell>{member.phone}</TableCell>
-                        <TableCell>{member.role}</TableCell>
+                        <TableCell>{member.mobile}</TableCell>
+                        <TableCell>{member.role_id}</TableCell>
                         <TableCell>
                           <Button variant="ghost" size="sm">Edit</Button>
                         </TableCell>
@@ -233,7 +232,7 @@ export default function Staff() {
                     {timesheets.map((entry) => (
                       <TableRow key={entry.id}>
                         <TableCell>{new Date(entry.date).toLocaleDateString()}</TableCell>
-                        <TableCell>{entry.users?.name}</TableCell>
+                        <TableCell>{entry.users?.full_name}</TableCell>
                         <TableCell>{entry.hours_worked} hrs</TableCell>
                         <TableCell>{entry.job_id || "N/A"}</TableCell>
                         <TableCell>{entry.notes}</TableCell>
@@ -256,8 +255,8 @@ export default function Staff() {
             <div>
               <Label>Name</Label>
               <Input
-                value={newStaff.name}
-                onChange={(e) => setNewStaff({ ...newStaff, name: e.target.value })}
+                value={newStaff.full_name}
+                onChange={(e) => setNewStaff({ ...newStaff, full_name: e.target.value })}
               />
             </div>
             <div>
@@ -271,8 +270,8 @@ export default function Staff() {
             <div>
               <Label>Phone</Label>
               <Input
-                value={newStaff.phone}
-                onChange={(e) => setNewStaff({ ...newStaff, phone: e.target.value })}
+                value={newStaff.mobile}
+                onChange={(e) => setNewStaff({ ...newStaff, mobile: e.target.value })}
               />
             </div>
             <div>
@@ -305,7 +304,7 @@ export default function Staff() {
               >
                 <option value="">Select staff member</option>
                 {staff.map(s => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
+                  <option key={s.id} value={s.id}>{s.full_name}</option>
                 ))}
               </select>
             </div>
