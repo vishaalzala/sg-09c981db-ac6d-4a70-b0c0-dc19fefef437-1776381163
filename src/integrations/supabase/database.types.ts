@@ -1081,6 +1081,7 @@ export type Database = {
         Row: {
           bill_to_third_party: string | null
           company_id: string
+          company_name: string | null
           created_at: string | null
           created_by: string | null
           customer_number: string | null
@@ -1107,6 +1108,7 @@ export type Database = {
         Insert: {
           bill_to_third_party?: string | null
           company_id: string
+          company_name?: string | null
           created_at?: string | null
           created_by?: string | null
           customer_number?: string | null
@@ -1133,6 +1135,7 @@ export type Database = {
         Update: {
           bill_to_third_party?: string | null
           company_id?: string
+          company_name?: string | null
           created_at?: string | null
           created_by?: string | null
           customer_number?: string | null
