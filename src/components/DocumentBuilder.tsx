@@ -167,6 +167,18 @@ export function DocumentBuilder({ type, companyId, onComplete }: DocumentBuilder
     }
   };
 
+  useEffect(() => {
+    if (step !== 2) return;
+    if (!companyId) return;
+    void loadSupportingData();
+  }, [step, companyId]);
+
+  useEffect(() => {
+    if (!showFinishModal) return;
+    if (!companyId) return;
+    void loadSupportingData();
+  }, [showFinishModal, companyId]);
+
   // Auto-search logic
   useEffect(() => {
     const debounce = setTimeout(() => {
