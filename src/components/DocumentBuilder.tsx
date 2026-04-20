@@ -12,6 +12,8 @@ import { Calendar, Plus, Upload, GripVertical, Trash2, Edit } from "lucide-react
 import { cn } from "@/lib/utils";
 import { customerService } from "@/services/customerService";
 import { vehicleService } from "@/services/vehicleService";
+import { invoiceService } from "@/services/invoiceService";
+import { quoteService } from "@/services/quoteService";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -213,7 +215,7 @@ export function DocumentBuilder({ type, companyId, onComplete }: DocumentBuilder
             is_company: isCompany,
             company_name: companyName,
             bill_to_third_party: billToThirdParty,
-          })
+          } as any)
           .select()
           .single();
 
@@ -232,7 +234,7 @@ export function DocumentBuilder({ type, companyId, onComplete }: DocumentBuilder
             year: year ? parseInt(year) : null,
             body_type: bodyType,
             odometer: odometer ? parseInt(odometer) : null,
-          })
+          } as any)
           .select()
           .single();
 
@@ -245,11 +247,11 @@ export function DocumentBuilder({ type, companyId, onComplete }: DocumentBuilder
       setOdometerValue(odometer);
 
       if (type === "invoice") {
-        const { data } = await supabase.rpc("generate_invoice_number", { company_id_param: companyId });
-        setDocumentNumber(data || `INV-${Date.now()}`);
+        const num = await invoiceService.generateInvoiceNumber(companyId);
+        setDocumentNumber(num);
       } else {
-        const { data } = await supabase.rpc("generate_quote_number", { company_id_param: companyId });
-        setDocumentNumber(data || `QUO-${Date.now()}`);
+        const num = await quoteService.generateQuoteNumber(companyId);
+        setDocumentNumber(num);
       }
 
       setStep(2);
@@ -386,63 +388,107 @@ export function DocumentBuilder({ type, companyId, onComplete }: DocumentBuilder
   const handleSaveDocument = async () => {
     setLoading(true);
     try {
-      const documentData = {
+      const baseDocumentData = {
         company_id: companyId,
         customer_id: customerId,
         vehicle_id: vehicleId,
-        [type === "invoice" ? "invoice_number" : "quote_number"]: documentNumber,
         bill_to_third_party: billToThirdParty,
-        issue_date: issueDate,
         due_date: dueDate,
         order_number: orderNumber,
-        description,
         salesperson_id: salespersonId || null,
         payment_term: paymentTerm,
         odometer: odometerValue ? parseInt(odometerValue) : null,
         hubodometer: hubodometer ? parseInt(hubodometer) : null,
-        [type === "invoice" ? "invoice_note" : "quote_note"]: documentNote,
         status: documentStatus.paid ? "paid" : documentStatus.finished ? "finished" : documentStatus.hold ? "hold" : "draft",
         discount_value: parseFloat(discountValue),
         discount_type: discountType,
         subtotal: calculateSubtotal(),
-        tax: calculateTax(),
-        total: calculateTotal(),
+        tax_amount: calculateTax(),
+        total_amount: calculateTotal(),
       };
 
-      const { data: doc, error: docError } = await supabase
-        .from(type === "invoice" ? "invoices" : "quotes")
-        .insert(documentData)
-        .select()
-        .single();
+      let documentId = "";
 
-      if (docError) throw docError;
+      if (type === "invoice") {
+        const invoiceData = {
+          ...baseDocumentData,
+          invoice_number: documentNumber,
+          invoice_date: issueDate,
+          invoice_note: documentNote,
+          notes: description,
+        };
 
-      for (const item of lineItems) {
-        await supabase.from(type === "invoice" ? "invoice_line_items" : "quote_line_items").insert({
-          [type === "invoice" ? "invoice_id" : "quote_id"]: doc.id,
-          description: item.description,
-          quantity: item.quantity,
-          unit_price: item.rate,
-          discount: item.discount,
-          total: item.total,
-          sort_order: item.sort_order,
-        });
+        const { data: doc, error: docError } = await supabase
+          .from("invoices")
+          .insert(invoiceData as any)
+          .select()
+          .single();
+
+        if (docError) throw docError;
+        documentId = doc.id;
+
+        for (const item of lineItems) {
+          await supabase.from("invoice_line_items").insert({
+            invoice_id: doc.id,
+            description: item.description,
+            quantity: item.quantity,
+            unit_price: item.rate,
+            discount_amount: item.discount,
+            line_total: item.total,
+            line_type: item.type,
+            sort_order: item.sort_order,
+          } as any);
+        }
+      } else {
+        const quoteData = {
+          ...baseDocumentData,
+          quote_number: documentNumber,
+          quote_date: issueDate,
+          quote_note: documentNote,
+          notes: description,
+        };
+
+        const { data: doc, error: docError } = await supabase
+          .from("quotes")
+          .insert(quoteData as any)
+          .select()
+          .single();
+
+        if (docError) throw docError;
+        documentId = doc.id;
+
+        for (const item of lineItems) {
+          await supabase.from("quote_line_items").insert({
+            quote_id: doc.id,
+            description: item.description,
+            quantity: item.quantity,
+            unit_price: item.rate,
+            discount_amount: item.discount,
+            line_total: item.total,
+            line_type: item.type,
+            sort_order: item.sort_order,
+          } as any);
+        }
       }
 
       if (documentStatus.paid && paymentAmount > 0) {
-        await supabase.from("payments").insert({
-          [type === "invoice" ? "invoice_id" : "quote_id"]: doc.id,
-          method: paymentMethod,
+        const paymentData = {
+          company_id: companyId,
+          customer_id: customerId,
+          [type === "invoice" ? "invoice_id" : "quote_id"]: documentId,
+          payment_method: paymentMethod,
           amount: paymentAmount,
           surcharge_amount: calculateSurcharge(),
           surcharge_waived: waiveSurcharge,
           reference: paymentReference,
-          paid_at: new Date(paymentDate).toISOString(),
-        });
+          payment_date: new Date(paymentDate).toISOString(),
+        };
+
+        await supabase.from("payments").insert(paymentData as any);
       }
 
       toast({ title: "Success", description: `${type === "invoice" ? "Invoice" : "Quote"} created successfully` });
-      if (onComplete) onComplete(doc.id);
+      if (onComplete) onComplete(documentId);
     } catch (error: any) {
       console.error("Error saving document:", error);
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -606,7 +652,7 @@ export function DocumentBuilder({ type, companyId, onComplete }: DocumentBuilder
                 {matchingResults.map((result) => (
                   <div
                     key={result.id}
-                    className={cn("border rounded-lg p-3 cursor-pointer transition-colors", selectedCustomerId === result.id ? "border-orange-500 bg-orange-50" : "border-gray-200 hover:bg-gray-50")}
+                    className={cn("border border-gray-200 rounded-lg p-3 cursor-pointer transition-colors", selectedCustomerId === result.id ? "border-orange-500 bg-orange-50" : "hover:bg-gray-50")}
                     onClick={() => {
                       setSelectedCustomerId(result.id);
                       if (result.vehicles && result.vehicles.length > 0) {
@@ -993,7 +1039,7 @@ export function DocumentBuilder({ type, companyId, onComplete }: DocumentBuilder
 
           {/* Summary */}
           <Card className="p-4">
-            <h3 className="font-semibold border-b pb-2 mb-3">Summary</h3>
+            <h3 className="font-semibold mb-3">Summary</h3>
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span>Subtotal</span>
