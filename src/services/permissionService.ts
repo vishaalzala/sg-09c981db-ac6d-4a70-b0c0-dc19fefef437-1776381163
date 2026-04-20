@@ -45,7 +45,7 @@ export const permissionService = {
           .from("company_addons")
           .select("addon_id, addons(slug)")
           .eq("company_id", userData.company_id)
-          .eq("is_active", true);
+          .eq("is_enabled", true);
 
         enabledAddons = addons?.map((a: any) => a.addons?.slug).filter(Boolean) || [];
       }

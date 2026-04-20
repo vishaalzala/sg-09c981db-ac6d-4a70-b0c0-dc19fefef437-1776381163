@@ -27,7 +27,7 @@ interface User {
   role_id: string;
   branch_id?: string;
   is_active: boolean;
-  roles?: { name: string };
+  roles?: { name: string; display_name?: string };
   branches?: { name: string };
 }
 
@@ -57,7 +57,13 @@ export default function UsersPage() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [canManageUsers, setCanManageUsers] = useState(false);
 
-  const [inviteForm, setInviteForm] = useState({
+  const [inviteForm, setInviteForm] = useState<{
+    email: string;
+    full_name: string;
+    mobile: string;
+    role_id: string;
+    branch_id: string;
+  }>({
     email: "",
     full_name: "",
     mobile: "",
@@ -121,14 +127,21 @@ export default function UsersPage() {
         branches(name)
       `)
       .eq("company_id", cId)
-      .order("full_name");
+      .order("full_name") as any;
 
     if (error) {
       console.error("Error loading users:", error);
       return;
     }
 
-    setUsers(data || []);
+    // Handle potential array or single object for relations
+    const mappedUsers = (data || []).map((u: any) => ({
+      ...u,
+      roles: Array.isArray(u.roles) ? u.roles[0] : u.roles,
+      branches: Array.isArray(u.branches) ? u.branches[0] : u.branches
+    }));
+
+    setUsers(mappedUsers);
   };
 
   const loadRoles = async () => {

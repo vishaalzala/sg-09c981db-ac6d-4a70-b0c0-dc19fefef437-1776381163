@@ -5085,6 +5085,7 @@ export type Database = {
       users: {
         Row: {
           availability: Json | null
+          branch_id: string | null
           company_id: string | null
           created_at: string | null
           email: string
@@ -5099,6 +5100,7 @@ export type Database = {
         }
         Insert: {
           availability?: Json | null
+          branch_id?: string | null
           company_id?: string | null
           created_at?: string | null
           email: string
@@ -5113,6 +5115,7 @@ export type Database = {
         }
         Update: {
           availability?: Json | null
+          branch_id?: string | null
           company_id?: string | null
           created_at?: string | null
           email?: string
@@ -5126,6 +5129,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "users_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "users_company_id_fkey"
             columns: ["company_id"]
