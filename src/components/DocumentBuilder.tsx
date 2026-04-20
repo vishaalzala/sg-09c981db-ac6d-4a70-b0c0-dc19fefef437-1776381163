@@ -188,20 +188,60 @@ export function DocumentBuilder({ type, companyId, onComplete }: DocumentBuilder
   }, [ownerName, ownerMobile, ownerPhone, rego, billToThirdParty]);
 
   const performAutoSearch = async () => {
-    if (!ownerName && !ownerMobile && !ownerPhone && !rego) {
+    if (!ownerName && !ownerMobile && !ownerPhone && !rego && !billToThirdParty) {
       setMatchingResults([]);
       return;
     }
 
     try {
-      let query = supabase.from("customers").select("*, vehicles(*)").eq("company_id", companyId);
+      const customerMatches: any[] = [];
 
-      if (ownerName) query = query.ilike("name", `%${ownerName}%`);
-      if (ownerMobile) query = query.ilike("mobile", `%${ownerMobile}%`);
-      if (ownerPhone) query = query.ilike("phone", `%${ownerPhone}%`);
+      const hasCustomerQuery = Boolean(ownerName || ownerMobile || ownerPhone || billToThirdParty);
+      if (hasCustomerQuery) {
+        let query = supabase.from("customers").select("*, vehicles(*)").eq("company_id", companyId);
 
-      const { data } = await query.limit(5);
-      setMatchingResults(data || []);
+        if (ownerName) query = query.ilike("name", `%${ownerName}%`);
+        if (ownerMobile) query = query.ilike("mobile", `%${ownerMobile}%`);
+        if (ownerPhone) query = query.ilike("phone", `%${ownerPhone}%`);
+        if (billToThirdParty) query = query.ilike("bill_to_third_party", `%${billToThirdParty}%`);
+
+        const { data } = await query.limit(5);
+        if (Array.isArray(data)) customerMatches.push(...data);
+      }
+
+      const vehicleMatches: any[] = [];
+      if (rego) {
+        const { data } = await supabase
+          .from("vehicles")
+          .select("*, customers(*), vehicles:vehicles(*)")
+          .eq("company_id", companyId)
+          .ilike("registration_number", `%${rego}%`)
+          .limit(5);
+
+        if (Array.isArray(data)) {
+          for (const v of data) {
+            if (v.customers) {
+              vehicleMatches.push({
+                ...v.customers,
+                vehicles: [
+                  {
+                    id: v.id,
+                    registration_number: v.registration_number,
+                    make: v.make,
+                    model: v.model,
+                    year: v.year,
+                  },
+                ],
+              });
+            }
+          }
+        }
+      }
+
+      const combined = [...customerMatches, ...vehicleMatches];
+      const deduped = Array.from(new Map(combined.map((r: any) => [r.id, r])).values());
+
+      setMatchingResults(deduped.slice(0, 6));
     } catch (error) {
       console.error("Auto-search error:", error);
     }
