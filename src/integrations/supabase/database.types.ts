@@ -1,4 +1,4 @@
- 
+/* eslint-disable @typescript-eslint/no-empty-object-type */
 export type Json =
   | string
   | number
@@ -1079,6 +1079,7 @@ export type Database = {
       }
       customers: {
         Row: {
+          bill_to_third_party: string | null
           company_id: string
           created_at: string | null
           created_by: string | null
@@ -1104,6 +1105,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          bill_to_third_party?: string | null
           company_id: string
           created_at?: string | null
           created_by?: string | null
@@ -1129,6 +1131,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          bill_to_third_party?: string | null
           company_id?: string
           created_at?: string | null
           created_by?: string | null
@@ -2016,6 +2019,7 @@ export type Database = {
         Row: {
           amount_paid: number | null
           balance: number | null
+          bill_to_third_party: string | null
           branch_id: string | null
           company_id: string
           created_at: string | null
@@ -2026,13 +2030,19 @@ export type Database = {
           discount_type: string | null
           discount_value: number | null
           due_date: string | null
+          hubodometer: number | null
           id: string
           invoice_date: string
+          invoice_note: string | null
           invoice_number: string | null
           invoice_to_third_party: boolean | null
           job_id: string | null
           notes: string | null
+          odometer: number | null
+          order_number: string | null
+          payment_term: string | null
           quote_id: string | null
+          salesperson_id: string | null
           status: string | null
           subtotal: number | null
           tax_amount: number | null
@@ -2045,6 +2055,7 @@ export type Database = {
         Insert: {
           amount_paid?: number | null
           balance?: number | null
+          bill_to_third_party?: string | null
           branch_id?: string | null
           company_id: string
           created_at?: string | null
@@ -2055,13 +2066,19 @@ export type Database = {
           discount_type?: string | null
           discount_value?: number | null
           due_date?: string | null
+          hubodometer?: number | null
           id?: string
           invoice_date?: string
+          invoice_note?: string | null
           invoice_number?: string | null
           invoice_to_third_party?: boolean | null
           job_id?: string | null
           notes?: string | null
+          odometer?: number | null
+          order_number?: string | null
+          payment_term?: string | null
           quote_id?: string | null
+          salesperson_id?: string | null
           status?: string | null
           subtotal?: number | null
           tax_amount?: number | null
@@ -2074,6 +2091,7 @@ export type Database = {
         Update: {
           amount_paid?: number | null
           balance?: number | null
+          bill_to_third_party?: string | null
           branch_id?: string | null
           company_id?: string
           created_at?: string | null
@@ -2084,13 +2102,19 @@ export type Database = {
           discount_type?: string | null
           discount_value?: number | null
           due_date?: string | null
+          hubodometer?: number | null
           id?: string
           invoice_date?: string
+          invoice_note?: string | null
           invoice_number?: string | null
           invoice_to_third_party?: boolean | null
           job_id?: string | null
           notes?: string | null
+          odometer?: number | null
+          order_number?: string | null
+          payment_term?: string | null
           quote_id?: string | null
+          salesperson_id?: string | null
           status?: string | null
           subtotal?: number | null
           tax_amount?: number | null
@@ -2141,6 +2165,13 @@ export type Database = {
             columns: ["quote_id"]
             isOneToOne: false
             referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_salesperson_id_fkey"
+            columns: ["salesperson_id"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
           {
@@ -3166,6 +3197,8 @@ export type Database = {
           payment_method_id: string | null
           payment_number: string | null
           reference: string | null
+          surcharge_amount: number | null
+          surcharge_waived: boolean | null
         }
         Insert: {
           amount: number
@@ -3183,6 +3216,8 @@ export type Database = {
           payment_method_id?: string | null
           payment_number?: string | null
           reference?: string | null
+          surcharge_amount?: number | null
+          surcharge_waived?: boolean | null
         }
         Update: {
           amount?: number
@@ -3200,6 +3235,8 @@ export type Database = {
           payment_method_id?: string | null
           payment_number?: string | null
           reference?: string | null
+          surcharge_amount?: number | null
+          surcharge_waived?: boolean | null
         }
         Relationships: [
           {
@@ -3589,6 +3626,7 @@ export type Database = {
           approval_status: string | null
           approved_at: string | null
           approved_by: string | null
+          bill_to_third_party: string | null
           branch_id: string | null
           company_id: string
           created_at: string | null
@@ -3601,11 +3639,17 @@ export type Database = {
           discount_type: string | null
           discount_value: number | null
           expiry_date: string | null
+          hubodometer: number | null
           id: string
           job_id: string | null
           notes: string | null
+          odometer: number | null
+          order_number: string | null
+          payment_term: string | null
           quote_date: string
+          quote_note: string | null
           quote_number: string | null
+          salesperson_id: string | null
           status: string | null
           subtotal: number | null
           tax_amount: number | null
@@ -3617,6 +3661,7 @@ export type Database = {
           approval_status?: string | null
           approved_at?: string | null
           approved_by?: string | null
+          bill_to_third_party?: string | null
           branch_id?: string | null
           company_id: string
           created_at?: string | null
@@ -3629,11 +3674,17 @@ export type Database = {
           discount_type?: string | null
           discount_value?: number | null
           expiry_date?: string | null
+          hubodometer?: number | null
           id?: string
           job_id?: string | null
           notes?: string | null
+          odometer?: number | null
+          order_number?: string | null
+          payment_term?: string | null
           quote_date?: string
+          quote_note?: string | null
           quote_number?: string | null
+          salesperson_id?: string | null
           status?: string | null
           subtotal?: number | null
           tax_amount?: number | null
@@ -3645,6 +3696,7 @@ export type Database = {
           approval_status?: string | null
           approved_at?: string | null
           approved_by?: string | null
+          bill_to_third_party?: string | null
           branch_id?: string | null
           company_id?: string
           created_at?: string | null
@@ -3657,11 +3709,17 @@ export type Database = {
           discount_type?: string | null
           discount_value?: number | null
           expiry_date?: string | null
+          hubodometer?: number | null
           id?: string
           job_id?: string | null
           notes?: string | null
+          odometer?: number | null
+          order_number?: string | null
+          payment_term?: string | null
           quote_date?: string
+          quote_note?: string | null
           quote_number?: string | null
+          salesperson_id?: string | null
           status?: string | null
           subtotal?: number | null
           tax_amount?: number | null
@@ -3710,6 +3768,13 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotes_salesperson_id_fkey"
+            columns: ["salesperson_id"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
           {
@@ -3956,6 +4021,38 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "reminder_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reminder_types: {
+        Row: {
+          company_id: string
+          created_at: string | null
+          id: string
+          is_system: boolean | null
+          name: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string | null
+          id?: string
+          is_system?: boolean | null
+          name: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string | null
+          id?: string
+          is_system?: boolean | null
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reminder_types_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
@@ -5123,6 +5220,7 @@ export type Database = {
           deleted_at: string | null
           engine_size: string | null
           fuel_type: string | null
+          hubodometer: number | null
           id: string
           is_courtesy_vehicle: boolean | null
           last_service_date: string | null
@@ -5154,6 +5252,7 @@ export type Database = {
           deleted_at?: string | null
           engine_size?: string | null
           fuel_type?: string | null
+          hubodometer?: number | null
           id?: string
           is_courtesy_vehicle?: boolean | null
           last_service_date?: string | null
@@ -5185,6 +5284,7 @@ export type Database = {
           deleted_at?: string | null
           engine_size?: string | null
           fuel_type?: string | null
+          hubodometer?: number | null
           id?: string
           is_courtesy_vehicle?: boolean | null
           last_service_date?: string | null

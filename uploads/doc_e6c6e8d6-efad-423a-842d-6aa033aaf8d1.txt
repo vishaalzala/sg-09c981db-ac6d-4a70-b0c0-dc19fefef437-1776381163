@@ -1,0 +1,1337 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Workshop CRM Core Flow Prototype</title>
+  <style>
+    :root {
+      --bg: #f3f4f6;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --accent: #f97316;
+      --accent-soft: #fff1e8;
+      --primary: #2563eb;
+      --topup: #fff7e8;
+      --follow: #eff7ff;
+      --shadow: 0 6px 20px rgba(15, 23, 42, 0.06);
+      --radius: 14px;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .content {
+      max-width: 1480px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .page-header h1 {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 700;
+    }
+
+    .page-header p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    button {
+      border: 0;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .btn-secondary {
+      background: #fff;
+      border: 1px solid var(--line);
+      color: var(--text);
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .btn-accent {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .btn-success {
+      background: #2f855a;
+      color: #fff;
+    }
+
+    .page { display: none; }
+    .page.active { display: block; }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .panel { padding: 18px; }
+
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+      border-bottom: 1px solid #f0f0f0;
+      padding-bottom: 10px;
+    }
+
+    .section-head h2, .section-head h3 {
+      margin: 0;
+      font-size: 17px;
+    }
+
+    .section-tag {
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 700;
+      padding: 6px 10px;
+      border-radius: 999px;
+    }
+
+    .step-grid, .step2-grid {
+      display: grid;
+      grid-template-columns: 1.35fr 0.9fr;
+      gap: 16px;
+    }
+
+    .sub-title {
+      margin: 16px 0 10px;
+      color: var(--accent);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      font-weight: 700;
+    }
+
+    .grid-2, .grid-3 {
+      display: grid;
+      gap: 12px;
+    }
+
+    .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+    .field label {
+      display: block;
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: #374151;
+    }
+
+    .field input, .field select, .field textarea {
+      width: 100%;
+      border: 1px solid #d7dce2;
+      border-radius: 10px;
+      padding: 10px 11px;
+      font: inherit;
+      background: #fff;
+    }
+
+    .field textarea { min-height: 86px; resize: vertical; }
+
+    .field.readonly .view-value {
+      width: 100%;
+      border: 1px solid transparent;
+      border-radius: 10px;
+      padding: 10px 0;
+      min-height: 40px;
+      color: #374151;
+      cursor: text;
+    }
+
+    .field.readonly input { display: none; }
+    .field.readonly.editing .view-value { display: none; }
+    .field.readonly.editing input { display: block; }
+
+    .checkline {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .results-note {
+      margin: 0 0 12px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .result-item {
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 10px;
+      background: #fff;
+    }
+
+    .result-item.active {
+      border-color: var(--accent);
+      background: #fffaf5;
+    }
+
+    .result-item h4 {
+      margin: 0 0 4px;
+      font-size: 14px;
+    }
+
+    .result-item p {
+      margin: 3px 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .step-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .doc-bar {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .doc-box {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px 12px;
+    }
+
+    .doc-box span {
+      display: block;
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-bottom: 4px;
+      font-weight: 700;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .badge.warning { background: #fff7e6; color: #b45309; }
+    .badge.paid { background: #dcfce7; color: #15803d; }
+    .badge.hold { background: #fef3c7; color: #b45309; }
+    .badge.finished { background: #dbeafe; color: #1d4ed8; }
+
+    .stamp-paid,
+    .stamp-hold,
+    .stamp-finished {
+      display: inline-block;
+      font-weight: 800;
+      padding: 6px 12px;
+      transform: rotate(-14deg);
+      border-radius: 4px;
+      letter-spacing: .04em;
+      background: rgba(255,255,255,0.9);
+      border: 4px solid currentColor;
+    }
+
+    .stamp-paid { color: #dc2626; font-size: 18px; }
+    .stamp-hold { color: #b45309; font-size: 18px; }
+    .stamp-finished { color: #1d4ed8; font-size: 16px; }
+
+    .payment-side-box {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px 16px;
+    }
+
+    .payment-side-row {
+      display: grid;
+      grid-template-columns: 100px 1fr auto auto;
+      gap: 12px;
+      align-items: center;
+      font-size: 14px;
+      padding-top: 10px;
+    }
+
+    .muted-link,
+    .pay-link {
+      color: #2563eb;
+      text-decoration: none;
+      font-size: 14px;
+    }
+
+    .surcharge-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+      font-size: 14px;
+    }
+
+    .surcharge-row.hidden { display: none; }
+
+    .inline-check {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    .table-wrap {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      overflow: auto;
+    }
+
+    .drag-handle {
+      color: #9ca3af;
+      cursor: grab;
+      font-weight: 700;
+      user-select: none;
+      margin-right: 8px;
+    }
+
+    tbody tr[draggable="true"] { cursor: move; }
+    tbody tr.dragging { opacity: 0.45; }
+    tbody tr.drag-over { outline: 2px dashed #f97316; outline-offset: -2px; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 860px;
+    }
+
+    th, td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #eef0f2;
+      text-align: left;
+      font-size: 13px;
+      vertical-align: top;
+    }
+
+    th {
+      background: #fafafa;
+      font-size: 11px;
+      text-transform: uppercase;
+      color: var(--muted);
+      letter-spacing: .05em;
+    }
+
+    .side-stack { display: grid; gap: 14px; }
+
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px dashed #ececec;
+      font-size: 14px;
+    }
+
+    .summary-row.total {
+      border-bottom: 0;
+      font-size: 18px;
+      font-weight: 800;
+      padding-top: 10px;
+    }
+
+    .topup-box, .follow-box {
+      border-radius: 14px;
+      padding: 16px;
+      border: 1px solid var(--line);
+    }
+
+    .topup-box { background: var(--topup); border-color: #f5d9b0; }
+    .follow-box { background: var(--follow); border-color: #d2e6fb; }
+
+    .mini-item {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 9px 0;
+      border-bottom: 1px solid rgba(0,0,0,0.07);
+      font-size: 13px;
+    }
+
+    .mini-item:last-child { border-bottom: 0; }
+
+    .sticky-actions {
+      position: sticky;
+      bottom: 0;
+      margin-top: 16px;
+      padding: 14px 16px;
+      background: rgba(255,255,255,0.95);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .actions-left, .actions-right {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.35);
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      z-index: 50;
+    }
+
+    .modal.active { display: flex; }
+
+    .pay-dialog {
+      background: #fff;
+      width: min(760px, 100%);
+      border-radius: 14px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.18);
+      padding: 22px;
+      position: relative;
+    }
+
+    .icon-button {
+      position: absolute;
+      top: 10px;
+      right: 12px;
+      background: none;
+      border: 0;
+      font-size: 28px;
+      line-height: 1;
+      cursor: pointer;
+      color: #111;
+      padding: 0;
+    }
+
+    .pay-total {
+      background: #f3f4f6;
+      border-radius: 8px;
+      padding: 10px 12px;
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      font-size: 16px;
+    }
+
+    .pay-grid {
+      display: grid;
+      grid-template-columns: 170px 1fr 120px;
+      gap: 10px 12px;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .pay-grid .label { text-align: right; }
+
+    .plain-input {
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      padding: 10px;
+      width: 100%;
+      font: inherit;
+    }
+
+    .pay-meta {
+      display: grid;
+      grid-template-columns: 1.4fr 0.8fr;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .pay-box {
+      background: #f3f4f6;
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-bottom: 18px;
+    }
+
+    .pay-box-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .pay-box-row:last-child { margin-bottom: 0; }
+
+    .pay-actions {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .pay-actions-left {
+      display: flex;
+      gap: 10px;
+    }
+
+    @media (max-width: 1200px) {
+      .step-grid, .step2-grid { grid-template-columns: 1fr; }
+      .doc-bar { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 860px) {
+      .grid-2, .grid-3, .doc-bar, .pay-meta { grid-template-columns: 1fr; }
+      .page-header { flex-direction: column; align-items: flex-start; }
+      .pay-grid { grid-template-columns: 1fr; }
+      .pay-grid .label { text-align: left; }
+    }
+  </style>
+</head>
+<body>
+  <main class="content">
+    <div class="page-header">
+      <div>
+        <h1>New Invoice Workflow</h1>
+        <p>Focused flow-only preview, simplified closer to your invoice screenshot layout.</p>
+      </div>
+      <div class="header-actions">
+        <button class="btn-secondary" type="button">Cancel</button>
+        <button class="btn-secondary" type="button">Save Draft</button>
+        <button class="btn-primary" type="button">Create Invoice</button>
+      </div>
+    </div>
+
+    <section id="step1" class="page active">
+      <div class="step-grid">
+        <div class="card panel">
+          <div class="section-head">
+            <h2>Customer & Vehicle Details</h2>
+            
+          </div>
+
+          <div class="sub-title">Vehicle Owner</div>
+          <div class="grid-2">
+            <div class="field"><label for="owner-name">Name</label><input id="owner-name" value="John Smith" /></div>
+            <div class="field"><label for="owner-email">Email</label><input id="owner-email" value="john@example.com" /></div>
+            <div class="field"><label for="owner-mobile">Mobile</label><input id="owner-mobile" value="021 123 4567" /></div>
+            <div class="field"><label for="owner-phone">Phone</label><input id="owner-phone" value="09 555 7788" /></div>
+            <div class="field"><label for="source-business">Source Of Business</label><select id="source-business"><option>Google</option></select></div>
+            <div class="field"><label for="postal-address">Postal Address</label><input id="postal-address" value="12 Queen Street, Auckland" /></div>
+          </div>
+          <div class="checkline"><input id="is-company" type="checkbox" checked /> <label for="is-company">Is Company</label></div>
+          <div id="companyNameField" class="field" style="margin-top:12px;">
+            <label for="company-name">Company Name</label>
+            <input id="company-name" value="John Cairus Ltd" />
+          </div>
+
+          <div class="sub-title">Vehicle</div>
+          <div class="grid-3">
+            <div class="field"><label for="rego">Registration Number</label><input id="rego" value="ABC123" /></div>
+            <div class="field"><label for="make">Make</label><input id="make" value="Toyota" /></div>
+            <div class="field"><label for="model">Model</label><input id="model" value="Corolla" /></div>
+            <div class="field"><label for="year">Year</label><input id="year" value="2019" /></div>
+            <div class="field"><label for="body-type">Body Type</label><input id="body-type" value="Hatchback" /></div>
+            <div class="field"><label for="odometer">Odometer</label><input id="odometer" value="82450" /></div>
+          </div>
+
+          <div class="sub-title">Invoice Information</div>
+          <div class="grid-3">
+            <div class="field"><label for="invoice-third-party">Invoice To (3rd Party)</label><input id="invoice-third-party" value="Fleet NZ Ltd" /></div>
+            <div class="field"><label for="issue-date">Issue Date</label><input id="issue-date" value="20/04/2026" /></div>
+            <div class="field"><label for="due-date">Due Date</label><input id="due-date" value="27/04/2026" /></div>
+            <div class="field"><label for="order-number">Order Number</label><input id="order-number" value="ORD-22014" /></div>
+            <div class="field"><label for="invoice-description">Invoice Description</label><input id="invoice-description" value="Service and wheel alignment" /></div>
+            <div class="field"><label for="salesperson">Salesperson</label><select id="salesperson"><option>N. Zala</option></select></div>
+          </div>
+
+          <div class="step-actions">
+            <button class="btn-secondary" type="button">Cancel</button>
+            <button id="continueBtn" class="btn-accent" type="button">Continue</button>
+          </div>
+        </div>
+
+        <div class="card panel">
+          <div class="section-head">
+            <h2>Matching Results</h2>
+            <span class="section-tag">Auto search</span>
+          </div>
+          <p class="results-note">
+            Search updates automatically based on the left-side values for Name, Mobile / Phone, Vehicle Registration Number, and Invoice To (3rd Party). No separate search box.
+          </p>
+
+          <div class="result-item active">
+            <h4>John Smith</h4>
+            <p>021 123 4567 · john@example.com</p>
+            <p>Vehicle: ABC123 · Toyota Corolla 2019</p>
+            <p>Invoice To: Fleet NZ Ltd</p>
+          </div>
+
+          <div class="result-item">
+            <h4>John Smyth</h4>
+            <p>021 123 9876 · smith@example.com</p>
+            <p>Vehicle: ABE123 · Toyota Yaris 2018</p>
+            <p>No 3rd party billing</p>
+          </div>
+
+          <div class="result-item">
+            <h4>No exact match found</h4>
+            <p>Continuing will create a new customer and vehicle from the left-side details.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="step2" class="page">
+      <div class="doc-bar">
+        <div class="doc-box"><span>Invoice No</span><strong id="invoiceNoDisplay">INV-10294</strong></div>
+        <div class="doc-box"><span>Date</span><strong>20/04/2026</strong></div>
+        <div class="doc-box"><span>Due Date</span><strong>27/04/2026</strong></div>
+        <div class="doc-box"><span>Status</span><strong id="statusBadge" class="badge warning">Draft</strong></div>
+        <div class="doc-box"><span>Salesperson</span><strong>N. Zala</strong></div>
+        <div class="doc-box"><span>Bill To</span><strong>Fleet NZ Ltd</strong></div>
+      </div>
+
+      <div class="step2-grid">
+        <div class="card panel">
+          <div class="section-head">
+            <h2>Invoice Details</h2>
+            <span class="section-tag">Congratulations</span>
+          </div>
+
+          <div class="grid-2" style="margin-bottom:14px;">
+            <div class="field readonly" data-editable-field>
+              <label for="bill-to">Bill To</label>
+              <div class="view-value">Fleet NZ Ltd</div>
+              <input id="bill-to" value="Fleet NZ Ltd" />
+            </div>
+            <div class="field readonly" data-editable-field>
+              <label for="invoice-no">Inv No.</label>
+              <div class="view-value">INV-10294</div>
+              <input id="invoice-no" value="INV-10294" />
+            </div>
+            <div class="field readonly" data-editable-field>
+              <label for="customer-name">Customer</label>
+              <div class="view-value">John Smith</div>
+              <input id="customer-name" value="John Smith" />
+            </div>
+            <div class="field readonly" data-editable-field>
+              <label for="vehicle-name">Vehicle</label>
+              <div class="view-value">ABC123 · Toyota Corolla</div>
+              <input id="vehicle-name" value="ABC123 · Toyota Corolla" />
+            </div>
+            <div class="field readonly" data-editable-field style="grid-column:1 / -1;">
+              <label for="description">Description</label>
+              <div class="view-value">Full service with wheel alignment and tyre check</div>
+              <input id="description" value="Full service with wheel alignment and tyre check" />
+            </div>
+          </div>
+
+          <div class="grid-2" style="margin-bottom:16px; align-items:start;">
+            <div>
+              <div style="color:#6b7280; font-size:12px; font-weight:700; margin-bottom:8px; text-transform:uppercase;">Bill To</div>
+              <div style="display:grid; gap:6px; font-size:14px;">
+                <div><span style="color:#6b7280;">Customer:</span> <a href="#" id="changeCustomerLink" class="muted-link"><strong>John Cairus</strong></a></div>
+                <div><span style="color:#6b7280;">Tel:</span> <strong>0273188990</strong></div>
+                <div><span style="color:#6b7280;">Payment Term:</span> 
+                  <select id="paymentTermSelect" style="border:1px solid #d7dce2; border-radius:8px; padding:6px 8px; width:auto; min-width:120px;">
+                    <option selected>COD</option>
+                    <option>Accounts</option>
+                  </select>
+                </div>
+              </div>
+              <div style="margin-top:28px;"><a href="#" id="addNoteLink" class="muted-link">+ Add note</a></div>
+              <div style="margin-top:18px;"><label for="uploadDocsInput" class="muted-link" style="cursor:pointer;">Upload Photos/Documents</label><input id="uploadDocsInput" type="file" multiple style="display:none;" /></div>
+            </div>
+            <div>
+              <div style="display:grid; gap:10px; font-size:14px; justify-content:end; text-align:left;">
+                <div>Invoice Number: <strong id="invoiceNumberDetail">INV4882</strong></div>
+                <div>Issue Date: <strong>20/04/26</strong></div>
+                <div>Due Date: <input id="dueDateInput" type="date" value="2026-04-20" style="border:1px solid #d7dce2; border-radius:8px; padding:6px 8px; width:auto;" /></div>
+                <div>Order Number:</div>
+                <div>Salesperson: 
+                  <select id="salespersonSelect" style="border:1px solid #d7dce2; border-radius:8px; padding:6px 8px; width:auto; min-width:210px;">
+                    <option selected>Bridgestone Helensville</option>
+                    <option>Nicki Zala</option>
+                    <option>Workshop Manager</option>
+                  </select>
+                </div>
+                <div>Shipping Details: 
+                  <select id="shippingDetailsSelect" style="border:1px solid #d7dce2; border-radius:8px; padding:6px 8px; width:auto; min-width:210px;">
+                    <option value="" selected>— Select from database —</option>
+                    <option>Warehouse Delivery</option>
+                    <option>Customer Pickup</option>
+                    <option>Branch Transfer</option>
+                  </select>
+                </div>
+                <div>Finalized By: <strong id="finalizedByText">Bridgestone Helensville</strong></div>
+                <div style="margin-top:14px;">FOR</div>
+                <div>Description: <strong>Puncture CAR/SUV/4x4</strong></div>
+                <div>Model: <a href="#" id="changeVehicleLink" class="muted-link"><strong>2006</strong></a></div>
+                <div>Body Type: <strong>Van</strong></div>
+                <div>Odometer: <span id="odometerView" class="muted-link" style="cursor:pointer;">Click to enter</span><input id="odometerInlineInput" type="text" placeholder="Enter odometer" style="display:none; border:1px solid #d7dce2; border-radius:8px; padding:6px 8px; width:180px;" /></div>
+                <div>Hubodometer: <span id="hubodometerView" class="muted-link" style="cursor:pointer;">Click to enter</span><input id="hubodometerInlineInput" type="text" placeholder="Enter hubodometer" style="display:none; border:1px solid #d7dce2; border-radius:8px; padding:6px 8px; width:180px;" /></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="toolbar">
+            <button class="btn-secondary" type="button">+ Item</button>
+            <button class="btn-secondary" type="button">+ Header</button>
+            <button class="btn-secondary" type="button">+ Job Tyres / Job Kit</button>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th>Description</th>
+                  <th>Qty</th>
+                  <th>Rate</th>
+                  <th>Discount</th>
+                  <th>Total</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="invoiceItemsBody">
+                <tr>
+                  <td><span class="drag-handle">⋮⋮</span>Wheel Alignment</td>
+                  <td>Standard 4-wheel alignment</td>
+                  <td>1</td>
+                  <td>$95.00</td>
+                  <td>$0.00</td>
+                  <td>$95.00</td>
+                  <td>Edit</td>
+                </tr>
+                <tr>
+                  <td><span class="drag-handle">⋮⋮</span>Service Kit</td>
+                  <td>Oil filter, engine oil, labour</td>
+                  <td>1</td>
+                  <td>$220.00</td>
+                  <td>$10.00</td>
+                  <td>$210.00</td>
+                  <td>Edit</td>
+                </tr>
+                <tr>
+                  <td><span class="drag-handle">⋮⋮</span><strong>Additional Work</strong></td>
+                  <td>Header row in bold</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Edit</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="grid-2" style="margin-top:14px; align-items:start;">
+            <div class="field">
+              <label for="discount-value">Discount</label>
+              <div class="grid-2">
+                <input id="discount-value" value="10" />
+                <select aria-label="Discount type"><option>%</option><option>$</option></select>
+              </div>
+            </div>
+            <div class="field">
+              <label for="invoice-note">Invoice Note</label>
+              <textarea id="invoice-note">Thank you for choosing our workshop. Next service due in 6 months.</textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="side-stack">
+          <div class="payment-side-box">
+            <div class="section-head" style="margin-bottom:0;">
+              <h3>Payment</h3>
+            </div>
+            <div id="paymentPendingText" style="padding-top:10px; font-size:14px;">No payment</div>
+            <div id="paymentPaidBox" style="display:none;">
+              <div class="payment-side-row">
+                <div>20/04/26</div>
+                <div>Payment</div>
+                <div><span class="badge paid">Paid</span></div>
+                <div><span id="paymentMethodText">Other</span>&nbsp;&nbsp;$<span id="paymentAmountText">0.00</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="payment-side-box">
+            <div class="section-head" style="margin-bottom:0;">
+              <h3>COGS</h3>
+              <a href="#" class="muted-link">Show</a>
+            </div>
+          </div>
+
+          <div class="payment-side-box">
+            <div class="section-head" style="margin-bottom:0;">
+              <h3>Related Bills</h3>
+              <a href="#" class="muted-link">Show</a>
+            </div>
+          </div>
+
+          <div class="payment-side-box">
+            <div class="section-head" style="margin-bottom:0;">
+              <h3>Related Credit Notes</h3>
+            </div>
+          </div>
+
+          <div class="card panel" id="paidStampWrap" style="display:none; text-align:right; background:transparent; border:0; box-shadow:none; padding:0;"></div>
+
+          <div class="card panel">
+            <div class="section-head">
+              <h3>Summary</h3>
+            </div>
+            <div class="summary-row"><span>Subtotal</span><strong>$315.00</strong></div>
+            <div class="summary-row"><span>Discount</span><strong>-$10.00</strong></div>
+            <div class="summary-row"><span>Tax</span><strong>$45.75</strong></div>
+            <div class="summary-row total"><span>Total</span><strong id="summaryTotalText">$350.75</strong></div>
+          </div>
+
+          <div class="topup-box">
+            <div class="section-head" style="border-bottom:0; padding-bottom:0; margin-bottom:10px;">
+              <h3>Future Sales Opportunities</h3>
+              <span class="section-tag">Customer-based</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px;">
+              <p style="margin:0; color:var(--muted); font-size:13px;">Keep suggested upsell items linked to this customer and show them every time for Job, Quote, and Invoice.</p>
+              <button class="btn-accent" type="button" style="padding:8px 12px;">Add</button>
+            </div>
+            <div class="mini-item"><span>Service</span><strong style="display:flex; gap:10px;"><span>Edit</span><span>🗑</span></strong></div>
+            <div class="mini-item"><span>Wheel Alignment</span><strong style="display:flex; gap:10px;"><span>Edit</span><span>🗑</span></strong></div>
+            <div class="mini-item"><span>Front Bushes</span><strong style="display:flex; gap:10px;"><span>Edit</span><span>🗑</span></strong></div>
+            <div class="mini-item"><span>Next Service Note</span><strong style="display:flex; gap:10px;"><span>Edit</span><span>🗑</span></strong></div>
+          </div>
+
+          <div class="follow-box">
+            <div class="section-head" style="border-bottom:0; padding-bottom:0; margin-bottom:10px;">
+              <h3>Reminders</h3>
+              <span class="section-tag">Sync to reminders</span>
+            </div>
+            <div class="mini-item"><span>Service</span><strong>20/10/2026</strong></div>
+            <div class="mini-item"><span>WOF</span><strong>12/08/2026</strong></div>
+            <div class="mini-item"><span>Wheel Alignment</span><strong>20/07/2026</strong></div>
+            <div class="mini-item"><span>Tyre Rotation</span><strong>15/09/2026</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sticky-actions">
+        <div class="actions-left">
+          <button class="btn-secondary" type="button">Save Draft</button>
+          <button class="btn-secondary" type="button">Send</button>
+          <button class="btn-secondary" type="button">Print</button>
+          <button class="btn-secondary" type="button">Delete</button>
+        </div>
+        <div class="actions-right">
+          <button id="holdBtn" class="btn-secondary" type="button">Hold</button>
+          <button id="finishJobBtn" class="btn-success" type="button">Finish Job</button>
+          <button id="openPayBtn" class="btn-accent" type="button">Pay</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="finishModal" class="modal" aria-hidden="true">
+    <div class="pay-dialog" role="dialog" aria-modal="true" aria-labelledby="finish-title">
+      <button id="closeFinishBtn" class="icon-button" type="button" aria-label="Close finish modal">×</button>
+      <h2 id="finish-title" style="margin:0 0 18px; font-size:20px;">#1316 - Vehicle</h2>
+
+      <div class="pay-meta" style="grid-template-columns: 1.2fr 0.8fr; margin-bottom:14px;">
+        <div>
+          <label for="finished-date" style="display:block; font-size:12px; font-weight:700; color:#6b7280; margin-bottom:6px;">Finished Date</label>
+          <input id="finished-date" class="plain-input" value="Select date" />
+        </div>
+        <div>
+          <label for="finished-time" style="display:block; font-size:12px; font-weight:700; color:#6b7280; margin-bottom:6px;">Finished Time</label>
+          <input id="finished-time" class="plain-input" value="Select time" />
+        </div>
+      </div>
+
+      <div style="margin-bottom:14px;">
+        <label style="display:block; font-size:12px; font-weight:700; color:#6b7280; margin-bottom:6px;">Communications</label>
+        <div style="display:flex; gap:14px; align-items:center; flex-wrap:wrap; margin-bottom:8px;">
+          <label class="inline-check"><input type="checkbox" /> Send SMS</label>
+          <a href="#" class="pay-link">Preview</a>
+        </div>
+        <div style="color:#374151;">Cannot contact by email: customer's email address is not available</div>
+      </div>
+
+      <div style="margin-bottom:20px;">
+        <label style="display:block; font-size:12px; font-weight:700; color:#6b7280; margin-bottom:6px;">Follow Up</label>
+        <div id="finishRemindersList" style="display:grid; gap:10px;">
+          <div class="field"><label for="followup-service">Service</label><input id="followup-service" class="plain-input" value="20/10/2026" /></div>
+          <div class="field"><label for="followup-wof">WOF</label><input id="followup-wof" class="plain-input" value="12/08/2026" /></div>
+          <div class="field"><label for="followup-alignment">Wheel Alignment</label><input id="followup-alignment" class="plain-input" value="20/07/2026" /></div>
+          <div style="color:#2563eb;">Add Follow Up</div>
+        </div>
+      </div>
+
+      <div class="pay-actions">
+        <div class="pay-actions-left">
+          <button id="confirmFinishBtn" class="btn-success" type="button">Finish</button>
+        </div>
+        <button id="cancelFinishBtn" class="btn-secondary" type="button">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="payModal" class="modal" aria-hidden="true">
+    <div class="pay-dialog" role="dialog" aria-modal="true" aria-labelledby="pay-title">
+      <button id="closePayBtn" class="icon-button" type="button" aria-label="Close payment modal">×</button>
+      <h2 id="pay-title" style="margin:0 0 18px; font-size:20px;">Paying</h2>
+
+      <div class="pay-total">
+        <span>Total Payable</span>
+        <strong>$138.99</strong>
+      </div>
+
+      <div class="pay-grid">
+        <div class="label">Cash</div><input id="cashInput" class="plain-input" value="0" /><a href="#" class="pay-link" data-method="Cash">Pay fully</a>
+        <div class="label">EFTPOS</div><input id="eftposInput" class="plain-input" value="0" /><a href="#" class="pay-link" data-method="EFTPOS">Pay fully</a>
+        <div class="label">Credit Card</div><input id="creditCardInput" class="plain-input" value="0" /><a href="#" class="pay-link" data-method="Credit Card">Pay fully</a>
+        <div class="label">Afterpay</div><input id="afterpayInput" class="plain-input" value="0" /><a href="#" class="pay-link" data-method="Afterpay">Pay fully</a>
+        <div class="label">Bank Transfer</div><input id="bankTransferInput" class="plain-input" value="0" /><a href="#" class="pay-link" data-method="Bank Transfer">Pay fully</a>
+        <div class="label">ZIP</div><input id="zipInput" class="plain-input" value="0" /><a href="#" class="pay-link" data-method="ZIP">Pay fully</a>
+        <div class="label">Chargeback</div><input id="chargebackInput" class="plain-input" value="0" /><a href="#" class="pay-link" data-method="Chargeback">Pay fully</a>
+        <div class="label">Other</div><input id="otherInput" class="plain-input" value="0" /><a href="#" class="pay-link" data-method="Other">Pay fully</a>
+      </div>
+
+      <div class="pay-meta">
+        <div>
+          <label for="pay-reference" style="display:block; font-size:12px; font-weight:700; color:#6b7280; margin-bottom:6px;">Reference</label>
+          <input id="pay-reference" class="plain-input" value="Invoice# INV4875" />
+        </div>
+        <div>
+          <label for="pay-date" style="display:block; font-size:12px; font-weight:700; color:#6b7280; margin-bottom:6px;">Date</label>
+          <input id="pay-date" class="plain-input" value="20/04/2026" />
+        </div>
+      </div>
+
+      <div id="surchargeRow" class="surcharge-row hidden">
+        <div>+ 2% surcharge: <strong>$<span id="surchargeAmountText">0.00</span></strong></div>
+        <div style="display:flex; align-items:center; gap:14px;">
+          <div><strong>$<span id="surchargeTotalText">138.99</span></strong></div>
+          <label class="inline-check"><input id="waiveSurcharge" type="checkbox" /> Waive</label>
+        </div>
+      </div>
+
+      <div class="pay-box">
+        <div class="pay-box-row"><span>Paid Total</span><strong id="paidTotalText">$0.00</strong></div>
+        <div class="pay-box-row"><span>Balance Due</span><strong id="balanceDueText">$138.99</strong></div>
+      </div>
+
+      <div class="pay-actions">
+        <div class="pay-actions-left">
+          <button id="confirmPayBtn" class="btn-primary" type="button">Pay</button>
+          <button id="confirmPayPrintBtn" class="btn-success" type="button">Pay & Print</button>
+        </div>
+        <button id="cancelPayBtn" class="btn-secondary" type="button">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const step1 = document.getElementById('step1');
+      const step2 = document.getElementById('step2');
+      const continueBtn = document.getElementById('continueBtn');
+      const payModal = document.getElementById('payModal');
+      const finishModal = document.getElementById('finishModal');
+      const openPayBtn = document.getElementById('openPayBtn');
+      const holdBtn = document.getElementById('holdBtn');
+      const finishJobBtn = document.getElementById('finishJobBtn');
+      const closePayBtn = document.getElementById('closePayBtn');
+      const cancelPayBtn = document.getElementById('cancelPayBtn');
+      const closeFinishBtn = document.getElementById('closeFinishBtn');
+      const cancelFinishBtn = document.getElementById('cancelFinishBtn');
+      const confirmFinishBtn = document.getElementById('confirmFinishBtn');
+      const confirmPayBtn = document.getElementById('confirmPayBtn');
+      const confirmPayPrintBtn = document.getElementById('confirmPayPrintBtn');
+
+      const paidStampWrap = document.getElementById('paidStampWrap');
+      const statusBadge = document.getElementById('statusBadge');
+      const paymentPendingText = document.getElementById('paymentPendingText');
+      const paymentPaidBox = document.getElementById('paymentPaidBox');
+      const paymentMethodText = document.getElementById('paymentMethodText');
+      const paymentAmountText = document.getElementById('paymentAmountText');
+
+      const creditCardInput = document.getElementById('creditCardInput');
+      const cashInput = document.getElementById('cashInput');
+      const eftposInput = document.getElementById('eftposInput');
+      const afterpayInput = document.getElementById('afterpayInput');
+      const bankTransferInput = document.getElementById('bankTransferInput');
+      const zipInput = document.getElementById('zipInput');
+      const chargebackInput = document.getElementById('chargebackInput');
+      const otherInput = document.getElementById('otherInput');
+      const surchargeRow = document.getElementById('surchargeRow');
+      const surchargeAmountText = document.getElementById('surchargeAmountText');
+      const surchargeTotalText = document.getElementById('surchargeTotalText');
+      const paidTotalText = document.getElementById('paidTotalText');
+      const balanceDueText = document.getElementById('balanceDueText');
+      const waiveSurcharge = document.getElementById('waiveSurcharge');
+
+      const invoiceItemsBody = document.getElementById('invoiceItemsBody');
+      const payLinks = Array.from(document.querySelectorAll('.pay-link[data-method]'));
+      const editableFields = Array.from(document.querySelectorAll('[data-editable-field]'));
+      const isCompanyCheckbox = document.getElementById('is-company');
+      const companyNameField = document.getElementById('companyNameField');
+      const dueDateInput = document.getElementById('dueDateInput');
+      const salespersonSelect = document.getElementById('salespersonSelect');
+      const shippingDetailsSelect = document.getElementById('shippingDetailsSelect');
+      const finalizedByText = document.getElementById('finalizedByText');
+      const changeCustomerLink = document.getElementById('changeCustomerLink');
+      const changeVehicleLink = document.getElementById('changeVehicleLink');
+      const addNoteLink = document.getElementById('addNoteLink');
+      const odometerView = document.getElementById('odometerView');
+      const odometerInlineInput = document.getElementById('odometerInlineInput');
+      const hubodometerView = document.getElementById('hubodometerView');
+      const hubodometerInlineInput = document.getElementById('hubodometerInlineInput');
+
+      function goToStep2() {
+        if (!step1 || !step2) return;
+        step1.classList.remove('active');
+        step2.classList.add('active');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+
+      function openPayModal() {
+        if (!payModal) return;
+        payModal.classList.add('active');
+        payModal.setAttribute('aria-hidden', 'false');
+      }
+
+      function closePayModal() {
+        if (!payModal) return;
+        payModal.classList.remove('active');
+        payModal.setAttribute('aria-hidden', 'true');
+      }
+
+      function openFinishModal() {
+        if (!finishModal) return;
+        finishModal.classList.add('active');
+        finishModal.setAttribute('aria-hidden', 'false');
+      }
+
+      function closeFinishModal() {
+        if (!finishModal) return;
+        finishModal.classList.remove('active');
+        finishModal.setAttribute('aria-hidden', 'true');
+      }
+
+      function formatMoney(value) {
+        return Number(value).toFixed(2);
+      }
+
+      function totalBaseAmount() {
+        return 138.99;
+      }
+
+      function currentSurchargeAmount() {
+        const cc = Number(creditCardInput?.value || 0);
+        if (!cc || waiveSurcharge?.checked) return 0;
+        return cc * 0.02;
+      }
+
+      function updateSurchargeUI() {
+        const surcharge = currentSurchargeAmount();
+        const total = totalBaseAmount() + surcharge;
+        if (surchargeRow) surchargeRow.classList.toggle('hidden', surcharge <= 0);
+        if (surchargeAmountText) surchargeAmountText.textContent = formatMoney(surcharge);
+        if (surchargeTotalText) surchargeTotalText.textContent = formatMoney(total);
+      }
+
+      function setPayFull(method) {
+        const inputs = {
+          'Cash': cashInput,
+          'EFTPOS': eftposInput,
+          'Credit Card': creditCardInput,
+          'Afterpay': afterpayInput,
+          'Bank Transfer': bankTransferInput,
+          'ZIP': zipInput,
+          'Chargeback': chargebackInput,
+          'Other': otherInput,
+        };
+        Object.values(inputs).forEach((input) => {
+          if (input) input.value = '0';
+        });
+        if (inputs[method]) {
+          inputs[method].value = String(totalBaseAmount());
+        }
+        updateSurchargeUI();
+      }
+
+      function setDocumentState(state, method = '', amount = 0) {
+        if (statusBadge) {
+          statusBadge.classList.remove('warning', 'paid', 'hold', 'finished');
+          if (state === 'paid') {
+            statusBadge.textContent = 'Paid';
+            statusBadge.classList.add('paid');
+          } else if (state === 'hold') {
+            statusBadge.textContent = 'Hold';
+            statusBadge.classList.add('hold');
+          } else if (state === 'finished') {
+            statusBadge.textContent = 'Finished';
+            statusBadge.classList.add('finished');
+          } else {
+            statusBadge.textContent = 'Draft';
+            statusBadge.classList.add('warning');
+          }
+        }
+
+        if (paidStampWrap) {
+          if (state === 'paid') {
+            paidStampWrap.style.display = 'block';
+            paidStampWrap.innerHTML = '<span class="stamp-paid">PAID</span>';
+          } else if (state === 'hold') {
+            paidStampWrap.style.display = 'block';
+            paidStampWrap.innerHTML = '<span class="stamp-hold">HOLD</span>';
+          } else if (state === 'finished') {
+            paidStampWrap.style.display = 'block';
+            paidStampWrap.innerHTML = '<span class="stamp-finished">FINISHED</span>';
+          } else {
+            paidStampWrap.style.display = 'none';
+            paidStampWrap.innerHTML = '';
+          }
+        }
+
+        if (paymentPendingText && paymentPaidBox && paymentMethodText && paymentAmountText) {
+          if (state === 'paid' || state === 'hold' || state === 'finished') {
+            paymentPendingText.style.display = 'none';
+            paymentPaidBox.style.display = 'block';
+            paymentMethodText.textContent = method || (state === 'hold' ? 'Hold' : state === 'finished' ? 'Finished' : 'Other');
+            paymentAmountText.textContent = formatMoney(amount);
+          } else {
+            paymentPendingText.style.display = 'block';
+            paymentPaidBox.style.display = 'none';
+          }
+        }
+      }
+
+      function markAsPaid(method) {
+        const total = totalBaseAmount() + currentSurchargeAmount();
+        setDocumentState('paid', method, total);
+        if (paidTotalText) paidTotalText.textContent = `$${formatMoney(total)}`;
+        if (balanceDueText) balanceDueText.textContent = '$0.00';
+        closePayModal();
+      }
+
+      function markAsHold() {
+        setDocumentState('hold', 'Hold', 0);
+      }
+
+      function markAsFinished() {
+        setDocumentState('finished', 'Finished', 0);
+        closeFinishModal();
+      }
+
+      editableFields.forEach((field) => {
+        const input = field.querySelector('input');
+        const viewValue = field.querySelector('.view-value');
+        if (!input || !viewValue) return;
+
+        field.addEventListener('click', () => {
+          field.classList.add('editing');
+          input.focus();
+          input.select();
+        });
+
+        input.addEventListener('blur', () => {
+          viewValue.textContent = input.value;
+          field.classList.remove('editing');
+        });
+
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') input.blur();
+        });
+      });
+
+      let draggedRow = null;
+      if (invoiceItemsBody) {
+        Array.from(invoiceItemsBody.querySelectorAll('tr')).forEach((row) => {
+          row.setAttribute('draggable', 'true');
+          row.addEventListener('dragstart', () => {
+            draggedRow = row;
+            row.classList.add('dragging');
+          });
+          row.addEventListener('dragend', () => {
+            row.classList.remove('dragging');
+            Array.from(invoiceItemsBody.querySelectorAll('tr')).forEach((r) => r.classList.remove('drag-over'));
+          });
+          row.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            if (row !== draggedRow) row.classList.add('drag-over');
+          });
+          row.addEventListener('dragleave', () => {
+            row.classList.remove('drag-over');
+          });
+          row.addEventListener('drop', (e) => {
+            e.preventDefault();
+            row.classList.remove('drag-over');
+            if (draggedRow && draggedRow !== row) {
+              invoiceItemsBody.insertBefore(draggedRow, row);
+            }
+          });
+        });
+      }
+
+      function syncCompanyField() {
+        if (!companyNameField || !isCompanyCheckbox) return;
+        companyNameField.style.display = isCompanyCheckbox.checked ? 'block' : 'none';
+      }
+
+      function enableInlineEdit(viewEl, inputEl) {
+        if (!viewEl || !inputEl) return;
+        viewEl.addEventListener('click', () => {
+          viewEl.style.display = 'none';
+          inputEl.style.display = 'inline-block';
+          inputEl.focus();
+        });
+        inputEl.addEventListener('blur', () => {
+          if (inputEl.value.trim()) viewEl.textContent = inputEl.value;
+          inputEl.style.display = 'none';
+          viewEl.style.display = 'inline';
+        });
+        inputEl.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') inputEl.blur();
+        });
+      }
+
+      syncCompanyField();
+      isCompanyCheckbox?.addEventListener('change', syncCompanyField);
+      enableInlineEdit(odometerView, odometerInlineInput);
+      enableInlineEdit(hubodometerView, hubodometerInlineInput);
+
+      dueDateInput?.addEventListener('change', () => {});
+      salespersonSelect?.addEventListener('change', () => {
+        if (finalizedByText) finalizedByText.textContent = salespersonSelect.value;
+      });
+      changeCustomerLink?.addEventListener('click', (e) => {
+        e.preventDefault();
+        alert('Open customer selection popup from database');
+      });
+      changeVehicleLink?.addEventListener('click', (e) => {
+        e.preventDefault();
+        alert('Open vehicle selection popup or add new vehicle from database');
+      });
+      addNoteLink?.addEventListener('click', (e) => {
+        e.preventDefault();
+        const note = prompt('Add note');
+        if (note) addNoteLink.textContent = `+ Note added: ${note}`;
+      });
+
+      continueBtn?.addEventListener('click', goToStep2);
+      holdBtn?.addEventListener('click', markAsHold);
+      finishJobBtn?.addEventListener('click', openFinishModal);
+      closeFinishBtn?.addEventListener('click', closeFinishModal);
+      cancelFinishBtn?.addEventListener('click', closeFinishModal);
+      confirmFinishBtn?.addEventListener('click', markAsFinished);
+      openPayBtn?.addEventListener('click', openPayModal);
+      closePayBtn?.addEventListener('click', closePayModal);
+      cancelPayBtn?.addEventListener('click', closePayModal);
+      confirmPayBtn?.addEventListener('click', () => markAsPaid('Other'));
+      confirmPayPrintBtn?.addEventListener('click', () => markAsPaid('Other'));
+      creditCardInput?.addEventListener('input', updateSurchargeUI);
+      waiveSurcharge?.addEventListener('change', updateSurchargeUI);
+
+      payLinks.forEach((link) => {
+        link.addEventListener('click', (e) => {
+          e.preventDefault();
+          const method = link.getAttribute('data-method') || 'Other';
+          setPayFull(method);
+        });
+      });
+
+      payModal?.addEventListener('click', (e) => {
+        if (e.target === payModal) closePayModal();
+      });
+
+      finishModal?.addEventListener('click', (e) => {
+        if (e.target === finishModal) closeFinishModal();
+      });
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          closePayModal();
+          closeFinishModal();
+        }
+      });
+
+      updateSurchargeUI();
+
+      console.assert(step1, 'Step 1 section should exist');
+      console.assert(step2, 'Step 2 section should exist');
+      console.assert(continueBtn, 'Continue button should exist');
+      console.assert(openPayBtn, 'Pay button should exist');
+      console.assert(payModal, 'Pay modal should exist');
+      console.assert(document.getElementById('statusBadge'), 'Status badge should exist');
+      console.assert(document.getElementById('paymentPendingText'), 'Payment pending text should exist');
+      console.assert(document.getElementById('paymentPaidBox'), 'Payment paid box should exist');
+      console.assert(document.getElementById('surchargeRow'), 'Surcharge row should exist');
+      console.assert(document.getElementById('holdBtn'), 'Hold button should exist');
+      console.assert(document.getElementById('finishJobBtn'), 'Finish Job button should exist');
+      console.assert(document.getElementById('finishModal'), 'Finish modal should exist');
+      console.assert(document.getElementById('invoiceItemsBody'), 'Invoice items body should exist');
+      console.assert(document.getElementById('finished-date'), 'Finished date field should exist');
+      console.assert(document.getElementById('finished-time'), 'Finished time field should exist');
+      console.assert(document.getElementById('companyNameField'), 'Company name field should exist');
+      console.assert(document.getElementById('dueDateInput'), 'Due date input should exist');
+      console.assert(document.getElementById('salespersonSelect'), 'Salesperson select should exist');
+      console.assert(document.querySelectorAll('[data-editable-field]').length > 0, 'Editable view fields should exist');
+      console.assert(step1?.classList.contains('active'), 'Step 1 should be active on initial load');
+      console.assert(!step2?.classList.contains('active'), 'Step 2 should be hidden on initial load');
+    })();
+  </script>
+</body>
+</html>

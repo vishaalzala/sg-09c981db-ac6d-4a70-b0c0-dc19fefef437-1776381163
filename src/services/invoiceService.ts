@@ -7,43 +7,44 @@ type InvoiceLineItem = Tables<"invoice_line_items">;
 type Payment = Tables<"payments">;
 
 export const invoiceService = {
-  async getInvoices(companyId: string, status?: string) {
-    let query = supabase
-      .from("invoices")
-      .select(`
-        *,
-        customer:customers!invoices_customer_id_fkey(id, name, mobile, email),
-        vehicle:vehicles!invoices_vehicle_id_fkey(id, registration_number, make, model),
-        payments:payments(amount, payment_date),
-        invoice_items:invoice_line_items(quantity, unit_price, discount)
-      `)
-      .eq("company_id", companyId)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false });
-
-    if (status) {
-      query = query.eq("status", status);
-    }
-
-    const { data, error } = await query;
-    if (error) throw error;
-    return data || [];
-  },
-
-  async getInvoice(id: string) {
+  async getInvoices(companyId: string) {
     const { data, error } = await supabase
       .from("invoices")
       .select(`
         *,
-        customer:customers!invoices_customer_id_fkey(*),
-        vehicle:vehicles!invoices_vehicle_id_fkey(*),
-        line_items:invoice_line_items(*),
-        payments:payments(*)
+        customer:customers(*),
+        vehicle:vehicles(*),
+        invoice_line_items(*)
+      `)
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching invoices:", error);
+      throw error;
+    }
+
+    return data || [];
+  },
+
+  async getInvoiceById(id: string) {
+    const { data, error } = await supabase
+      .from("invoices")
+      .select(`
+        *,
+        customer:customers(*),
+        vehicle:vehicles(*),
+        invoice_line_items(*),
+        salesperson:users!invoices_salesperson_id_fkey(*)
       `)
       .eq("id", id)
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error("Error fetching invoice:", error);
+      throw error;
+    }
+
     return data;
   },
 
@@ -148,5 +149,32 @@ export const invoiceService = {
       .eq("id", id);
 
     if (error) throw error;
+  },
+
+  async generateInvoiceNumber(companyId: string): Promise<string> {
+    const { data, error } = await supabase
+      .from("invoices")
+      .select("invoice_number")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    if (error) {
+      console.error("Error generating invoice number:", error);
+      return `INV-${Date.now()}`;
+    }
+
+    if (!data || data.length === 0) {
+      return "INV-10001";
+    }
+
+    const lastNumber = data[0].invoice_number;
+    const match = lastNumber?.match(/INV-(\d+)/);
+    if (match) {
+      const nextNumber = parseInt(match[1]) + 1;
+      return `INV-${nextNumber}`;
+    }
+
+    return `INV-${Date.now()}`;
   },
 };
