@@ -48,7 +48,33 @@ export const companyService = {
     }
   },
 
+  async validateUserCompanyAccess(userId: string, companyId: string): Promise<boolean> {
+    const { data } = await supabase
+      .from("users")
+      .select("company_id, profiles!inner(role)")
+      .eq("id", userId)
+      .single() as any;
+
+    if (!data) return false;
+
+    // Super admin can access all companies
+    if (data.profiles?.role === "super_admin") return true;
+
+    // User must belong to the company
+    return data.company_id === companyId;
+  },
+
   async getCompanyBranches(companyId: string): Promise<Branch[]> {
+    // Validate access
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    const hasAccess = await this.validateUserCompanyAccess(user.id, companyId);
+    if (!hasAccess) {
+      console.error("Access denied: User does not belong to this company");
+      return [];
+    }
+
     const { data } = await supabase
       .from("branches")
       .select("*")
@@ -60,6 +86,16 @@ export const companyService = {
   },
 
   async getCompanyAddons(companyId: string) {
+    // Validate access
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    const hasAccess = await this.validateUserCompanyAccess(user.id, companyId);
+    if (!hasAccess) {
+      console.error("Access denied: User does not belong to this company");
+      return [];
+    }
+
     const { data } = await supabase
       .from("company_addons")
       .select(`
@@ -73,6 +109,16 @@ export const companyService = {
   },
 
   async checkFeatureEntitlement(companyId: string, featureSlug: string): Promise<boolean> {
+    // Validate access
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    const hasAccess = await this.validateUserCompanyAccess(user.id, companyId);
+    if (!hasAccess) {
+      console.error("Access denied: User does not belong to this company");
+      return false;
+    }
+
     const { data } = await supabase
       .from("feature_entitlements")
       .select("id")

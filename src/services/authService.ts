@@ -66,6 +66,37 @@ export const authService = {
     return session;
   },
 
+  // Get current user's company_id
+  async getCurrentUserCompanyId(): Promise<string | null> {
+    const user = await this.getCurrentUser();
+    if (!user) return null;
+
+    const { data } = await supabase
+      .from("users")
+      .select("company_id")
+      .eq("id", user.id)
+      .single();
+
+    return data?.company_id || null;
+  },
+
+  // Validate user belongs to company
+  async validateCompanyAccess(companyId: string): Promise<boolean> {
+    const userCompanyId = await this.getCurrentUserCompanyId();
+    if (!userCompanyId) return false;
+
+    // Check if super admin
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", (await this.getCurrentUser())?.id || "")
+      .single();
+
+    if (profile?.role === "super_admin") return true;
+
+    return userCompanyId === companyId;
+  },
+
   // Sign up with email and password
   async signUp(email: string, password: string): Promise<{ user: AuthUser | null; error: AuthError | null }> {
     try {

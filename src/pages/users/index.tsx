@@ -174,6 +174,21 @@ export default function UsersPage() {
       return;
     }
 
+    // Validate company access
+    const hasAccess = await companyService.validateUserCompanyAccess(
+      (await supabase.auth.getUser()).data.user?.id || "",
+      companyId
+    );
+
+    if (!hasAccess) {
+      toast({
+        title: "Access Denied",
+        description: "You don't have permission to add users to this company",
+        variant: "destructive"
+      });
+      return;
+    }
+
     // Create user via admin API
     const response = await fetch("/api/admin/create-user", {
       method: "POST",
@@ -217,6 +232,37 @@ export default function UsersPage() {
   const handleEditUser = async () => {
     if (!selectedUser) return;
 
+    // Validate company access
+    const hasAccess = await companyService.validateUserCompanyAccess(
+      (await supabase.auth.getUser()).data.user?.id || "",
+      companyId
+    );
+
+    if (!hasAccess) {
+      toast({
+        title: "Access Denied",
+        description: "You don't have permission to edit users in this company",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Validate target user belongs to same company
+    const { data: targetUser } = await supabase
+      .from("users")
+      .select("company_id")
+      .eq("id", selectedUser.id)
+      .single();
+
+    if (targetUser?.company_id !== companyId) {
+      toast({
+        title: "Access Denied",
+        description: "This user does not belong to your company",
+        variant: "destructive"
+      });
+      return;
+    }
+
     const { error } = await supabase
       .from("users")
       .update({
@@ -226,7 +272,8 @@ export default function UsersPage() {
         branch_id: editForm.branch_id || null,
         is_active: editForm.is_active
       })
-      .eq("id", selectedUser.id);
+      .eq("id", selectedUser.id)
+      .eq("company_id", companyId); // Extra safety check
 
     if (error) {
       toast({
@@ -248,10 +295,42 @@ export default function UsersPage() {
   };
 
   const handleDeactivateUser = async (userId: string) => {
+    // Validate company access
+    const hasAccess = await companyService.validateUserCompanyAccess(
+      (await supabase.auth.getUser()).data.user?.id || "",
+      companyId
+    );
+
+    if (!hasAccess) {
+      toast({
+        title: "Access Denied",
+        description: "You don't have permission to deactivate users in this company",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Validate target user belongs to same company
+    const { data: targetUser } = await supabase
+      .from("users")
+      .select("company_id")
+      .eq("id", userId)
+      .single();
+
+    if (targetUser?.company_id !== companyId) {
+      toast({
+        title: "Access Denied",
+        description: "This user does not belong to your company",
+        variant: "destructive"
+      });
+      return;
+    }
+
     const { error } = await supabase
       .from("users")
       .update({ is_active: false })
-      .eq("id", userId);
+      .eq("id", userId)
+      .eq("company_id", companyId); // Extra safety check
 
     if (error) {
       toast({
