@@ -119,6 +119,9 @@ export function DocumentBuilder({ type, companyId, onComplete }: DocumentBuilder
   const [showCustomerDialog, setShowCustomerDialog] = useState(false);
   const [showVehicleDialog, setShowVehicleDialog] = useState(false);
   const [showJobTypeDialog, setShowJobTypeDialog] = useState(false);
+  const [selectedJobType, setSelectedJobType] = useState<any>(null);
+  const [jobTypeSearch, setJobTypeSearch] = useState("");
+
   const [showSalesOppDialog, setShowSalesOppDialog] = useState(false);
 
   const [finishedDate, setFinishedDate] = useState(new Date().toISOString().split("T")[0]);
@@ -1896,22 +1899,107 @@ export function DocumentBuilder({ type, companyId, onComplete }: DocumentBuilder
           <DialogHeader>
             <DialogTitle>Select Job Type / Job Kit</DialogTitle>
           </DialogHeader>
-          <div className="space-y-2 max-h-96 overflow-y-auto">
-            {jobTypes.map((jt) => (
-              <button
-                key={jt.id}
-                onClick={() => handleSelectJobType(jt)}
-                className="w-full text-left p-3 border rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                <p className="font-semibold">{jt.name}</p>
-                {jt.description && <p className="text-xs text-muted-foreground mt-1">{jt.description}</p>}
-              </button>
-            ))}
+          <div className="space-y-4">
+            <Input placeholder="Search job types..." value={jobTypeSearch} onChange={(e) => setJobTypeSearch(e.target.value)} />
+            <div className="max-h-72 overflow-auto border rounded-lg">
+              {jobTypes
+                .filter((jt: any) => !jobTypeSearch || jt.name.toLowerCase().includes(jobTypeSearch.toLowerCase()))
+                .map((jt: any) => (
+                  <button
+                    key={jt.id}
+                    type="button"
+                    className={cn(
+                      "w-full text-left p-3 border-b last:border-b-0 hover:bg-muted/40 transition-colors",
+                      selectedJobType?.id === jt.id && "bg-muted/60"
+                    )}
+                    onClick={() => setSelectedJobType(jt)}
+                  >
+                    <div className="font-semibold text-sm">{jt.name}</div>
+                    {jt.description && <div className="text-xs text-muted-foreground mt-1">{jt.description}</div>}
+                  </button>
+                ))}
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowJobTypeDialog(false)}>
               Cancel
             </Button>
+            <Button onClick={handleAddJobType} disabled={!selectedJobType?.id}>
+              Add
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Inventory Item Selection Dialog */}
+      <Dialog open={showInventoryDialog} onOpenChange={(open) => {
+        setShowInventoryDialog(open);
+        if (!open) {
+          setInventorySearch("");
+          setShowCreateStock(false);
+          setNewStockName("");
+          setNewStockRate("");
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Item from Inventory</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {!showCreateStock ? (
+              <>
+                <Input placeholder="Search inventory..." value={inventorySearch} onChange={(e) => setInventorySearch(e.target.value)} />
+                {inventoryLoading ? (
+                  <p className="text-sm text-muted-foreground">Loading...</p>
+                ) : inventoryResults.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No inventory items found.</p>
+                ) : (
+                  <div className="max-h-72 overflow-auto border rounded-lg">
+                    {inventoryResults.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        className="w-full text-left p-3 border-b last:border-b-0 hover:bg-muted/40 transition-colors"
+                        onClick={() => handleAddInventoryItem(item)}
+                      >
+                        <div className="font-semibold text-sm">{item.name}</div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          ${item.unit_price?.toFixed(2) || "0.00"} · Stock: {item.quantity_in_stock || 0}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <Button variant="outline" className="w-full" onClick={() => setShowCreateStock(true)}>
+                  + Create New Stock Item
+                </Button>
+              </>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm font-semibold">Create new stock item</p>
+                <div>
+                  <Label>Name</Label>
+                  <Input value={newStockName} onChange={(e) => setNewStockName(e.target.value)} placeholder="Item name" />
+                </div>
+                <div>
+                  <Label>Unit Price</Label>
+                  <Input value={newStockRate} onChange={(e) => setNewStockRate(e.target.value)} placeholder="0.00" type="number" step="0.01" />
+                </div>
+                <Button variant="outline" className="w-full" onClick={() => setShowCreateStock(false)}>
+                  ← Back to Search
+                </Button>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowInventoryDialog(false)}>
+              Cancel
+            </Button>
+            {showCreateStock && (
+              <Button onClick={handleCreateStock}>
+                Create & Add
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
