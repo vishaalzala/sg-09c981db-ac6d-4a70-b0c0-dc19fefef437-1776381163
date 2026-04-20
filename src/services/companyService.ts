@@ -17,7 +17,7 @@ export const companyService = {
         .from("users")
         .select("company_id")
         .eq("id", user.id)
-        .single();
+        .single() as any;
 
       if (userError) {
         console.error("Error fetching user data:", userError);
@@ -34,7 +34,7 @@ export const companyService = {
         .select("*")
         .eq("id", userData.company_id)
         .is("deleted_at", null)
-        .single();
+        .single() as any;
 
       if (error) {
         console.error("Error fetching company:", error);
@@ -49,19 +49,23 @@ export const companyService = {
   },
 
   async validateUserCompanyAccess(userId: string, companyId: string): Promise<boolean> {
-    const { data } = await supabase
-      .from("users")
-      .select("company_id, profiles!inner(role)")
-      .eq("id", userId)
-      .single() as any;
+    try {
+      const { data } = await supabase
+        .from("users")
+        .select("company_id, profiles!inner(role)")
+        .eq("id", userId)
+        .single() as any;
 
-    if (!data) return false;
+      if (!data) return false;
 
-    // Super admin can access all companies
-    if (data.profiles?.role === "super_admin") return true;
+      // Super admin can access all companies
+      if (data.profiles?.role === "super_admin") return true;
 
-    // User must belong to the company
-    return data.company_id === companyId;
+      // User must belong to the company
+      return data.company_id === companyId;
+    } catch (error) {
+      return false;
+    }
   },
 
   async getCompanyBranches(companyId: string): Promise<Branch[]> {
@@ -80,7 +84,7 @@ export const companyService = {
       .select("*")
       .eq("company_id", companyId)
       .is("deleted_at", null)
-      .order("name");
+      .order("name") as any;
 
     return data || [];
   },
@@ -103,7 +107,7 @@ export const companyService = {
         addon:addon_catalog(*)
       `)
       .eq("company_id", companyId)
-      .eq("is_enabled", true);
+      .eq("is_enabled", true) as any;
 
     return data || [];
   },
@@ -125,7 +129,7 @@ export const companyService = {
       .eq("company_id", companyId)
       .eq("feature_name", featureSlug)
       .eq("is_enabled", true)
-      .single();
+      .single() as any;
 
     return !!data;
   },
