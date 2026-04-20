@@ -12,21 +12,9 @@ export function ProtectedRoute({ children, requireSuperAdmin = false }: Protecte
   const [loading, setLoading] = useState(true);
   const [authorized, setAuthorized] = useState(false);
 
-  // DEMO MODE: Check if demo mode is enabled
-  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
-
   useEffect(() => {
-    // DEMO MODE: Skip all auth checks and allow access
-    if (isDemoMode) {
-      console.log("🎭 DEMO MODE - Bypassing auth check, granting access");
-      setAuthorized(true);
-      setLoading(false);
-      return;
-    }
-
-    // PRODUCTION MODE: Normal auth checks
     checkAuth();
-  }, [isDemoMode]);
+  }, []);
 
   const checkAuth = async () => {
     try {
@@ -63,7 +51,6 @@ export function ProtectedRoute({ children, requireSuperAdmin = false }: Protecte
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          {isDemoMode && <div className="mb-4 text-sm text-muted-foreground">🎭 Demo Mode</div>}
           <div>Loading...</div>
         </div>
       </div>

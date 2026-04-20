@@ -23,44 +23,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  // DEMO MODE: Check if demo mode is enabled
-  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
-
   useEffect(() => {
-    // DEMO MODE: Bypass real auth and return mock user
-    if (isDemoMode) {
-      console.log("🎭 DEMO MODE ENABLED - Using mock authentication");
-      const mockUser = {
-        id: "demo-user-id",
-        email: "admin@demo.com",
-        created_at: new Date().toISOString(),
-        app_metadata: {},
-        user_metadata: {
-          full_name: "Demo Admin"
-        },
-        aud: "authenticated",
-        role: "authenticated"
-      } as User;
-
-      setUser(mockUser);
-      setSession({
-        access_token: "demo-token",
-        refresh_token: "demo-refresh",
-        expires_in: 3600,
-        token_type: "bearer",
-        user: mockUser
-      } as Session);
-      setLoading(false);
-      return;
-    }
-
-    // PRODUCTION MODE: Normal auth flow
+    // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
     });
 
+    // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -70,17 +41,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     return () => subscription.unsubscribe();
-  }, [isDemoMode]);
+  }, []);
 
   const signOut = async () => {
-    // DEMO MODE: Just redirect without calling Supabase
-    if (isDemoMode) {
-      console.log("🎭 DEMO MODE - Simulating sign out");
-      router.push("/login");
-      return;
-    }
-
-    // PRODUCTION MODE: Real sign out
     await supabase.auth.signOut();
     router.push("/login");
   };
