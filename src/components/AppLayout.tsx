@@ -1,28 +1,41 @@
 import { ReactNode, useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
-import { 
-  LayoutDashboard, 
-  Briefcase,
-  Calendar,
-  FileText,
-  Receipt,
-  ShieldCheck,
-  Users,
-  Car,
-  Layers,
-  Package,
-  Warehouse,
-  ShoppingCart,
-  UserCircle,
-  Clock,
-  Bell,
-  BarChart3,
-  Settings,
-  HelpCircle,
-  ChevronRight,
-  Menu,
-  X
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+    LayoutDashboard,
+    Briefcase,
+    Calendar,
+    FileText,
+    Receipt,
+    ShieldCheck,
+    Users,
+    Car,
+    Layers,
+    Package,
+    Warehouse,
+    ShoppingCart,
+    UserCircle,
+    Clock,
+    Bell,
+    BarChart3,
+    Settings,
+    HelpCircle,
+    ChevronRight,
+    Menu,
+    X,
+    User,
+    LogOut
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
