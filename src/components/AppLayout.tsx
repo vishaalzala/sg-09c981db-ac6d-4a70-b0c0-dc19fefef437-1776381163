@@ -36,16 +36,12 @@ import {
     X,
 } from "lucide-react";
 
-/* ================= TYPES ================= */
-
 interface AppLayoutProps {
     children: ReactNode;
     companyId?: string;
     companyName?: string;
     userName?: string;
 }
-
-/* ================= NAV ================= */
 
 const navigation = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -59,8 +55,6 @@ const navigation = [
     { name: "Purchase Orders", href: "/dashboard/purchase-orders", icon: ShoppingCart },
 ];
 
-/* ================= COMPONENT ================= */
-
 export function AppLayout({
     children,
     companyName,
@@ -73,15 +67,15 @@ export function AppLayout({
     const [menuUserName, setMenuUserName] = useState(userName || "User");
     const [menuUserEmail, setMenuUserEmail] = useState("");
 
-    /* ================= INIT ================= */
-
     useEffect(() => {
         setMounted(true);
     }, []);
 
     useEffect(() => {
         const loadUser = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
+            const {
+                data: { user },
+            } = await supabase.auth.getUser();
 
             if (!user) return;
 
@@ -96,8 +90,6 @@ export function AppLayout({
 
         loadUser();
     }, [userName]);
-
-    /* ================= ACTIONS ================= */
 
     const handleSignOut = async () => {
         await supabase.auth.signOut();
@@ -117,18 +109,14 @@ export function AppLayout({
 
     if (!mounted) return null;
 
-    /* ================= UI ================= */
-
     return (
         <div className="flex h-screen bg-background">
-            {/* SIDEBAR */}
             <aside
                 className={cn(
                     "fixed left-0 top-0 z-40 h-screen bg-card border-r transition-all",
                     sidebarOpen ? "w-64" : "w-16"
                 )}
             >
-                {/* Logo */}
                 <div className="flex h-16 items-center justify-between px-4 border-b">
                     {sidebarOpen && (
                         <Link href="/dashboard" className="flex items-center gap-2">
@@ -137,12 +125,11 @@ export function AppLayout({
                         </Link>
                     )}
 
-                    <button onClick={() => setSidebarOpen(!sidebarOpen)}>
+                    <button type="button" onClick={() => setSidebarOpen(!sidebarOpen)}>
                         {sidebarOpen ? <X size={18} /> : <Menu size={18} />}
                     </button>
                 </div>
 
-                {/* Nav */}
                 <nav className="p-4 space-y-2">
                     {navigation.map((item) => {
                         const Icon = item.icon;
@@ -170,14 +157,12 @@ export function AppLayout({
                 </nav>
             </aside>
 
-            {/* MAIN */}
             <div
                 className={cn(
                     "flex-1 transition-all",
                     sidebarOpen ? "ml-64" : "ml-16"
                 )}
             >
-                {/* HEADER */}
                 <header className="flex items-center justify-between h-16 px-6 border-b bg-background">
                     <div>
                         <h1 className="text-lg font-semibold">
@@ -190,9 +175,7 @@ export function AppLayout({
                         )}
                     </div>
 
-                    {/* RIGHT SIDE */}
                     <div className="flex items-center gap-4">
-                        {/* Notification */}
                         <Button
                             variant="ghost"
                             size="icon"
@@ -203,10 +186,12 @@ export function AppLayout({
                             <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
                         </Button>
 
-                        {/* User Dropdown */}
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                                <button className="flex items-center gap-2 border rounded px-2 py-1 hover:bg-muted">
+                                <button
+                                    type="button"
+                                    className="flex items-center gap-2 border rounded px-2 py-1 hover:bg-muted"
+                                >
                                     <Avatar className="h-8 w-8">
                                         <AvatarFallback>{initials || "U"}</AvatarFallback>
                                     </Avatar>
@@ -245,7 +230,6 @@ export function AppLayout({
                     </div>
                 </header>
 
-                {/* CONTENT */}
                 <main className="p-6 overflow-y-auto h-[calc(100vh-64px)]">
                     {children}
                 </main>
