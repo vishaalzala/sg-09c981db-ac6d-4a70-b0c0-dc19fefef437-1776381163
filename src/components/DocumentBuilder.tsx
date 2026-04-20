@@ -122,6 +122,14 @@ export function DocumentBuilder({ type, companyId, onComplete }: DocumentBuilder
   const [selectedJobType, setSelectedJobType] = useState<any>(null);
   const [jobTypeSearch, setJobTypeSearch] = useState("");
 
+  const [showInventoryDialog, setShowInventoryDialog] = useState(false);
+  const [inventorySearch, setInventorySearch] = useState("");
+  const [inventoryResults, setInventoryResults] = useState<any[]>([]);
+  const [inventoryLoading, setInventoryLoading] = useState(false);
+  const [showCreateStock, setShowCreateStock] = useState(false);
+  const [newStockName, setNewStockName] = useState("");
+  const [newStockRate, setNewStockRate] = useState("");
+
   const [showSalesOppDialog, setShowSalesOppDialog] = useState(false);
 
   const [finishedDate, setFinishedDate] = useState(new Date().toISOString().split("T")[0]);
@@ -535,20 +543,120 @@ export function DocumentBuilder({ type, companyId, onComplete }: DocumentBuilder
     setDraggedItem(null);
   };
 
-  const handleSelectJobType = (jobType: any) => {
+  const handleAddJobType = async () => {
+    if (!selectedJobType?.id) return;
+    try {
+      const { data: jobTypeData, error } = await supabase
+        .from("job_types")
+        .select("*, job_type_line_items(*)")
+        .eq("id", selectedJobType.id)
+        .single();
+
+      if (error) throw error;
+
+      if (jobTypeData?.job_type_line_items && Array.isArray(jobTypeData.job_type_line_items)) {
+        const newItems: LineItem[] = jobTypeData.job_type_line_items.map((item: any, index: number) => ({
+          id: Date.now().toString() + "_" + index,
+          description: item.description || "",
+          quantity: item.quantity || 1,
+          rate: item.unit_price || 0,
+          discount: 0,
+          total: (item.quantity || 1) * (item.unit_price || 0),
+          type: "item",
+          sort_order: lineItems.length + index,
+        }));
+
+        setLineItems((prev) => [...prev, ...newItems]);
+        toast({ title: "Success", description: `Added ${newItems.length} items from ${jobTypeData.name}` });
+      }
+
+      setShowJobTypeDialog(false);
+      setSelectedJobType(null);
+      setJobTypeSearch("");
+    } catch (error: any) {
+      console.error("Error adding job type:", error);
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  };
+
+  const handleAddInventoryItem = (item: any) => {
     const newItem: LineItem = {
-      id: `jobtype-${Date.now()}`,
-      type: "job_kit",
-      description: jobType.name,
+      id: Date.now().toString(),
+      description: item.name || "",
       quantity: 1,
-      rate: jobType.price || 0,
+      rate: item.unit_price || 0,
       discount: 0,
-      total: jobType.price || 0,
+      total: item.unit_price || 0,
+      type: "item",
       sort_order: lineItems.length,
     };
-    setLineItems([...lineItems, newItem]);
-    setShowJobTypeDialog(false);
+    setLineItems((prev) => [...prev, newItem]);
+    setShowInventoryDialog(false);
+    setInventorySearch("");
   };
+
+  const handleCreateStock = async () => {
+    if (!companyId) return;
+    if (!newStockName.trim()) {
+      toast({ title: "Name required", description: "Please enter a stock name.", variant: "destructive" });
+      return;
+    }
+    const rate = parseFloat(newStockRate) || 0;
+    try {
+      const { data, error } = await supabase
+        .from("inventory_items")
+        .insert({
+          company_id: companyId,
+          name: newStockName,
+          unit_price: rate,
+          quantity_in_stock: 0,
+        } as any)
+        .select()
+        .single();
+
+      if (error) throw error;
+      toast({ title: "Success", description: "Stock item created" });
+      handleAddInventoryItem(data);
+      setNewStockName("");
+      setNewStockRate("");
+      setShowCreateStock(false);
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  };
+
+  useEffect(() => {
+    if (!showInventoryDialog) return;
+    if (!companyId) return;
+
+    const q = inventorySearch.trim();
+    const handle = setTimeout(async () => {
+      try {
+        setInventoryLoading(true);
+        let query = supabase
+          .from("inventory_items")
+          .select("id,name,description,unit_price,quantity_in_stock")
+          .eq("company_id", companyId)
+          .order("name", { ascending: true })
+          .limit(30);
+
+        if (q) {
+          query = query.ilike("name", `%${q}%`);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+        setInventoryResults(Array.isArray(data) ? data : []);
+      } catch (e) {
+        console.error("Inventory search error:", e);
+        setInventoryResults([]);
+      } finally {
+        setInventoryLoading(false);
+      }
+    }, 250);
+
+    return () => clearTimeout(handle);
+  }, [showInventoryDialog, companyId, inventorySearch]);
 
   useEffect(() => {
     if (step !== 2) return;
