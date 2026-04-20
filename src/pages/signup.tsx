@@ -8,7 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import Link from "next/link";
 import { SEO } from "@/components/SEO";
-import { authService } from "@/services/authService";
+import { authService, signUp } from "@/services/authService";
 import { Building2, Mail, Lock, User, Phone, AlertCircle } from "lucide-react";
 
 export default function SignupPage() {
@@ -58,13 +58,13 @@ export default function SignupPage() {
     try {
       console.log("Starting signup process...");
 
-      // Call authService.signUp which handles:
+      // Call signUp which handles:
       // 1. Auth user creation
       // 2. Company creation
       // 3. Profile creation
       // 4. Users table record
       // 5. 14-day trial subscription
-      await authService.signUp(formData);
+      await signUp(formData);
 
       console.log("Signup successful, redirecting to dashboard...");
 
