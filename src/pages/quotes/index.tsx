@@ -57,8 +57,9 @@ export default function QuotesPage() {
     if (company) {
       setCompanyId(company.id);
       const status = activeTab === "all" ? undefined : activeTab;
-      const data = await quoteService.getQuotes(company.id, status);
-      setQuotes(data);
+      const data = await quoteService.getQuotes(company.id);
+      const filteredData = status ? data.filter((q: any) => q.status === status) : data;
+      setQuotes(filteredData);
     }
     setLoading(false);
   };

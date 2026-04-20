@@ -52,7 +52,7 @@ export default function QuoteDetail() {
     }
 
     if (typeof id === "string") {
-      const quoteData = await quoteService.getQuote(id);
+      const quoteData = await quoteService.getQuoteById(id);
       setQuote(quoteData);
       
       // Load line items

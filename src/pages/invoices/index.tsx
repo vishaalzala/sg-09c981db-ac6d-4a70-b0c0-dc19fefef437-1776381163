@@ -48,16 +48,17 @@ export default function InvoicesPage() {
     if (company) {
       setCompanyId(company.id);
       const status = activeTab === "all" ? undefined : activeTab;
-      const data = await invoiceService.getInvoices(company.id, status);
+      const data = await invoiceService.getInvoices(company.id);
+      const filteredData = status ? data.filter(i => i.status === status) : data;
       
       // Calculate totals for invoices that don't have them
-      const invoicesWithTotals = (data || []).map(invoice => {
+      const invoicesWithTotals = (filteredData || []).map(invoice => {
         let calculatedTotal = invoice.total_amount;
         
         // If total_amount is null/undefined, calculate from line items
-        if (calculatedTotal == null && invoice.invoice_items) {
-          calculatedTotal = invoice.invoice_items.reduce((sum: number, item: any) => {
-            const itemTotal = (item.quantity || 0) * (item.unit_price || 0) - (item.discount || 0);
+        if (calculatedTotal == null && invoice.invoice_line_items) {
+          calculatedTotal = invoice.invoice_line_items.reduce((sum: number, item: any) => {
+            const itemTotal = (item.quantity || 0) * (item.unit_price || item.rate || 0) - (item.discount || 0);
             return sum + itemTotal;
           }, 0);
         }
