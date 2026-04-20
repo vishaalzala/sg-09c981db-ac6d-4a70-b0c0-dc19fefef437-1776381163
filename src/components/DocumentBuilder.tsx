@@ -144,6 +144,12 @@ export function DocumentBuilder({ type, companyId, onComplete }: DocumentBuilder
   const [selectedSearchCustomer, setSelectedSearchCustomer] = useState<any>(null);
   const [selectedSearchVehicle, setSelectedSearchVehicle] = useState<any>(null);
 
+  const [customerDialogLoading, setCustomerDialogLoading] = useState(false);
+  const [customerDialogResults, setCustomerDialogResults] = useState<any[]>([]);
+  const [customerDialogMode, setCustomerDialogMode] = useState<"search" | "create">("search");
+  const [vehicleDialogLoading, setVehicleDialogLoading] = useState(false);
+  const [vehicleDialogResults, setVehicleDialogResults] = useState<any[]>([]);
+
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
 
   // Load supporting data
@@ -247,11 +253,98 @@ export function DocumentBuilder({ type, companyId, onComplete }: DocumentBuilder
     }
   };
 
+  useEffect(() => {
+    if (!showCustomerDialog) return;
+    if (!companyId) return;
+
+    const q = customerSearch.trim();
+    const handle = setTimeout(async () => {
+      try {
+        setCustomerDialogLoading(true);
+        let query = supabase
+          .from("customers")
+          .select("id,name,email,mobile,phone,bill_to_third_party,is_company,company_name,postal_address,source_of_business")
+          .eq("company_id", companyId)
+          .order("created_at", { ascending: false })
+          .limit(20);
+
+        if (q) {
+          query = query.ilike("name", `%${q}%`);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+        setCustomerDialogResults(Array.isArray(data) ? data : []);
+      } catch (e) {
+        console.error("Customer search error:", e);
+        setCustomerDialogResults([]);
+      } finally {
+        setCustomerDialogLoading(false);
+      }
+    }, 250);
+
+    return () => clearTimeout(handle);
+  }, [showCustomerDialog, companyId, customerSearch]);
+
+  useEffect(() => {
+    if (!showVehicleDialog) return;
+    if (!companyId) return;
+    if (!customerId) return;
+
+    const q = vehicleSearch.trim();
+    const handle = setTimeout(async () => {
+      try {
+        setVehicleDialogLoading(true);
+        let query = supabase
+          .from("vehicles")
+          .select("id,registration_number,make,model,year,body_type,odometer,hubodometer")
+          .eq("company_id", companyId)
+          .eq("customer_id", customerId)
+          .order("created_at", { ascending: false })
+          .limit(30);
+
+        if (q) {
+          query = query.ilike("registration_number", `%${q}%`);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+        setVehicleDialogResults(Array.isArray(data) ? data : []);
+      } catch (e) {
+        console.error("Vehicle search error:", e);
+        setVehicleDialogResults([]);
+      } finally {
+        setVehicleDialogLoading(false);
+      }
+    }, 250);
+
+    return () => clearTimeout(handle);
+  }, [showVehicleDialog, companyId, customerId, vehicleSearch]);
+
   const handleContinueToStep2 = async () => {
     setLoading(true);
     try {
       let finalCustomerId = selectedCustomerId;
       let finalVehicleId = selectedVehicleId;
+
+      if (finalCustomerId) {
+        const { data: c, error: cErr } = await supabase
+          .from("customers")
+          .select("id,name,email,mobile,phone,bill_to_third_party,is_company,company_name,postal_address,source_of_business")
+          .eq("id", finalCustomerId)
+          .single();
+        if (!cErr && c) {
+          setOwnerName(c.name || "");
+          setOwnerEmail(c.email || "");
+          setOwnerMobile(c.mobile || "");
+          setOwnerPhone(c.phone || "");
+          setBillToThirdParty(c.bill_to_third_party || "");
+          setIsCompany(Boolean(c.is_company));
+          setCompanyName(c.company_name || "");
+          setPostalAddress(c.postal_address || "");
+          setSourceOfBusiness(c.source_of_business || "");
+        }
+      }
 
       if (!finalCustomerId) {
         const { data: newCustomer } = await supabase
@@ -272,6 +365,23 @@ export function DocumentBuilder({ type, companyId, onComplete }: DocumentBuilder
           .single();
 
         if (newCustomer) finalCustomerId = newCustomer.id;
+      }
+
+      if (finalVehicleId) {
+        const { data: v, error: vErr } = await supabase
+          .from("vehicles")
+          .select("id,registration_number,make,model,year,body_type,odometer,hubodometer")
+          .eq("id", finalVehicleId)
+          .single();
+        if (!vErr && v) {
+          setRego(v.registration_number || "");
+          setMake(v.make || "");
+          setModel(v.model || "");
+          setYear(v.year ? String(v.year) : "");
+          setBodyType(v.body_type || "");
+          setOdometer(v.odometer ? String(v.odometer) : "");
+          setHubodometer(v.hubodometer ? String(v.hubodometer) : "");
+        }
       }
 
       if (!finalVehicleId && rego) {
@@ -1417,8 +1527,8 @@ export function DocumentBuilder({ type, companyId, onComplete }: DocumentBuilder
           </DialogHeader>
           <div className="space-y-4">
             <div className="bg-gray-100 rounded-lg p-3 flex justify-between items-center">
-              <span>Total Payable</span>
-              <strong className="text-lg">${calculateTotal().toFixed(2)}</strong>
+              <span>Paid Total</span>
+              <strong className="text-lg">${Object.values(paymentInputs).reduce((sum, val) => sum + val, 0).toFixed(2)}</strong>
             </div>
 
             <div className="grid grid-cols-[170px_1fr_120px] gap-3 items-center">
@@ -1467,10 +1577,6 @@ export function DocumentBuilder({ type, companyId, onComplete }: DocumentBuilder
 
             <div className="bg-gray-100 rounded-lg p-3 space-y-2">
               <div className="flex justify-between">
-                <span>Paid Total</span>
-                <strong>${Object.values(paymentInputs).reduce((sum, val) => sum + val, 0).toFixed(2)}</strong>
-              </div>
-              <div className="flex justify-between">
                 <span>Balance Due</span>
                 <strong>${(calculateTotal() - Object.values(paymentInputs).reduce((sum, val) => sum + val, 0)).toFixed(2)}</strong>
               </div>
@@ -1487,39 +1593,299 @@ export function DocumentBuilder({ type, companyId, onComplete }: DocumentBuilder
       </Dialog>
 
       {/* Change Customer Dialog */}
-      <Dialog open={showCustomerDialog} onOpenChange={setShowCustomerDialog}>
+      <Dialog open={showCustomerDialog} onOpenChange={(open) => {
+        setShowCustomerDialog(open);
+        if (!open) {
+          setCustomerSearch("");
+          setSelectedSearchCustomer(null);
+          setCustomerDialogMode("search");
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Change Customer</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <Input placeholder="Search customer..." value={customerSearch} onChange={(e) => setCustomerSearch(e.target.value)} />
-            <p className="text-sm text-muted-foreground">Search and select existing customer or create new</p>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant={customerDialogMode === "search" ? "default" : "outline"}
+                onClick={() => setCustomerDialogMode("search")}
+                className="h-8"
+              >
+                Search
+              </Button>
+              <Button
+                type="button"
+                variant={customerDialogMode === "create" ? "default" : "outline"}
+                onClick={() => setCustomerDialogMode("create")}
+                className="h-8"
+              >
+                Create
+              </Button>
+            </div>
+
+            {customerDialogMode === "search" ? (
+              <div className="space-y-3">
+                <Input placeholder="Search customer by name..." value={customerSearch} onChange={(e) => setCustomerSearch(e.target.value)} />
+                {customerDialogLoading ? (
+                  <p className="text-sm text-muted-foreground">Loading...</p>
+                ) : customerDialogResults.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No customers found.</p>
+                ) : (
+                  <div className="max-h-72 overflow-auto border rounded-lg">
+                    {customerDialogResults.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        className={cn(
+                          "w-full text-left p-3 border-b last:border-b-0 hover:bg-muted/40 transition-colors",
+                          selectedSearchCustomer?.id === c.id && "bg-muted/60"
+                        )}
+                        onClick={() => setSelectedSearchCustomer(c)}
+                      >
+                        <div className="font-semibold text-sm">{c.name || "—"}</div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {[c.mobile, c.phone, c.email].filter(Boolean).join(" · ") || "No contact details"}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">Create a new customer without leaving the workflow.</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Name</Label>
+                    <Input value={ownerName} onChange={(e) => setOwnerName(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>Email</Label>
+                    <Input value={ownerEmail} onChange={(e) => setOwnerEmail(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>Mobile</Label>
+                    <Input value={ownerMobile} onChange={(e) => setOwnerMobile(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>Phone</Label>
+                    <Input value={ownerPhone} onChange={(e) => setOwnerPhone(e.target.value)} />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {customerDialogMode === "search" ? (
+              <Button
+                onClick={async () => {
+                  if (!selectedSearchCustomer?.id) return;
+                  const c = selectedSearchCustomer;
+                  setCustomerId(c.id);
+                  setOwnerName(c.name || "");
+                  setOwnerEmail(c.email || "");
+                  setOwnerMobile(c.mobile || "");
+                  setOwnerPhone(c.phone || "");
+                  setBillToThirdParty(c.bill_to_third_party || "");
+                  setIsCompany(Boolean(c.is_company));
+                  setCompanyName(c.company_name || "");
+                  setPostalAddress(c.postal_address || "");
+                  setSourceOfBusiness(c.source_of_business || "");
+
+                  setVehicleId("");
+                  setRego("");
+                  setMake("");
+                  setModel("");
+                  setYear("");
+                  setBodyType("");
+                  setOdometerValue("");
+                  setHubodometer("");
+                  setShowCustomerDialog(false);
+                }}
+                disabled={!selectedSearchCustomer?.id}
+              >
+                Select Customer
+              </Button>
+            ) : (
+              <Button
+                onClick={async () => {
+                  if (!companyId) return;
+                  if (!ownerName.trim()) {
+                    toast({ title: "Name required", description: "Please enter a customer name.", variant: "destructive" });
+                    return;
+                  }
+
+                  const { data, error } = await supabase
+                    .from("customers")
+                    .insert({
+                      company_id: companyId,
+                      name: ownerName,
+                      email: ownerEmail,
+                      mobile: ownerMobile,
+                      phone: ownerPhone,
+                      source_of_business: sourceOfBusiness,
+                      postal_address: postalAddress,
+                      is_company: isCompany,
+                      company_name: companyName,
+                      bill_to_third_party: billToThirdParty,
+                    } as any)
+                    .select()
+                    .single();
+
+                  if (error) {
+                    toast({ title: "Error", description: error.message, variant: "destructive" });
+                    return;
+                  }
+
+                  setCustomerId(data.id);
+                  setVehicleId("");
+                  setShowCustomerDialog(false);
+                }}
+              >
+                Create Customer
+              </Button>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCustomerDialog(false)}>
               Cancel
             </Button>
-            <Button>Select Customer</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Change Vehicle Dialog */}
-      <Dialog open={showVehicleDialog} onOpenChange={setShowVehicleDialog}>
+      <Dialog open={showVehicleDialog} onOpenChange={(open) => {
+        setShowVehicleDialog(open);
+        if (!open) {
+          setVehicleSearch("");
+          setSelectedSearchVehicle(null);
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Change Vehicle</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <Input placeholder="Search vehicle by rego..." value={vehicleSearch} onChange={(e) => setVehicleSearch(e.target.value)} />
-            <p className="text-sm text-muted-foreground">Only vehicles connected to this customer will appear</p>
+            <p className="text-sm text-muted-foreground">Only vehicles connected to this customer will appear.</p>
+
+            {vehicleDialogLoading ? (
+              <p className="text-sm text-muted-foreground">Loading...</p>
+            ) : vehicleDialogResults.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No vehicles found for this customer.</p>
+            ) : (
+              <div className="max-h-72 overflow-auto border rounded-lg">
+                {vehicleDialogResults.map((v) => (
+                  <button
+                    key={v.id}
+                    type="button"
+                    className={cn(
+                      "w-full text-left p-3 border-b last:border-b-0 hover:bg-muted/40 transition-colors",
+                      selectedSearchVehicle?.id === v.id && "bg-muted/60"
+                    )}
+                    onClick={() => setSelectedSearchVehicle(v)}
+                  >
+                    <div className="font-semibold text-sm">{v.registration_number || "—"}</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {[v.make, v.model, v.year].filter(Boolean).join(" ") || "Vehicle details not set"}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="border-t pt-3 space-y-2">
+              <p className="text-sm font-semibold">Create new vehicle</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Registration Number</Label>
+                  <Input value={rego} onChange={(e) => setRego(e.target.value)} />
+                </div>
+                <div>
+                  <Label>Year</Label>
+                  <Input value={year} onChange={(e) => setYear(e.target.value)} />
+                </div>
+                <div>
+                  <Label>Make</Label>
+                  <Input value={make} onChange={(e) => setMake(e.target.value)} />
+                </div>
+                <div>
+                  <Label>Model</Label>
+                  <Input value={model} onChange={(e) => setModel(e.target.value)} />
+                </div>
+                <div className="col-span-2">
+                  <Label>Body Type</Label>
+                  <Input value={bodyType} onChange={(e) => setBodyType(e.target.value)} />
+                </div>
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowVehicleDialog(false)}>
               Cancel
             </Button>
-            <Button>Change Vehicle</Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  if (!selectedSearchVehicle?.id) return;
+                  const v = selectedSearchVehicle;
+                  setVehicleId(v.id);
+                  setRego(v.registration_number || "");
+                  setMake(v.make || "");
+                  setModel(v.model || "");
+                  setYear(v.year ? String(v.year) : "");
+                  setBodyType(v.body_type || "");
+                  setOdometerValue(v.odometer ? String(v.odometer) : "");
+                  setHubodometer(v.hubodometer ? String(v.hubodometer) : "");
+                  setShowVehicleDialog(false);
+                }}
+                disabled={!selectedSearchVehicle?.id}
+              >
+                Select
+              </Button>
+              <Button
+                onClick={async () => {
+                  if (!companyId) return;
+                  if (!customerId) {
+                    toast({ title: "Select customer first", description: "Please select a customer before creating a vehicle.", variant: "destructive" });
+                    return;
+                  }
+                  if (!rego.trim()) {
+                    toast({ title: "Rego required", description: "Please enter a registration number.", variant: "destructive" });
+                    return;
+                  }
+
+                  const { data, error } = await supabase
+                    .from("vehicles")
+                    .insert({
+                      company_id: companyId,
+                      customer_id: customerId,
+                      registration_number: rego,
+                      make,
+                      model,
+                      year: year ? parseInt(year) : null,
+                      body_type: bodyType,
+                      odometer: odometerValue ? parseInt(odometerValue) : null,
+                      hubodometer: hubodometer ? parseInt(hubodometer) : null,
+                    } as any)
+                    .select()
+                    .single();
+
+                  if (error) {
+                    toast({ title: "Error", description: error.message, variant: "destructive" });
+                    return;
+                  }
+
+                  setVehicleId(data.id);
+                  setShowVehicleDialog(false);
+                }}
+              >
+                Create
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
