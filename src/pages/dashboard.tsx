@@ -31,32 +31,12 @@ export default function DashboardPage() {
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // DEMO MODE: Check if demo mode is enabled
-  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
-
   useEffect(() => {
     loadDashboardData();
   }, []);
 
   const loadDashboardData = async () => {
     try {
-      // DEMO MODE: Use mock company and skip database queries
-      if (isDemoMode) {
-        console.log("🎭 DEMO MODE - Using mock company context");
-        setCompanyId("demo-company-id");
-        setStats({
-          customers: 42,
-          vehicles: 87,
-          activeJobs: 12,
-          pendingQuotes: 5,
-          unpaidInvoices: 3,
-          todayBookings: 8
-        });
-        setLoading(false);
-        return;
-      }
-
-      // PRODUCTION MODE: Normal data loading
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         router.push("/login");
@@ -222,25 +202,25 @@ export default function DashboardPage() {
                   <CardDescription>Common tasks</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  <Link href="/customers">
+                  <Link href="/dashboard/customers">
                     <Button variant="outline" className="w-full justify-start">
                       <Users className="mr-2 h-4 w-4" />
                       Add New Customer
                     </Button>
                   </Link>
-                  <Link href="/bookings">
+                  <Link href="/dashboard/bookings">
                     <Button variant="outline" className="w-full justify-start">
                       <Calendar className="mr-2 h-4 w-4" />
                       Create Booking
                     </Button>
                   </Link>
-                  <Link href="/jobs">
+                  <Link href="/dashboard/jobs">
                     <Button variant="outline" className="w-full justify-start">
                       <Wrench className="mr-2 h-4 w-4" />
                       Start New Job
                     </Button>
                   </Link>
-                  <Link href="/quotes">
+                  <Link href="/dashboard/quotes">
                     <Button variant="outline" className="w-full justify-start">
                       <FileText className="mr-2 h-4 w-4" />
                       Create Quote

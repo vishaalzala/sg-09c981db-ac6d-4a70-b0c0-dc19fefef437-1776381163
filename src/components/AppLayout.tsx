@@ -36,7 +36,7 @@ interface AppLayoutProps {
 const navigationGroups = [
   {
     items: [
-      { name: "Dashboard", href: "/dashboard/job-centre", icon: LayoutDashboard },
+      { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
       { name: "Job Board", href: "/dashboard/job-centre", icon: Briefcase }
     ]
   },
