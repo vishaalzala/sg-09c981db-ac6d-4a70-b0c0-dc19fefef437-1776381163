@@ -45,7 +45,7 @@ interface AppLayoutProps {
     userName?: string;
 }
 
-/* ================= NAVIGATION ================= */
+/* ================= NAV ================= */
 
 const navigation = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -61,15 +61,15 @@ const navigation = [
 
 /* ================= COMPONENT ================= */
 
-export default function AppLayout({
+export function AppLayout({
     children,
     companyName,
     userName,
 }: AppLayoutProps) {
     const router = useRouter();
 
-    const [sidebarOpen, setSidebarOpen] = useState(true);
     const [mounted, setMounted] = useState(false);
+    const [sidebarOpen, setSidebarOpen] = useState(true);
     const [menuUserName, setMenuUserName] = useState(userName || "User");
     const [menuUserEmail, setMenuUserEmail] = useState("");
 
@@ -121,7 +121,7 @@ export default function AppLayout({
 
     return (
         <div className="flex h-screen bg-background">
-            {/* ================= SIDEBAR ================= */}
+            {/* SIDEBAR */}
             <aside
                 className={cn(
                     "fixed left-0 top-0 z-40 h-screen bg-card border-r transition-all",
@@ -142,7 +142,7 @@ export default function AppLayout({
                     </button>
                 </div>
 
-                {/* Navigation */}
+                {/* Nav */}
                 <nav className="p-4 space-y-2">
                     {navigation.map((item) => {
                         const Icon = item.icon;
@@ -161,21 +161,23 @@ export default function AppLayout({
                             >
                                 <Icon size={18} />
                                 {sidebarOpen && item.name}
-                                {sidebarOpen && active && <ChevronRight className="ml-auto" size={16} />}
+                                {sidebarOpen && active && (
+                                    <ChevronRight className="ml-auto" size={16} />
+                                )}
                             </Link>
                         );
                     })}
                 </nav>
             </aside>
 
-            {/* ================= MAIN ================= */}
+            {/* MAIN */}
             <div
                 className={cn(
                     "flex-1 transition-all",
                     sidebarOpen ? "ml-64" : "ml-16"
                 )}
             >
-                {/* ================= HEADER ================= */}
+                {/* HEADER */}
                 <header className="flex items-center justify-between h-16 px-6 border-b bg-background">
                     <div>
                         <h1 className="text-lg font-semibold">
@@ -190,7 +192,7 @@ export default function AppLayout({
 
                     {/* RIGHT SIDE */}
                     <div className="flex items-center gap-4">
-                        {/* 🔔 Notification */}
+                        {/* Notification */}
                         <Button
                             variant="ghost"
                             size="icon"
@@ -201,7 +203,7 @@ export default function AppLayout({
                             <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
                         </Button>
 
-                        {/* 👤 User Menu */}
+                        {/* User Dropdown */}
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <button className="flex items-center gap-2 border rounded px-2 py-1 hover:bg-muted">
@@ -243,7 +245,7 @@ export default function AppLayout({
                     </div>
                 </header>
 
-                {/* ================= CONTENT ================= */}
+                {/* CONTENT */}
                 <main className="p-6 overflow-y-auto h-[calc(100vh-64px)]">
                     {children}
                 </main>
