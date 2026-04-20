@@ -1,7 +1,11 @@
-import { ReactNode, useState, useEffect } from "react";
+"use client";
+
+import { ReactNode, useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
+
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -12,198 +16,238 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+
 import {
     LayoutDashboard,
-    Briefcase,
     Calendar,
+    Briefcase,
     FileText,
     Receipt,
-    ShieldCheck,
     Users,
     Car,
-    Layers,
     Package,
-    Warehouse,
     ShoppingCart,
-    UserCircle,
-    Clock,
     Bell,
-    BarChart3,
     Settings,
-    HelpCircle,
+    User,
+    LogOut,
     ChevronRight,
     Menu,
     X,
-    User,
-    LogOut
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+
+/* ================= TYPES ================= */
 
 interface AppLayoutProps {
-  children: ReactNode;
-  companyId?: any;
-  companyName?: string;
-  userName?: string;
+    children: ReactNode;
+    companyId?: string;
+    companyName?: string;
+    userName?: string;
 }
 
-const navigationGroups = [
-  {
-    items: [
-      { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-      { name: "Job Board", href: "/dashboard/job-centre", icon: Briefcase }
-    ]
-  },
-  {
-    title: "Operations",
-    items: [
-      { name: "Bookings", href: "/dashboard/bookings", icon: Calendar },
-      { name: "Jobs", href: "/dashboard/jobs", icon: FileText },
-      { name: "Quotes", href: "/dashboard/quotes", icon: Receipt },
-      { name: "Invoices", href: "/dashboard/invoices", icon: Receipt },
-      { name: "WOF", href: "/dashboard/wof", icon: ShieldCheck }
-    ]
-  },
-  {
-    title: "CRM",
-    items: [
-      { name: "Customers", href: "/dashboard/customers", icon: Users },
-      { name: "Vehicles", href: "/dashboard/vehicles", icon: Car },
-      { name: "Job Types", href: "/dashboard/job-types", icon: Layers }
-    ]
-  },
-  {
-    title: "Parts & Suppliers",
-    items: [
-      { name: "Suppliers", href: "/dashboard/suppliers", icon: Warehouse },
-      { name: "Inventory", href: "/dashboard/inventory", icon: Package },
-      { name: "Purchase Orders", href: "/dashboard/purchase-orders", icon: ShoppingCart }
-    ]
-  },
-  {
-    title: "Staff",
-    items: [
-      { name: "Staff", href: "/dashboard/staff", icon: UserCircle },
-      { name: "Time Sheet", href: "/dashboard/timesheets", icon: Clock }
-    ]
-  },
-  {
-    title: "Office",
-    items: [
-      { name: "Reminders", href: "/dashboard/reminders", icon: Bell },
-      { name: "Reports", href: "/dashboard/reports", icon: BarChart3 },
-      { name: "Settings", href: "/dashboard/settings", icon: Settings },
-      { name: "Help", href: "/dashboard/help", icon: HelpCircle }
-    ]
-  }
+/* ================= NAVIGATION ================= */
+
+const navigation = [
+    { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+    { name: "Bookings", href: "/dashboard/bookings", icon: Calendar },
+    { name: "Jobs", href: "/dashboard/jobs", icon: Briefcase },
+    { name: "Quotes", href: "/dashboard/quotes", icon: FileText },
+    { name: "Invoices", href: "/dashboard/invoices", icon: Receipt },
+    { name: "Customers", href: "/dashboard/customers", icon: Users },
+    { name: "Vehicles", href: "/dashboard/vehicles", icon: Car },
+    { name: "Inventory", href: "/dashboard/inventory", icon: Package },
+    { name: "Purchase Orders", href: "/dashboard/purchase-orders", icon: ShoppingCart },
 ];
 
-export function AppLayout({ children, companyId }: AppLayoutProps) {
-  const router = useRouter();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [mounted, setMounted] = useState(false);
+/* ================= COMPONENT ================= */
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+export default function AppLayout({
+    children,
+    companyName,
+    userName,
+}: AppLayoutProps) {
+    const router = useRouter();
 
-  if (!mounted) {
-    return null;
-  }
+    const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [mounted, setMounted] = useState(false);
+    const [menuUserName, setMenuUserName] = useState(userName || "User");
+    const [menuUserEmail, setMenuUserEmail] = useState("");
 
-  const isActive = (href: string) => {
-    return router.pathname === href || router.pathname.startsWith(href + "/");
-  };
+    /* ================= INIT ================= */
 
-  return (
-    <div className="flex h-screen bg-background">
-      {/* Sidebar */}
-      <aside
-        className={cn(
-          "fixed left-0 top-0 z-40 h-screen transition-all duration-300 bg-card border-r",
-          sidebarOpen ? "w-64" : "w-16"
-        )}
-      >
-        {/* Sidebar Header */}
-        <div className="flex h-16 items-center justify-between px-4 border-b">
-          {sidebarOpen && (
-            <Link href="/dashboard/job-centre" className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded bg-primary" />
-              <span className="font-heading font-bold text-lg">Workshop</span>
-            </Link>
-          )}
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 hover:bg-muted rounded-md"
-          >
-            {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
+    useEffect(() => {
+        const loadUser = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+
+            if (!user) return;
+
+            setMenuUserEmail(user.email || "");
+
+            if (userName) {
+                setMenuUserName(userName);
+            } else if (user.email) {
+                setMenuUserName(user.email.split("@")[0]);
+            }
+        };
+
+        loadUser();
+    }, [userName]);
+
+    /* ================= ACTIONS ================= */
+
+    const handleSignOut = async () => {
+        await supabase.auth.signOut();
+        router.push("/login");
+    };
+
+    const isActive = (href: string) => {
+        return router.pathname === href || router.pathname.startsWith(href + "/");
+    };
+
+    const initials = menuUserName
+        ?.split(" ")
+        .map((p) => p[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase();
+
+    if (!mounted) return null;
+
+    /* ================= UI ================= */
+
+    return (
+        <div className="flex h-screen bg-background">
+            {/* ================= SIDEBAR ================= */}
+            <aside
+                className={cn(
+                    "fixed left-0 top-0 z-40 h-screen bg-card border-r transition-all",
+                    sidebarOpen ? "w-64" : "w-16"
+                )}
+            >
+                {/* Logo */}
+                <div className="flex h-16 items-center justify-between px-4 border-b">
+                    {sidebarOpen && (
+                        <Link href="/dashboard" className="flex items-center gap-2">
+                            <div className="h-8 w-8 bg-primary rounded" />
+                            <span className="font-bold">Workshop</span>
+                        </Link>
+                    )}
+
+                    <button onClick={() => setSidebarOpen(!sidebarOpen)}>
+                        {sidebarOpen ? <X size={18} /> : <Menu size={18} />}
+                    </button>
+                </div>
+
+                {/* Navigation */}
+                <nav className="p-4 space-y-2">
+                    {navigation.map((item) => {
+                        const Icon = item.icon;
+                        const active = isActive(item.href);
+
+                        return (
+                            <Link
+                                key={item.href}
+                                href={item.href}
+                                className={cn(
+                                    "flex items-center gap-3 px-3 py-2 rounded-md text-sm",
+                                    active
+                                        ? "bg-primary text-white"
+                                        : "text-muted-foreground hover:bg-muted"
+                                )}
+                            >
+                                <Icon size={18} />
+                                {sidebarOpen && item.name}
+                                {sidebarOpen && active && <ChevronRight className="ml-auto" size={16} />}
+                            </Link>
+                        );
+                    })}
+                </nav>
+            </aside>
+
+            {/* ================= MAIN ================= */}
+            <div
+                className={cn(
+                    "flex-1 transition-all",
+                    sidebarOpen ? "ml-64" : "ml-16"
+                )}
+            >
+                {/* ================= HEADER ================= */}
+                <header className="flex items-center justify-between h-16 px-6 border-b bg-background">
+                    <div>
+                        <h1 className="text-lg font-semibold">
+                            {router.pathname === "/dashboard"
+                                ? "Dashboard"
+                                : router.pathname.split("/").pop()}
+                        </h1>
+                        {companyName && (
+                            <p className="text-sm text-muted-foreground">{companyName}</p>
+                        )}
+                    </div>
+
+                    {/* RIGHT SIDE */}
+                    <div className="flex items-center gap-4">
+                        {/* 🔔 Notification */}
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => router.push("/dashboard/reminders")}
+                            className="relative"
+                        >
+                            <Bell size={18} />
+                            <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+                        </Button>
+
+                        {/* 👤 User Menu */}
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <button className="flex items-center gap-2 border rounded px-2 py-1 hover:bg-muted">
+                                    <Avatar className="h-8 w-8">
+                                        <AvatarFallback>{initials || "U"}</AvatarFallback>
+                                    </Avatar>
+
+                                    <div className="hidden md:flex flex-col text-left">
+                                        <span className="text-sm font-medium">{menuUserName}</span>
+                                        <span className="text-xs text-muted-foreground">
+                                            {menuUserEmail}
+                                        </span>
+                                    </div>
+                                </button>
+                            </DropdownMenuTrigger>
+
+                            <DropdownMenuContent align="end" className="w-48">
+                                <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+
+                                <DropdownMenuItem onClick={() => router.push("/dashboard/profile")}>
+                                    <User size={16} className="mr-2" />
+                                    Profile
+                                </DropdownMenuItem>
+
+                                <DropdownMenuItem onClick={() => router.push("/dashboard/settings")}>
+                                    <Settings size={16} className="mr-2" />
+                                    Settings
+                                </DropdownMenuItem>
+
+                                <DropdownMenuSeparator />
+
+                                <DropdownMenuItem onClick={handleSignOut}>
+                                    <LogOut size={16} className="mr-2" />
+                                    Sign out
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </div>
+                </header>
+
+                {/* ================= CONTENT ================= */}
+                <main className="p-6 overflow-y-auto h-[calc(100vh-64px)]">
+                    {children}
+                </main>
+            </div>
         </div>
-
-        {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto p-4 space-y-6">
-          {navigationGroups.map((group, groupIndex) => (
-            <div key={groupIndex} className="space-y-2">
-              {group.title && sidebarOpen && (
-                <h3 className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  {group.title}
-                </h3>
-              )}
-              <div className="space-y-1">
-                {group.items.map((item) => {
-                  const Icon = item.icon;
-                  const active = isActive(item.href);
-                  
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={cn(
-                        "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
-                        active
-                          ? "bg-primary text-primary-foreground"
-                          : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                      )}
-                    >
-                      <Icon className="h-5 w-5 shrink-0" />
-                      {sidebarOpen && <span>{item.name}</span>}
-                      {sidebarOpen && active && <ChevronRight className="ml-auto h-4 w-4" />}
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </nav>
-      </aside>
-
-      {/* Main Content */}
-      <div
-        className={cn(
-          "flex-1 transition-all duration-300",
-          sidebarOpen ? "ml-64" : "ml-16"
-        )}
-      >
-        {/* Top Bar */}
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background px-6">
-          <div className="flex flex-1 items-center justify-between">
-            <div className="flex items-center gap-4">
-              <h1 className="text-lg font-semibold">
-                {router.pathname.split('/').pop()?.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-              </h1>
-            </div>
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-muted-foreground">
-                Company ID: {companyId?.slice(0, 8)}
-              </span>
-            </div>
-          </div>
-        </header>
-
-        {/* Page Content */}
-        <main className="flex-1 overflow-y-auto">
-          {children}
-        </main>
-      </div>
-    </div>
-  );
+    );
 }
