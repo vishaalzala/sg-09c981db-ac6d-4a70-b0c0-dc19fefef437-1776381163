@@ -50,11 +50,11 @@ export const companyService = {
 
   async validateUserCompanyAccess(userId: string, companyId: string): Promise<boolean> {
     try {
-      const { data } = await supabase
+      const { data } = await (supabase as any)
         .from("users")
         .select("company_id, profiles!inner(role)")
         .eq("id", userId)
-        .single() as any;
+        .single();
 
       if (!data) return false;
 

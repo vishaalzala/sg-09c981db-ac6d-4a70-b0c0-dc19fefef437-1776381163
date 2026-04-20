@@ -1,6 +1,6 @@
 ---
 title: Authentication and RBAC system
-status: in_progress
+status: done
 priority: urgent
 type: feature
 tags:
@@ -24,5 +24,5 @@ User roles: Super Admin, Internal Sales/Admin Ops, Company Owner, Branch Manager
 - [x] Create permissionService for RBAC checks (canAccessWOF, canManageInventory, canApproveQuotes, etc.)
 - [x] Build role assignment UI for company owners to manage user roles
 - [x] Create middleware/hooks for protecting routes by role
-- [ ] Add company_id validation on all user operations
+- [x] Add company_id validation on all user operations
 - [x] Build user management page with role assignment and branch assignment
