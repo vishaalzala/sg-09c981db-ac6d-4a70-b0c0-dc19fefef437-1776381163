@@ -36,15 +36,15 @@ interface LineItem {
 
 interface ReminderItem {
   id: string;
-  reminder_type_id: string;
-  type_name: string;
-  remind_at: string;
+  reminder_type: string;
+  due_date: string;
+  reminder_note?: string | null;
 }
 
 interface SalesOpp {
   id: string;
   title: string;
-  description?: string;
+  description?: string | null;
 }
 
 export function DocumentBuilder({ type, companyId, onComplete }: DocumentBuilderProps) {
@@ -155,8 +155,8 @@ export function DocumentBuilder({ type, companyId, onComplete }: DocumentBuilder
     try {
       const [staffData, reminderTypesData, jobTypesData] = await Promise.all([
         supabase.from("users").select("*").eq("company_id", companyId),
-        supabase.from("reminder_types").select("*").or(`company_id.eq.${companyId},is_system.eq.true`),
-        supabase.from("job_types").select("*").eq("company_id", companyId),
+        supabase.from("reminder_types").select("*").eq("company_id", companyId).order("name", { ascending: true }),
+        supabase.from("job_types").select("*").eq("company_id", companyId).order("name", { ascending: true }),
       ]);
 
       if (staffData.data) setStaff(staffData.data);
@@ -385,6 +385,44 @@ export function DocumentBuilder({ type, companyId, onComplete }: DocumentBuilder
     setShowJobTypeDialog(false);
   };
 
+  useEffect(() => {
+    if (step !== 2) return;
+    if (!companyId || !customerId) return;
+
+    void (async () => {
+      try {
+        const [{ data: remData, error: remErr }, { data: oppData, error: oppErr }] = await Promise.all([
+          supabase
+            .from("reminders")
+            .select("*")
+            .eq("company_id", companyId)
+            .eq("customer_id", customerId)
+            .order("due_date", { ascending: true }),
+          supabase
+            .from("sales_opportunities")
+            .select("id,title,description")
+            .eq("company_id", companyId)
+            .eq("customer_id", customerId)
+            .order("created_at", { ascending: false }),
+        ]);
+
+        if (remErr) throw remErr;
+        if (oppErr) throw oppErr;
+
+        setReminders((remData || []) as unknown as ReminderItem[]);
+        setSalesOpps((oppData || []) as unknown as SalesOpp[]);
+      } catch (e) {
+        console.error("Load reminders/sales opps error:", e);
+      }
+    })();
+  }, [step, companyId, customerId]);
+
+  const mapDiscountTypeForDb = (value: string) => {
+    if (value === "%") return "percentage";
+    if (value === "$") return "fixed";
+    return "none";
+  };
+
   const handleSaveDocument = async () => {
     setLoading(true);
     try {
@@ -400,8 +438,9 @@ export function DocumentBuilder({ type, companyId, onComplete }: DocumentBuilder
         odometer: odometerValue ? parseInt(odometerValue) : null,
         hubodometer: hubodometer ? parseInt(hubodometer) : null,
         status: documentStatus.paid ? "paid" : documentStatus.finished ? "finished" : documentStatus.hold ? "hold" : "draft",
-        discount_value: parseFloat(discountValue),
-        discount_type: discountType,
+        discount_value: parseFloat(discountValue) || 0,
+        discount_type: mapDiscountTypeForDb(discountType),
+        discount_amount: calculateDiscount(),
         subtotal: calculateSubtotal(),
         tax_amount: calculateTax(),
         total_amount: calculateTotal(),
@@ -418,12 +457,7 @@ export function DocumentBuilder({ type, companyId, onComplete }: DocumentBuilder
           notes: description,
         };
 
-        const { data: doc, error: docError } = await supabase
-          .from("invoices")
-          .insert(invoiceData as any)
-          .select()
-          .single();
-
+        const { data: doc, error: docError } = await supabase.from("invoices").insert(invoiceData as any).select().single();
         if (docError) throw docError;
         documentId = doc.id;
 
@@ -448,12 +482,7 @@ export function DocumentBuilder({ type, companyId, onComplete }: DocumentBuilder
           notes: description,
         };
 
-        const { data: doc, error: docError } = await supabase
-          .from("quotes")
-          .insert(quoteData as any)
-          .select()
-          .single();
-
+        const { data: doc, error: docError } = await supabase.from("quotes").insert(quoteData as any).select().single();
         if (docError) throw docError;
         documentId = doc.id;
 
@@ -471,20 +500,58 @@ export function DocumentBuilder({ type, companyId, onComplete }: DocumentBuilder
         }
       }
 
+      // Upsert reminders for this customer (sync to /dashboard/reminders)
+      for (const reminder of reminders) {
+        if (!reminder.reminder_type || !reminder.due_date) continue;
+
+        if (reminder.id.startsWith("tmp_")) {
+          const { data: newRem, error: remErr } = await supabase
+            .from("reminders")
+            .insert({
+              company_id: companyId,
+              customer_id: customerId,
+              vehicle_id: vehicleId || null,
+              reminder_type: reminder.reminder_type,
+              due_date: reminder.due_date,
+              reminder_note: reminder.reminder_note || null,
+              status: "pending",
+            } as any)
+            .select()
+            .single();
+
+          if (remErr) throw remErr;
+          reminder.id = newRem.id;
+        } else {
+          const { error: remErr } = await supabase
+            .from("reminders")
+            .update({
+              reminder_type: reminder.reminder_type,
+              due_date: reminder.due_date,
+              reminder_note: reminder.reminder_note || null,
+            } as any)
+            .eq("id", reminder.id);
+
+          if (remErr) throw remErr;
+        }
+      }
+
       if (documentStatus.paid && paymentAmount > 0) {
-        const paymentData = {
+        const basePayment = {
           company_id: companyId,
           customer_id: customerId,
-          [type === "invoice" ? "invoice_id" : "quote_id"]: documentId,
           payment_method: paymentMethod,
           amount: paymentAmount,
           surcharge_amount: calculateSurcharge(),
           surcharge_waived: waiveSurcharge,
           reference: paymentReference,
-          payment_date: new Date(paymentDate).toISOString(),
+          payment_date: paymentDate,
         };
 
-        await supabase.from("payments").insert(paymentData as any);
+        if (type === "invoice") {
+          await supabase.from("payments").insert({ ...basePayment, invoice_id: documentId } as any);
+        } else {
+          await supabase.from("payments").insert({ ...basePayment, quote_id: documentId } as any);
+        }
       }
 
       toast({ title: "Success", description: `${type === "invoice" ? "Invoice" : "Quote"} created successfully` });
@@ -1067,7 +1134,36 @@ export function DocumentBuilder({ type, companyId, onComplete }: DocumentBuilder
               <Badge className="bg-orange-200 text-orange-800 text-xs">Customer-based</Badge>
             </div>
             <p className="text-xs text-muted-foreground mb-3">Keep suggested upsell items linked to this customer.</p>
-            <Button size="sm" className="bg-orange-600 hover:bg-orange-700 mb-3" onClick={() => setShowSalesOppDialog(true)}>
+            <Button
+              size="sm"
+              className="bg-orange-600 hover:bg-orange-700 mb-3"
+              onClick={async () => {
+                const title = window.prompt("Title");
+                if (!title) return;
+                const descriptionText = window.prompt("Description (optional)") || null;
+
+                const { data, error } = await supabase
+                  .from("sales_opportunities")
+                  .insert({
+                    company_id: companyId,
+                    customer_id: customerId,
+                    vehicle_id: vehicleId || null,
+                    title,
+                    description: descriptionText,
+                    source_type: "manual",
+                    status: "new",
+                  } as any)
+                  .select()
+                  .single();
+
+                if (error) {
+                  toast({ title: "Error", description: error.message, variant: "destructive" });
+                  return;
+                }
+
+                setSalesOpps((prev) => [{ id: data.id, title: data.title, description: data.description }, ...prev]);
+              }}
+            >
               Add
             </Button>
             <div className="space-y-2">
@@ -1075,8 +1171,41 @@ export function DocumentBuilder({ type, companyId, onComplete }: DocumentBuilder
                 <div key={opp.id} className="flex justify-between items-center text-sm border-b pb-2">
                   <span>{opp.title}</span>
                   <div className="flex gap-2">
-                    <button className="text-blue-600 hover:underline text-xs">Edit</button>
-                    <button className="text-red-600 hover:underline text-xs">🗑</button>
+                    <button
+                      className="text-blue-600 hover:underline text-xs"
+                      onClick={async () => {
+                        const nextTitle = window.prompt("Edit title", opp.title);
+                        if (!nextTitle) return;
+                        const nextDesc = window.prompt("Edit description (optional)", opp.description || "") ?? opp.description ?? null;
+
+                        const { error } = await supabase.from("sales_opportunities").update({ title: nextTitle, description: nextDesc } as any).eq("id", opp.id);
+                        if (error) {
+                          toast({ title: "Error", description: error.message, variant: "destructive" });
+                          return;
+                        }
+
+                        setSalesOpps((prev) => prev.map((p) => (p.id === opp.id ? { ...p, title: nextTitle, description: nextDesc } : p)));
+                      }}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      className="text-red-600 hover:underline text-xs"
+                      onClick={async () => {
+                        const ok = window.confirm("Delete this opportunity?");
+                        if (!ok) return;
+
+                        const { error } = await supabase.from("sales_opportunities").update({ deleted_at: new Date().toISOString() } as any).eq("id", opp.id);
+                        if (error) {
+                          toast({ title: "Error", description: error.message, variant: "destructive" });
+                          return;
+                        }
+
+                        setSalesOpps((prev) => prev.filter((p) => p.id !== opp.id));
+                      }}
+                    >
+                      Delete
+                    </button>
                   </div>
                 </div>
               ))}
@@ -1087,12 +1216,43 @@ export function DocumentBuilder({ type, companyId, onComplete }: DocumentBuilder
           <Card className="p-4 bg-blue-50 border-blue-200">
             <h3 className="font-semibold mb-3">Reminders</h3>
             <div className="space-y-2">
+              {reminders.length === 0 && <p className="text-sm text-muted-foreground">No reminders yet.</p>}
               {reminders.map((reminder) => (
                 <div key={reminder.id} className="flex justify-between items-center text-sm border-b pb-2">
-                  <span>{reminder.type_name}</span>
-                  <Input type="date" value={reminder.remind_at} onChange={(e) => {}} className="h-8 text-xs max-w-[140px]" />
+                  <span>{reminder.reminder_type}</span>
+                  <Input
+                    type="date"
+                    value={reminder.due_date}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setReminders((prev) => prev.map((r) => (r.id === reminder.id ? { ...r, due_date: next } : r)));
+                    }}
+                    className="h-8 text-xs max-w-[140px]"
+                  />
                 </div>
               ))}
+            </div>
+            <div className="mt-3 flex gap-2 flex-wrap">
+              <Select
+                value=""
+                onValueChange={(val) => {
+                  const exists = reminders.some((r) => r.reminder_type === val);
+                  const nextDate = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+                  if (exists) return;
+                  setReminders((prev) => [{ id: "tmp_" + Date.now().toString(), reminder_type: val, due_date: nextDate }, ...prev]);
+                }}
+              >
+                <SelectTrigger className="h-8 text-xs max-w-[220px]">
+                  <SelectValue placeholder="Add reminder..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {reminderTypes.map((rt: any) => (
+                    <SelectItem key={rt.id} value={rt.name}>
+                      {rt.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </Card>
 

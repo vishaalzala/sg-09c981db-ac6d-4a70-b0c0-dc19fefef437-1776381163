@@ -3196,6 +3196,7 @@ export type Database = {
           payment_method: string | null
           payment_method_id: string | null
           payment_number: string | null
+          quote_id: string | null
           reference: string | null
           surcharge_amount: number | null
           surcharge_waived: boolean | null
@@ -3215,6 +3216,7 @@ export type Database = {
           payment_method?: string | null
           payment_method_id?: string | null
           payment_number?: string | null
+          quote_id?: string | null
           reference?: string | null
           surcharge_amount?: number | null
           surcharge_waived?: boolean | null
@@ -3234,6 +3236,7 @@ export type Database = {
           payment_method?: string | null
           payment_method_id?: string | null
           payment_number?: string | null
+          quote_id?: string | null
           reference?: string | null
           surcharge_amount?: number | null
           surcharge_waived?: boolean | null
@@ -3272,6 +3275,13 @@ export type Database = {
             columns: ["payment_method_id"]
             isOneToOne: false
             referencedRelation: "payment_methods"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
             referencedColumns: ["id"]
           },
         ]

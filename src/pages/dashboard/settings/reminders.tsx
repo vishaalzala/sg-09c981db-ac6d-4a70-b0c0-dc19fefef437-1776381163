@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { reminderTypeService } from "@/services/reminderTypeService";
 import { Trash2, Edit2, Plus } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ReminderType {
   id: string;
@@ -25,17 +26,60 @@ export default function RemindersSettings() {
   const [formName, setFormName] = useState("");
   const { toast } = useToast();
 
-  const companyId = "00000000-0000-0000-0000-000000000000"; // TODO: Get from auth context
+  const [companyId, setCompanyId] = useState<string>("");
 
   useEffect(() => {
-    loadReminderTypes();
+    void loadCompanyAndReminderTypes();
   }, []);
 
+  async function loadCompanyAndReminderTypes() {
+    try {
+      setLoading(true);
+
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+
+      if (authError) throw authError;
+      if (!user) return;
+
+      const { data: userData, error: userError } = await supabase.from("users").select("company_id").eq("id", user.id).single();
+      if (userError) throw userError;
+
+      const cid = userData?.company_id ?? "";
+      setCompanyId(cid);
+
+      if (!cid) {
+        toast({
+          title: "No company",
+          description: "No company context found for your user.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const data = await reminderTypeService.getReminderTypes(cid);
+      setReminderTypes(data as unknown as ReminderType[]);
+    } catch (error) {
+      console.error("Error loading reminder types:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load reminder types",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function loadReminderTypes() {
+    if (!companyId) return;
+
     try {
       setLoading(true);
       const data = await reminderTypeService.getReminderTypes(companyId);
-      setReminderTypes(data);
+      setReminderTypes(data as unknown as ReminderType[]);
     } catch (error) {
       toast({
         title: "Error",
@@ -48,6 +92,11 @@ export default function RemindersSettings() {
   }
 
   async function handleSave() {
+    if (!companyId) {
+      toast({ title: "Error", description: "No company context found.", variant: "destructive" });
+      return;
+    }
+
     if (!formName.trim()) {
       toast({
         title: "Error",
