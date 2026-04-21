@@ -900,167 +900,362 @@ export async function getRevenueReport(options?: {
         count: data?.length || 0
     };
 }
+// ============================================
+// CONTROL CENTER / REVENUE OPS / PHASE 3-5
+// ============================================
 
-export interface AdminAlert {
+export interface AdminAlertItem {
     id: string;
-    company_id?: string | null;
-    company_name?: string | null;
-    alert_type: string;
+    companyId?: string | null;
+    companyName?: string | null;
+    alertType: string;
     severity: "low" | "medium" | "high" | "critical";
     title: string;
     message: string;
-    action_url?: string | null;
-    action_label?: string | null;
+    createdAt: string;
 }
 
 export interface ControlCenterData {
-    alerts: AdminAlert[];
     summary: {
         totalAlerts: number;
-        highPriorityAlerts: number;
         trialsEndingSoon: number;
         inactiveCompanies: number;
+        onboardingIncomplete: number;
     };
+    alerts: AdminAlertItem[];
+}
+
+export interface RevenueSubscriptionItem {
+    id: string;
+    companyName?: string | null;
+    stripeSubscriptionId?: string | null;
+    planName?: string | null;
+    status?: string | null;
+    currentPeriodEnd?: string | null;
 }
 
 export interface RevenueOpsData {
     summary: {
-        activeSubscriptions: number;
-        trialsEndingSoon: number;
-        pastDueSubscriptions: number;
-        renewalsNext14Days: number;
+        active: number;
+        trialing: number;
+        pastDue: number;
+        renewingSoon: number;
     };
-    stripeHealth: {
-        secretKeyConfigured: boolean;
-        webhookSecretConfigured: boolean;
-        tablesReady: boolean;
-    };
+    subscriptions: RevenueSubscriptionItem[];
+}
+
+export interface NotificationTemplateItem {
+    id: string;
+    name: string;
+    templateKey: string;
+    channel: string;
+    isActive: boolean;
+}
+
+export interface NotificationLogItem {
+    id: string;
+    templateKey?: string | null;
+    subject?: string | null;
+    recipient?: string | null;
+    status: string;
+    channel: string;
+}
+
+export interface NotificationsData {
+    health: { smtpConfigured: boolean; senderConfigured: boolean };
+    summary: { templateCount: number; sentLast7Days: number; failedLast7Days: number };
+    templates: NotificationTemplateItem[];
+    logs: NotificationLogItem[];
+}
+
+export interface TwilioNumberItem {
+    id: string;
+    phoneNumber: string;
+    companyName?: string | null;
+    isActive: boolean;
+}
+
+export interface SmsMessageItem {
+    id: string;
+    companyName?: string | null;
+    fromNumber?: string | null;
+    toNumber?: string | null;
+    direction: string;
+    status: string;
+    body?: string | null;
+}
+
+export interface MessagingData {
+    health: { twilioConfigured: boolean; messagingServiceConfigured: boolean };
+    summary: { numberCount: number; messagesLast7Days: number; inboundLast7Days: number };
+    numbers: TwilioNumberItem[];
+    messages: SmsMessageItem[];
+}
+
+export interface LeadItem {
+    id: string;
+    name: string;
+    email: string;
+    companyName?: string | null;
+    source?: string | null;
+    message?: string | null;
+    status: string;
+    assignedToName?: string | null;
+}
+
+export interface LeadsData {
+    summary: { newLeads: number; qualifiedLeads: number; convertedLeads: number; unassignedLeads: number };
+    leads: LeadItem[];
 }
 
 export async function getControlCenterData(): Promise<ControlCenterData> {
-    const now = new Date();
-    const in7Days = new Date();
-    in7Days.setDate(in7Days.getDate() + 7);
-    const inactiveThreshold = new Date();
-    inactiveThreshold.setDate(inactiveThreshold.getDate() - 7);
-
-    const [companiesResult, usersResult, subscriptionsResult] = await Promise.all([
-        supabase.from("companies").select("id, name, onboarding_completed, created_at"),
-        supabase.from("users").select("id, company_id, last_login_at"),
+    const [companiesRes, usersRes, subsRes] = await Promise.all([
+        supabase.from("companies").select("id, name, created_at, updated_at, is_active").order("created_at", { ascending: false }),
+        supabase.from("users").select("id, company_id, created_at, last_login_at"),
         supabase.from("company_subscriptions").select("company_id, status, trial_ends_at, current_period_end"),
     ]);
 
-    const companies = companiesResult.data || [];
-    const users = usersResult.data || [];
-    const subscriptions = subscriptionsResult.data || [];
+    const companies = companiesRes.data || [];
+    const users = usersRes.data || [];
+    const subscriptions = subsRes.data || [];
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const alerts: AdminAlertItem[] = [];
 
-    const alerts: AdminAlert[] = [];
+    const trialEndingSoon = subscriptions.filter((s: any) => {
+        const end = s.trial_ends_at || s.current_period_end;
+        if (!end || s.status !== "trial_active") return false;
+        const dt = new Date(end);
+        const now = new Date();
+        const threeDays = new Date();
+        threeDays.setDate(threeDays.getDate() + 3);
+        return dt >= now && dt <= threeDays;
+    });
+
+    trialEndingSoon.forEach((sub: any, idx: number) => {
+        const company = companies.find((c: any) => c.id === sub.company_id);
+        alerts.push({
+            id: `trial-${sub.company_id || idx}`,
+            companyId: sub.company_id,
+            companyName: company?.name,
+            alertType: "trial_ending_soon",
+            severity: "high",
+            title: "Trial ending soon",
+            message: `${company?.name || "A company"} has a trial ending on ${new Date(sub.trial_ends_at || sub.current_period_end).toLocaleDateString()}.`,
+            createdAt: new Date().toISOString(),
+        });
+    });
 
     companies.forEach((company: any) => {
         const companyUsers = users.filter((u: any) => u.company_id === company.id);
-        const companySub = subscriptions.find((s: any) => s.company_id === company.id);
-        const latestLogin = companyUsers
-            .map((u: any) => u.last_login_at ? new Date(u.last_login_at) : null)
+        const mostRecentLogin = companyUsers
+            .map((u: any) => u.last_login_at)
             .filter(Boolean)
-            .sort((a: any, b: any) => (b as any).getTime() - (a as any).getTime())[0] as Date | undefined;
+            .sort()
+            .reverse()[0];
 
-        if (!companyUsers.length) {
-            alerts.push({
-                id: `no-users-${company.id}`,
-                company_id: company.id,
-                company_name: company.name,
-                alert_type: "no_users_created",
-                severity: "high",
-                title: "No users created",
-                message: `${company.name} does not have any platform users yet.`,
-                action_url: "/admin?tab=users",
-                action_label: "Review users",
-            });
-        }
-
-        if (!company.onboarding_completed) {
-            alerts.push({
-                id: `onboarding-${company.id}`,
-                company_id: company.id,
-                company_name: company.name,
-                alert_type: "onboarding_incomplete",
-                severity: "medium",
-                title: "Onboarding incomplete",
-                message: `${company.name} has not completed onboarding yet.`,
-                action_url: "/admin?tab=companies",
-                action_label: "Open company",
-            });
-        }
-
-        if (latestLogin && latestLogin < inactiveThreshold) {
+        if (company.is_active && (!mostRecentLogin || new Date(mostRecentLogin) < sevenDaysAgo)) {
             alerts.push({
                 id: `inactive-${company.id}`,
-                company_id: company.id,
-                company_name: company.name,
-                alert_type: "inactive_company",
+                companyId: company.id,
+                companyName: company.name,
+                alertType: "inactive_company",
                 severity: "medium",
                 title: "Inactive company",
-                message: `${company.name} has no user login in the last 7 days.`,
-                action_url: "/admin?tab=companies",
-                action_label: "Review company",
+                message: `${company.name} has no recent user login in the last 7 days.`,
+                createdAt: new Date().toISOString(),
             });
         }
 
-        if (companySub?.trial_ends_at) {
-            const trialEnds = new Date(companySub.trial_ends_at);
-            if (trialEnds >= now && trialEnds <= in7Days) {
-                alerts.push({
-                    id: `trial-${company.id}`,
-                    company_id: company.id,
-                    company_name: company.name,
-                    alert_type: "trial_ending",
-                    severity: "high",
-                    title: "Trial ending soon",
-                    message: `${company.name} trial ends on ${trialEnds.toLocaleDateString()}.`,
-                    action_url: "/admin?tab=revenue",
-                    action_label: "Open revenue ops",
-                });
-            }
+        if (companyUsers.length === 0) {
+            alerts.push({
+                id: `nouser-${company.id}`,
+                companyId: company.id,
+                companyName: company.name,
+                alertType: "no_users_created",
+                severity: "high",
+                title: "No users created",
+                message: `${company.name} has no active user records yet.`,
+                createdAt: new Date().toISOString(),
+            });
+        }
+
+        const subscription = subscriptions.find((s: any) => s.company_id === company.id);
+        if (companyUsers.length <= 1 || !subscription) {
+            alerts.push({
+                id: `onboarding-${company.id}`,
+                companyId: company.id,
+                companyName: company.name,
+                alertType: "onboarding_incomplete",
+                severity: "low",
+                title: "Onboarding incomplete",
+                message: `${company.name} still looks incomplete. Review setup, users, and subscription state.`,
+                createdAt: new Date().toISOString(),
+            });
         }
     });
 
     return {
-        alerts: alerts.sort((a, b) => {
-            const order = { critical: 4, high: 3, medium: 2, low: 1 };
-            return order[b.severity] - order[a.severity];
-        }),
         summary: {
             totalAlerts: alerts.length,
-            highPriorityAlerts: alerts.filter((a) => a.severity === "high" || a.severity === "critical").length,
-            trialsEndingSoon: alerts.filter((a) => a.alert_type === "trial_ending").length,
-            inactiveCompanies: alerts.filter((a) => a.alert_type === "inactive_company").length,
+            trialsEndingSoon: trialEndingSoon.length,
+            inactiveCompanies: alerts.filter(a => a.alertType === "inactive_company").length,
+            onboardingIncomplete: alerts.filter(a => a.alertType === "onboarding_incomplete").length,
         },
+        alerts: alerts.slice(0, 20),
     };
 }
 
 export async function getRevenueOpsData(): Promise<RevenueOpsData> {
-    const now = new Date();
-    const in7Days = new Date();
-    in7Days.setDate(in7Days.getDate() + 7);
-    const in14Days = new Date();
-    in14Days.setDate(in14Days.getDate() + 14);
+    const { data } = await (supabase as any)
+        .from("subscriptions")
+        .select("id, company_id, stripe_subscription_id, plan_name, status, current_period_end, companies(name)")
+        .order("created_at", { ascending: false })
+        .limit(25);
 
-    const [currentSubsResult, stripeSubsResult, stripeHealthResult] = await Promise.all([
-        supabase.from("company_subscriptions").select("status, trial_ends_at, current_period_end"),
-        (supabase as any).from("subscriptions").select("status, current_period_end"),
-        fetch("/api/admin/stripe-health").then(async (res) => res.ok ? res.json() : { secretKeyConfigured: false, webhookSecretConfigured: false, tablesReady: false }).catch(() => ({ secretKeyConfigured: false, webhookSecretConfigured: false, tablesReady: false })),
-    ]);
+    const subscriptions = (data || []).map((row: any) => ({
+        id: row.id,
+        companyName: row.companies?.name || null,
+        stripeSubscriptionId: row.stripe_subscription_id,
+        planName: row.plan_name,
+        status: row.status,
+        currentPeriodEnd: row.current_period_end,
+    }));
 
-    const currentSubs = currentSubsResult.data || [];
-    const stripeSubs = stripeSubsResult.data || [];
-
-    const activeSubscriptions = currentSubs.filter((s: any) => ["active", "trialing", "trial_active"].includes(s.status)).length;
-    const trialsEndingSoon = currentSubs.filter((s: any) => s.trial_ends_at && new Date(s.trial_ends_at) >= now && new Date(s.trial_ends_at) <= in7Days).length;
-    const pastDueSubscriptions = [...currentSubs, ...stripeSubs].filter((s: any) => ["past_due", "unpaid", "incomplete_expired"].includes(s.status)).length;
-    const renewalsNext14Days = currentSubs.filter((s: any) => s.current_period_end && new Date(s.current_period_end) >= now && new Date(s.current_period_end) <= in14Days).length;
+    const renewingSoon = subscriptions.filter((s: any) => {
+        if (!s.currentPeriodEnd) return false;
+        const now = new Date();
+        const end = new Date(s.currentPeriodEnd);
+        const soon = new Date();
+        soon.setDate(soon.getDate() + 14);
+        return end >= now && end <= soon;
+    }).length;
 
     return {
-        summary: { activeSubscriptions, trialsEndingSoon, pastDueSubscriptions, renewalsNext14Days },
-        stripeHealth: stripeHealthResult,
+        summary: {
+            active: subscriptions.filter((s: any) => s.status === "active").length,
+            trialing: subscriptions.filter((s: any) => s.status?.includes("trial")).length,
+            pastDue: subscriptions.filter((s: any) => s.status === "past_due").length,
+            renewingSoon,
+        },
+        subscriptions,
+    };
+}
+
+export async function getNotificationsData(): Promise<NotificationsData> {
+    const [templatesRes, logsRes, healthRes] = await Promise.all([
+        (supabase as any).from("notification_templates").select("id, name, template_key, channel, is_active").order("created_at", { ascending: false }).limit(20),
+        (supabase as any).from("notification_logs").select("id, template_key, subject, recipient, status, channel, created_at").order("created_at", { ascending: false }).limit(10),
+        fetch("/api/admin/notifications/health").then(r => r.ok ? r.json() : { smtpConfigured: false, senderConfigured: false }).catch(() => ({ smtpConfigured: false, senderConfigured: false })),
+    ]);
+
+    const logs = logsRes.data || [];
+    const sevenDaysAgoIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    return {
+        health: healthRes,
+        summary: {
+            templateCount: (templatesRes.data || []).length,
+            sentLast7Days: logs.filter((l: any) => l.status === "sent" && (!l.created_at || l.created_at >= sevenDaysAgoIso)).length,
+            failedLast7Days: logs.filter((l: any) => l.status === "failed" && (!l.created_at || l.created_at >= sevenDaysAgoIso)).length,
+        },
+        templates: (templatesRes.data || []).map((row: any) => ({
+            id: row.id,
+            name: row.name,
+            templateKey: row.template_key,
+            channel: row.channel,
+            isActive: !!row.is_active,
+        })),
+        logs: logs.map((row: any) => ({
+            id: row.id,
+            templateKey: row.template_key,
+            subject: row.subject,
+            recipient: row.recipient,
+            status: row.status,
+            channel: row.channel,
+        })),
+    };
+}
+
+export async function getMessagingData(): Promise<MessagingData> {
+    const [numbersRes, messagesRes, healthRes] = await Promise.all([
+        (supabase as any).from("twilio_numbers").select("id, phone_number, company_id, is_active, companies(name)").order("created_at", { ascending: false }).limit(20),
+        (supabase as any).from("sms_messages").select("id, company_id, from_number, to_number, direction, status, body, created_at, companies(name)").order("created_at", { ascending: false }).limit(20),
+        fetch("/api/admin/messaging/health").then(r => r.ok ? r.json() : { twilioConfigured: false, messagingServiceConfigured: false }).catch(() => ({ twilioConfigured: false, messagingServiceConfigured: false })),
+    ]);
+
+    const messages = messagesRes.data || [];
+    const sevenDaysAgoIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    return {
+        health: healthRes,
+        summary: {
+            numberCount: (numbersRes.data || []).length,
+            messagesLast7Days: messages.filter((m: any) => !m.created_at || m.created_at >= sevenDaysAgoIso).length,
+            inboundLast7Days: messages.filter((m: any) => m.direction === "inbound" && (!m.created_at || m.created_at >= sevenDaysAgoIso)).length,
+        },
+        numbers: (numbersRes.data || []).map((row: any) => ({
+            id: row.id,
+            phoneNumber: row.phone_number,
+            companyName: row.companies?.name || null,
+            isActive: !!row.is_active,
+        })),
+        messages: messages.map((row: any) => ({
+            id: row.id,
+            companyName: row.companies?.name || null,
+            fromNumber: row.from_number,
+            toNumber: row.to_number,
+            direction: row.direction,
+            status: row.status,
+            body: row.body,
+        })),
+    };
+}
+
+export async function getLeadsData(): Promise<LeadsData> {
+    let rows: any[] = [];
+    let usedLeadsTable = true;
+    const leadsAttempt = await (supabase as any)
+        .from("leads")
+        .select("id, name, email, company_name, source, message, status, assigned_to, created_at")
+        .order("created_at", { ascending: false })
+        .limit(25);
+
+    if (leadsAttempt.error) {
+        usedLeadsTable = false;
+        const fallback = await (supabase as any)
+            .from("lead_submissions")
+            .select("id, name, email, company_name, source, message, status, created_at")
+            .order("created_at", { ascending: false })
+            .limit(25);
+        rows = fallback.data || [];
+    } else {
+        rows = leadsAttempt.data || [];
+    }
+
+    const assignedIds = rows.map((r: any) => r.assigned_to).filter(Boolean);
+    const users = assignedIds.length
+        ? ((await supabase.from("users").select("id, full_name").in("id", assignedIds)).data || [])
+        : [];
+
+    const leads = rows.map((row: any) => ({
+        id: row.id,
+        name: row.name,
+        email: row.email,
+        companyName: row.company_name,
+        source: row.source,
+        message: row.message,
+        status: row.status || "new",
+        assignedToName: usedLeadsTable ? users.find((u: any) => u.id === row.assigned_to)?.full_name || null : null,
+    }));
+
+    return {
+        summary: {
+            newLeads: leads.filter((l) => l.status === "new").length,
+            qualifiedLeads: leads.filter((l) => l.status === "qualified").length,
+            convertedLeads: leads.filter((l) => l.status === "converted").length,
+            unassignedLeads: leads.filter((l) => !l.assignedToName).length,
+        },
+        leads,
     };
 }
