@@ -6,6 +6,7 @@ import {
   LayoutDashboard, 
   Building2, 
   Users, 
+  Siren,
   CreditCard, 
   Package, 
   Shield,
@@ -90,6 +91,7 @@ export function AdminLayout({ children, activeTab, onTabChange }: AdminLayoutPro
 
   const navigation = [
     { name: "Dashboard", tab: "dashboard", icon: LayoutDashboard },
+    { name: "Control Center", tab: "control", icon: Siren },
     { name: "Companies", tab: "companies", icon: Building2 },
     { name: "Users", tab: "users", icon: Users },
     { name: "Plans & Billing", tab: "plans", icon: CreditCard },
