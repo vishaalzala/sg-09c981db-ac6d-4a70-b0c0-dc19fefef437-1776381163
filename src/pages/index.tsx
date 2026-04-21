@@ -68,7 +68,7 @@ export default function LoginPage() {
                 throw new Error("User profile not found. Please contact support.");
             }
 
-            console.log("Profile loaded:", { role: profile.role, email: profile.email });
+            console.log("Profile loaded:", { role: profile.role, full_name: profile.full_name });
 
             // Route based on role (profiles.role is source of truth)
             if (profile.role === "super_admin") {
