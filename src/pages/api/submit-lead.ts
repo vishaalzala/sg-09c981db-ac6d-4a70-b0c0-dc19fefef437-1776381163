@@ -7,85 +7,82 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     try {
-        const supabase = createClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-        );
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-        const { name, email, phone, company_name, message, source } = req.body;
+        if (!supabaseUrl || !serviceRoleKey) {
+            return res.status(500).json({
+                error: "Server is missing Supabase configuration"
+            });
+        }
 
-        // Validate required fields
+        // Use service role on server-side so public contact form is not blocked by RLS
+        const supabase = createClient(supabaseUrl, serviceRoleKey);
+
+        const { name, email, phone, company_name, message, source } = req.body ?? {};
+
         if (!name || !email) {
             return res.status(400).json({ error: "Name and email are required" });
         }
 
-        // Validate email format
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(email)) {
             return res.status(400).json({ error: "Invalid email format" });
         }
 
-        console.log("Submitting lead:", { name, email, company_name, source: source || "contact_form" });
+        const payload = {
+            name: String(name).trim(),
+            email: String(email).trim().toLowerCase(),
+            phone: phone ? String(phone).trim() : null,
+            company_name: company_name ? String(company_name).trim() : null,
+            message: message ? String(message).trim() : null,
+            source: source ? String(source).trim() : "contact_form",
+            status: "new"
+        };
 
-        // Insert into new leads table first, then fall back to legacy table if needed
-        let data: any = null;
-        let error: any = null;
+        // Try new leads table first
+        let insertedData: any = null;
+        let insertedError: any = null;
 
-        const leadsResult = await (supabase as any)
+        const leadsInsert = await supabase
             .from("leads")
-            .insert({
-                name,
-                email,
-                phone: phone || null,
-                company_name: company_name || null,
-                message: message || null,
-                source: source || "contact_form",
-                status: "new"
-            })
-            .select()
+            .insert(payload)
+            .select("id")
             .single();
 
-        data = leadsResult.data;
-        error = leadsResult.error;
+        insertedData = leadsInsert.data;
+        insertedError = leadsInsert.error;
 
-        if (error) {
-            console.warn("New leads table insert failed, falling back to lead_submissions:", error.message || error);
-            const legacyResult = await supabase
+        // Fallback to legacy table if needed
+        if (insertedError) {
+            console.warn("Insert into leads failed, trying lead_submissions:", insertedError);
+
+            const legacyInsert = await supabase
                 .from("lead_submissions")
-                .insert({
-                    name,
-                    email,
-                    phone: phone || null,
-                    company_name: company_name || null,
-                    message: message || null,
-                    source: source || "contact_form",
-                    status: "new"
-                })
-                .select()
+                .insert(payload)
+                .select("id")
                 .single();
 
-            data = legacyResult.data;
-            error = legacyResult.error;
+            insertedData = legacyInsert.data;
+            insertedError = legacyInsert.error;
         }
 
-        if (error) {
-            console.error("Lead submission error:", error);
-            throw error;
+        if (insertedError) {
+            console.error("Lead submission failed:", insertedError);
+            return res.status(500).json({
+                error: insertedError.message || "Failed to submit form"
+            });
         }
-
-        console.log("Lead submitted successfully:", data.id);
 
         return res.status(200).json({
             success: true,
             message: "Thank you! We'll be in touch soon.",
-            leadId: data.id
+            leadId: insertedData.id
         });
-
     } catch (error) {
         console.error("Submit lead error:", error);
         return res.status(500).json({
-            error: error instanceof Error ? error.message : "Failed to submit form",
-            details: error
+            error: error instanceof Error ? error.message : "Failed to submit form"
         });
     }
 }
