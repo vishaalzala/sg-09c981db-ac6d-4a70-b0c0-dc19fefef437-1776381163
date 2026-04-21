@@ -266,14 +266,14 @@ export async function signUp(data: SignupData): Promise<SignupResult> {
       .eq("name", "company_owner")
       .single();
 
-    // 4. Create profile
-    const { error: profileError } = await supabase
-      .from("profiles")
-      .insert({
-        id: authData.user.id,
-        role: "company_owner",
-        full_name: data.fullName
-      });
+    // 4. Create profile/*
+    //const { error: profileError } = await supabase
+    //  .from("profiles")
+    //  .insert({
+    //    id: authData.user.id,
+    //    role: "company_owner",
+    //    full_name: data.fullName
+    //  }); 
 
     if (profileError) throw profileError;
 
