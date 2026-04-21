@@ -33,7 +33,7 @@ export default function LoginPage() {
 
             if (authError) {
                 console.error("Auth error:", authError);
-                throw new Error(authError.message);
+                throw authError;
             }
 
             if (!authData.user) {
