@@ -14,7 +14,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import {
     getDashboardStats,
-    getControlCenterData,
     getAllCompanies,
     getAllUsers,
     getAllPlans,
@@ -34,7 +33,10 @@ import {
     updatePermission,
     deletePermission,
     type DashboardStats,
-    type ControlCenterData
+    getControlCenterData,
+    getRevenueOpsData,
+    type ControlCenterData,
+    type RevenueOpsData
 } from "@/services/adminService";
 import {
     Building2,
@@ -53,14 +55,16 @@ import {
 } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 import Link from "next/link";
-import { ControlCenterPanel } from "@/components/admin/ControlCenterPanel";
 import { demoCompanies } from "@/lib/demoData";
+import { ControlCenterPanel } from "@/components/admin/ControlCenterPanel";
+import { RevenueOpsPanel } from "@/components/admin/RevenueOpsPanel";
 
 export default function AdminPage() {
     const router = useRouter();
     const [activeTab, setActiveTab] = useState("dashboard");
     const [stats, setStats] = useState < DashboardStats | null > (null);
     const [controlCenterData, setControlCenterData] = useState < ControlCenterData | null > (null);
+    const [revenueOpsData, setRevenueOpsData] = useState < RevenueOpsData | null > (null);
     const [companies, setCompanies] = useState < any[] > ([]);
     const [users, setUsers] = useState < any[] > ([]);
     const [plans, setPlans] = useState < Tables < "subscription_plans" > [] > ([]);
@@ -129,8 +133,39 @@ export default function AdminPage() {
                         recentChanges: []
                     } as DashboardStats);
                 } else if (activeTab === "control") {
-                    const controlData = await getControlCenterData();
-                    setControlCenterData(controlData);
+                    setControlCenterData({
+                        alerts: [
+                            {
+                                id: "demo-trial",
+                                alert_type: "trial_ending",
+                                severity: "high",
+                                title: "Trial ending soon",
+                                message: `${demoCompanies[0]?.name || "Demo Company"} trial ends in 3 days`,
+                                action_url: "/admin?tab=revenue",
+                                action_label: "Open revenue ops",
+                            },
+                        ],
+                        summary: {
+                            totalAlerts: 1,
+                            highPriorityAlerts: 1,
+                            trialsEndingSoon: 1,
+                            inactiveCompanies: 0,
+                        },
+                    });
+                } else if (activeTab === "revenue") {
+                    setRevenueOpsData({
+                        summary: {
+                            activeSubscriptions: demoCompanies.length,
+                            trialsEndingSoon: 1,
+                            pastDueSubscriptions: 0,
+                            renewalsNext14Days: 2,
+                        },
+                        stripeHealth: {
+                            secretKeyConfigured: false,
+                            webhookSecretConfigured: false,
+                            tablesReady: false,
+                        },
+                    });
                 } else if (activeTab === "companies") {
                     setCompanies(demoCompanies);
                 }
@@ -145,6 +180,12 @@ export default function AdminPage() {
             if (activeTab === "dashboard") {
                 const dashStats = await getDashboardStats();
                 setStats(dashStats);
+            } else if (activeTab === "control") {
+                const data = await getControlCenterData();
+                setControlCenterData(data);
+            } else if (activeTab === "revenue") {
+                const data = await getRevenueOpsData();
+                setRevenueOpsData(data);
             } else if (activeTab === "companies") {
                 const companiesData = await getAllCompanies();
                 setCompanies(companiesData || []);
@@ -374,7 +415,7 @@ export default function AdminPage() {
                     <div className="flex items-center justify-between">
                         <div>
                             <h1 className="text-3xl font-bold">Platform Administration</h1>
-                            <p className="text-muted-foreground">Manage companies, users, plans, alerts, and platform settings</p>
+                            <p className="text-muted-foreground">Manage companies, users, plans, and platform settings</p>
                         </div>
                         <Badge variant="outline" className="px-3 py-1">
                             <Shield className="w-3 h-3 mr-1" />
@@ -397,9 +438,10 @@ export default function AdminPage() {
                     )}
 
                     <Tabs value={activeTab} onValueChange={handleTabChange}>
-                        <TabsList className="grid w-full grid-cols-4 lg:grid-cols-8 lg:w-auto">
+                        <TabsList className="grid w-full grid-cols-4 lg:grid-cols-9 lg:w-auto">
                             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-                            <TabsTrigger value="control">Control</TabsTrigger>
+                            <TabsTrigger value="control">Control Center</TabsTrigger>
+                            <TabsTrigger value="revenue">Revenue Ops</TabsTrigger>
                             <TabsTrigger value="companies">Companies</TabsTrigger>
                             <TabsTrigger value="users">Users</TabsTrigger>
                             <TabsTrigger value="plans">Plans</TabsTrigger>
@@ -407,11 +449,6 @@ export default function AdminPage() {
                             <TabsTrigger value="roles">Roles</TabsTrigger>
                             <TabsTrigger value="audit">Audit</TabsTrigger>
                         </TabsList>
-
-
-                        <TabsContent value="control" className="space-y-6">
-                            <ControlCenterPanel data={controlCenterData} loading={loading} />
-                        </TabsContent>
 
                         {/* Dashboard Tab */}
                         <TabsContent value="dashboard" className="space-y-6">
@@ -540,6 +577,37 @@ export default function AdminPage() {
                                 <div className="text-center py-12 text-muted-foreground">
                                     No dashboard data available
                                 </div>
+                            )}
+                        </TabsContent>
+
+
+                        <TabsContent value="control" className="space-y-6">
+                            {loading ? (
+                                <div className="text-center py-12">
+                                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                                    <p className="text-muted-foreground">Loading control center...</p>
+                                </div>
+                            ) : controlCenterData ? (
+                                <ControlCenterPanel data={controlCenterData} />
+                            ) : (
+                                <Card>
+                                    <CardContent className="p-8 text-center text-muted-foreground">No control center data available.</CardContent>
+                                </Card>
+                            )}
+                        </TabsContent>
+
+                        <TabsContent value="revenue" className="space-y-6">
+                            {loading ? (
+                                <div className="text-center py-12">
+                                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                                    <p className="text-muted-foreground">Loading revenue ops...</p>
+                                </div>
+                            ) : revenueOpsData ? (
+                                <RevenueOpsPanel data={revenueOpsData} />
+                            ) : (
+                                <Card>
+                                    <CardContent className="p-8 text-center text-muted-foreground">No revenue data available.</CardContent>
+                                </Card>
                             )}
                         </TabsContent>
 
