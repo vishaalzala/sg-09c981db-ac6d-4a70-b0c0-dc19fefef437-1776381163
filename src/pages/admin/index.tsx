@@ -17,7 +17,11 @@ import {
     getAllCompanies,
     getAllUsers,
     getAllPlans,
+    createPlan,
+    updatePlan,
     getAllAddons,
+    createAddon,
+    updateAddon,
     getAuditLogs,
     searchCompanies,
     searchUsers,
@@ -67,6 +71,7 @@ import { RevenueOpsPanel } from "@/components/admin/RevenueOpsPanel";
 import { NotificationsPanel } from "@/components/admin/NotificationsPanel";
 import { MessagingPanel } from "@/components/admin/MessagingPanel";
 import { LeadsPanel } from "@/components/admin/LeadsPanel";
+import { CreateUserDialog } from "@/components/admin/CreateUserDialog";
 
 export default function AdminPage() {
     const router = useRouter();
@@ -90,6 +95,33 @@ export default function AdminPage() {
     const [notificationsData, setNotificationsData] = useState < NotificationsData | null > (null);
     const [messagingData, setMessagingData] = useState < MessagingData | null > (null);
     const [leadsData, setLeadsData] = useState < LeadsData | null > (null);
+    const [createPlanOpen, setCreatePlanOpen] = useState(false);
+    const [editPlanOpen, setEditPlanOpen] = useState(false);
+    const [planToEdit, setPlanToEdit] = useState < any > (null);
+    const [planForm, setPlanForm] = useState({
+        name: "",
+        display_name: "",
+        description: "",
+        price_monthly: "0",
+        price_annual: "0",
+        max_users: "",
+        max_branches: "",
+        is_active: true,
+        sort_order: "0"
+    });
+    const [createAddonOpen, setCreateAddonOpen] = useState(false);
+    const [editAddonOpen, setEditAddonOpen] = useState(false);
+    const [addonToEdit, setAddonToEdit] = useState < any > (null);
+    const [addonForm, setAddonForm] = useState({
+        name: "",
+        display_name: "",
+        description: "",
+        addon_type: "feature",
+        usage_unit: "",
+        price_monthly: "0",
+        price_annual: "0",
+        is_active: true,
+    });
 
     // Role management state
     const [createRoleOpen, setCreateRoleOpen] = useState(false);
@@ -192,14 +224,16 @@ export default function AdminPage() {
                 const data = await getMessagingData();
                 setMessagingData(data);
             } else if (activeTab === "leads") {
-                const data = await getLeadsData();
+                const [data, usersData] = await Promise.all([getLeadsData(), getAllUsers()]);
                 setLeadsData(data);
+                setUsers(usersData || []);
             } else if (activeTab === "companies") {
                 const companiesData = await getAllCompanies();
                 setCompanies(companiesData || []);
             } else if (activeTab === "users") {
-                const usersData = await getAllUsers();
+                const [usersData, companiesData] = await Promise.all([getAllUsers(), getAllCompanies()]);
                 setUsers(usersData || []);
+                setCompanies(companiesData || []);
             } else if (activeTab === "plans") {
                 const plansData = await getAllPlans();
                 setPlans(plansData || []);
@@ -226,6 +260,164 @@ export default function AdminPage() {
         } finally {
             setLoading(false);
         }
+    };
+
+
+    const resetPlanForm = () => {
+        setPlanForm({
+            name: "",
+            display_name: "",
+            description: "",
+            price_monthly: "0",
+            price_annual: "0",
+            max_users: "",
+            max_branches: "",
+            is_active: true,
+            sort_order: "0"
+        });
+        setPlanToEdit(null);
+    };
+
+    const resetAddonForm = () => {
+        setAddonForm({
+            name: "",
+            display_name: "",
+            description: "",
+            addon_type: "feature",
+            usage_unit: "",
+            price_monthly: "0",
+            price_annual: "0",
+            is_active: true,
+        });
+        setAddonToEdit(null);
+    };
+
+    const handleCreatePlan = async () => {
+        try {
+            setError("");
+            await createPlan({
+                name: planForm.name,
+                display_name: planForm.display_name || planForm.name,
+                description: planForm.description || null,
+                price_monthly: Number(planForm.price_monthly || 0),
+                price_annual: Number(planForm.price_annual || 0),
+                max_users: planForm.max_users ? Number(planForm.max_users) : null,
+                max_branches: planForm.max_branches ? Number(planForm.max_branches) : null,
+                is_active: planForm.is_active,
+                sort_order: Number(planForm.sort_order || 0),
+                features: {}
+            } as any);
+            setSuccess("Plan created successfully");
+            setCreatePlanOpen(false);
+            resetPlanForm();
+            const plansData = await getAllPlans();
+            setPlans(plansData || []);
+        } catch (err: any) {
+            setError(err.message || "Failed to create plan");
+        }
+    };
+
+    const handleEditPlan = async () => {
+        if (!planToEdit) return;
+        try {
+            setError("");
+            await updatePlan(planToEdit.id, {
+                name: planForm.name,
+                display_name: planForm.display_name || planForm.name,
+                description: planForm.description || null,
+                price_monthly: Number(planForm.price_monthly || 0),
+                price_annual: Number(planForm.price_annual || 0),
+                max_users: planForm.max_users ? Number(planForm.max_users) : null,
+                max_branches: planForm.max_branches ? Number(planForm.max_branches) : null,
+                is_active: planForm.is_active,
+                sort_order: Number(planForm.sort_order || 0),
+            } as any);
+            setSuccess("Plan updated successfully");
+            setEditPlanOpen(false);
+            resetPlanForm();
+            const plansData = await getAllPlans();
+            setPlans(plansData || []);
+        } catch (err: any) {
+            setError(err.message || "Failed to update plan");
+        }
+    };
+
+    const openEditPlan = (plan: any) => {
+        setPlanToEdit(plan);
+        setPlanForm({
+            name: plan.name || "",
+            display_name: plan.display_name || "",
+            description: plan.description || "",
+            price_monthly: String(plan.price_monthly ?? 0),
+            price_annual: String(plan.price_annual ?? 0),
+            max_users: plan.max_users ? String(plan.max_users) : "",
+            max_branches: plan.max_branches ? String(plan.max_branches) : "",
+            is_active: !!plan.is_active,
+            sort_order: String(plan.sort_order ?? 0)
+        });
+        setEditPlanOpen(true);
+    };
+
+    const handleCreateAddon = async () => {
+        try {
+            setError("");
+            await createAddon({
+                name: addonForm.name,
+                display_name: addonForm.display_name || addonForm.name,
+                description: addonForm.description || null,
+                addon_type: addonForm.addon_type,
+                usage_unit: addonForm.addon_type === 'usage' ? addonForm.usage_unit || null : null,
+                price_monthly: Number(addonForm.price_monthly || 0),
+                price_annual: Number(addonForm.price_annual || 0),
+                is_active: addonForm.is_active,
+            } as any);
+            setSuccess("Add-on created successfully");
+            setCreateAddonOpen(false);
+            resetAddonForm();
+            const addonsData = await getAllAddons();
+            setAddons(addonsData || []);
+        } catch (err: any) {
+            setError(err.message || "Failed to create add-on");
+        }
+    };
+
+    const handleEditAddon = async () => {
+        if (!addonToEdit) return;
+        try {
+            setError("");
+            await updateAddon(addonToEdit.id, {
+                name: addonForm.name,
+                display_name: addonForm.display_name || addonForm.name,
+                description: addonForm.description || null,
+                addon_type: addonForm.addon_type,
+                usage_unit: addonForm.addon_type === 'usage' ? addonForm.usage_unit || null : null,
+                price_monthly: Number(addonForm.price_monthly || 0),
+                price_annual: Number(addonForm.price_annual || 0),
+                is_active: addonForm.is_active,
+            } as any);
+            setSuccess("Add-on updated successfully");
+            setEditAddonOpen(false);
+            resetAddonForm();
+            const addonsData = await getAllAddons();
+            setAddons(addonsData || []);
+        } catch (err: any) {
+            setError(err.message || "Failed to update add-on");
+        }
+    };
+
+    const openEditAddon = (addon: any) => {
+        setAddonToEdit(addon);
+        setAddonForm({
+            name: addon.name || "",
+            display_name: addon.display_name || "",
+            description: addon.description || "",
+            addon_type: addon.addon_type || 'feature',
+            usage_unit: addon.usage_unit || "",
+            price_monthly: String(addon.price_monthly ?? 0),
+            price_annual: String(addon.price_annual ?? 0),
+            is_active: !!addon.is_active,
+        });
+        setEditAddonOpen(true);
     };
 
     const handleSearch = async () => {
@@ -608,7 +800,14 @@ export default function AdminPage() {
                         </TabsContent>
 
                         <TabsContent value="leads" className="space-y-6">
-                            {loading ? <div className="text-center py-12 text-muted-foreground">Loading leads...</div> : <LeadsPanel data={leadsData} />}
+                            {loading ? <div className="text-center py-12 text-muted-foreground">Loading leads...</div> : <LeadsPanel
+                                data={leadsData}
+                                users={users}
+                                onRefresh={async () => {
+                                    const refreshed = await getLeadsData();
+                                    setLeadsData(refreshed);
+                                }}
+                            />}
                         </TabsContent>
 
                         {/* Companies Tab */}
@@ -705,12 +904,14 @@ export default function AdminPage() {
                                         </Button>
                                     )}
                                 </div>
-                                <Link href="/admin/users/new">
-                                    <Button>
+                                {companies.length > 0 ? (
+                                    <CreateUserDialog companies={companies.map((company: any) => ({ id: company.id, name: company.name }))} onUserCreated={loadData} />
+                                ) : (
+                                    <Button disabled>
                                         <Plus className="w-4 h-4 mr-2" />
                                         Create User
                                     </Button>
-                                </Link>
+                                )}
                             </div>
 
                             {loading ? (
@@ -756,86 +957,163 @@ export default function AdminPage() {
                         <TabsContent value="plans" className="space-y-4">
                             <div className="flex justify-between items-center">
                                 <h2 className="text-xl font-semibold">Subscription Plans</h2>
+                                <Dialog open={createPlanOpen} onOpenChange={(open) => { setCreatePlanOpen(open); if (!open) resetPlanForm(); }}>
+                                    <DialogTrigger asChild>
+                                        <Button>
+                                            <Plus className="w-4 h-4 mr-2" />
+                                            Create Plan
+                                        </Button>
+                                    </DialogTrigger>
+                                    <DialogContent>
+                                        <DialogHeader>
+                                            <DialogTitle>Create New Plan</DialogTitle>
+                                            <DialogDescription>Add a new subscription plan.</DialogDescription>
+                                        </DialogHeader>
+                                        <div className="space-y-4">
+                                            <div className="grid gap-4 md:grid-cols-2">
+                                                <div className="space-y-2"><Label>Name</Label><Input value={planForm.name} onChange={(e) => setPlanForm({ ...planForm, name: e.target.value })} /></div>
+                                                <div className="space-y-2"><Label>Display Name</Label><Input value={planForm.display_name} onChange={(e) => setPlanForm({ ...planForm, display_name: e.target.value })} /></div>
+                                            </div>
+                                            <div className="space-y-2"><Label>Description</Label><Textarea value={planForm.description} onChange={(e) => setPlanForm({ ...planForm, description: e.target.value })} /></div>
+                                            <div className="grid gap-4 md:grid-cols-2">
+                                                <div className="space-y-2"><Label>Monthly Price</Label><Input type="number" value={planForm.price_monthly} onChange={(e) => setPlanForm({ ...planForm, price_monthly: e.target.value })} /></div>
+                                                <div className="space-y-2"><Label>Annual Price</Label><Input type="number" value={planForm.price_annual} onChange={(e) => setPlanForm({ ...planForm, price_annual: e.target.value })} /></div>
+                                                <div className="space-y-2"><Label>Max Users</Label><Input type="number" value={planForm.max_users} onChange={(e) => setPlanForm({ ...planForm, max_users: e.target.value })} /></div>
+                                                <div className="space-y-2"><Label>Max Branches</Label><Input type="number" value={planForm.max_branches} onChange={(e) => setPlanForm({ ...planForm, max_branches: e.target.value })} /></div>
+                                            </div>
+                                            <Button className="w-full" onClick={handleCreatePlan}>Create Plan</Button>
+                                        </div>
+                                    </DialogContent>
+                                </Dialog>
                             </div>
 
                             {loading ? (
-                                <div className="text-center py-12">
-                                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-                                    <p className="text-muted-foreground">Loading plans...</p>
-                                </div>
+                                <div className="text-center py-12"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div><p className="text-muted-foreground">Loading plans...</p></div>
                             ) : (
                                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                                    {plans.length === 0 ? (
-                                        <div className="col-span-full p-8 text-center text-muted-foreground">
-                                            No plans found
-                                        </div>
-                                    ) : (
-                                        plans.map((plan) => (
-                                            <Card key={plan.id}>
-                                                <CardHeader>
-                                                    <CardTitle>{plan.name}</CardTitle>
-                                                    <CardDescription>{plan.description}</CardDescription>
-                                                </CardHeader>
-                                                <CardContent>
-                                                    <div className="space-y-2">
-                                                        <div className="text-2xl font-bold">
-                                                            ${plan.price_monthly}
-                                                            <span className="text-sm font-normal text-muted-foreground">/month</span>
-                                                        </div>
-                                                        <Badge variant={plan.is_active ? "default" : "secondary"}>
-                                                            {plan.is_active ? "Active" : "Inactive"}
-                                                        </Badge>
+                                    {plans.length === 0 ? <div className="col-span-full p-8 text-center text-muted-foreground">No plans found</div> : plans.map((plan) => (
+                                        <Card key={plan.id}>
+                                            <CardHeader>
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <div>
+                                                        <CardTitle>{plan.display_name || plan.name}</CardTitle>
+                                                        <CardDescription>{plan.description}</CardDescription>
                                                     </div>
-                                                </CardContent>
-                                            </Card>
-                                        ))
-                                    )}
+                                                    <Button size="sm" variant="outline" onClick={() => openEditPlan(plan)}>Edit</Button>
+                                                </div>
+                                            </CardHeader>
+                                            <CardContent>
+                                                <div className="space-y-2">
+                                                    <div className="text-2xl font-bold">${plan.price_monthly}<span className="text-sm font-normal text-muted-foreground">/month</span></div>
+                                                    <div className="text-sm text-muted-foreground">Annual: ${plan.price_annual ?? 0}</div>
+                                                    <div className="text-sm text-muted-foreground">Users: {plan.max_users ?? '—'} • Branches: {plan.max_branches ?? '—'}</div>
+                                                    <Badge variant={plan.is_active ? "default" : "secondary"}>{plan.is_active ? "Active" : "Inactive"}</Badge>
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    ))}
                                 </div>
                             )}
+
+                            <Dialog open={editPlanOpen} onOpenChange={(open) => { setEditPlanOpen(open); if (!open) resetPlanForm(); }}>
+                                <DialogContent>
+                                    <DialogHeader><DialogTitle>Edit Plan</DialogTitle><DialogDescription>Update pricing and plan settings.</DialogDescription></DialogHeader>
+                                    <div className="space-y-4">
+                                        <div className="grid gap-4 md:grid-cols-2">
+                                            <div className="space-y-2"><Label>Name</Label><Input value={planForm.name} onChange={(e) => setPlanForm({ ...planForm, name: e.target.value })} /></div>
+                                            <div className="space-y-2"><Label>Display Name</Label><Input value={planForm.display_name} onChange={(e) => setPlanForm({ ...planForm, display_name: e.target.value })} /></div>
+                                        </div>
+                                        <div className="space-y-2"><Label>Description</Label><Textarea value={planForm.description} onChange={(e) => setPlanForm({ ...planForm, description: e.target.value })} /></div>
+                                        <div className="grid gap-4 md:grid-cols-2">
+                                            <div className="space-y-2"><Label>Monthly Price</Label><Input type="number" value={planForm.price_monthly} onChange={(e) => setPlanForm({ ...planForm, price_monthly: e.target.value })} /></div>
+                                            <div className="space-y-2"><Label>Annual Price</Label><Input type="number" value={planForm.price_annual} onChange={(e) => setPlanForm({ ...planForm, price_annual: e.target.value })} /></div>
+                                            <div className="space-y-2"><Label>Max Users</Label><Input type="number" value={planForm.max_users} onChange={(e) => setPlanForm({ ...planForm, max_users: e.target.value })} /></div>
+                                            <div className="space-y-2"><Label>Max Branches</Label><Input type="number" value={planForm.max_branches} onChange={(e) => setPlanForm({ ...planForm, max_branches: e.target.value })} /></div>
+                                        </div>
+                                        <Button className="w-full" onClick={handleEditPlan}>Save Plan Changes</Button>
+                                    </div>
+                                </DialogContent>
+                            </Dialog>
                         </TabsContent>
 
                         {/* Add-ons Tab */}
                         <TabsContent value="addons" className="space-y-4">
                             <div className="flex justify-between items-center">
                                 <h2 className="text-xl font-semibold">Add-ons</h2>
+                                <Dialog open={createAddonOpen} onOpenChange={(open) => { setCreateAddonOpen(open); if (!open) resetAddonForm(); }}>
+                                    <DialogTrigger asChild>
+                                        <Button>
+                                            <Plus className="w-4 h-4 mr-2" />
+                                            Create Add-on
+                                        </Button>
+                                    </DialogTrigger>
+                                    <DialogContent>
+                                        <DialogHeader><DialogTitle>Create New Add-on</DialogTitle><DialogDescription>Add a new feature or usage add-on.</DialogDescription></DialogHeader>
+                                        <div className="space-y-4">
+                                            <div className="grid gap-4 md:grid-cols-2">
+                                                <div className="space-y-2"><Label>Name</Label><Input value={addonForm.name} onChange={(e) => setAddonForm({ ...addonForm, name: e.target.value })} /></div>
+                                                <div className="space-y-2"><Label>Display Name</Label><Input value={addonForm.display_name} onChange={(e) => setAddonForm({ ...addonForm, display_name: e.target.value })} /></div>
+                                            </div>
+                                            <div className="space-y-2"><Label>Description</Label><Textarea value={addonForm.description} onChange={(e) => setAddonForm({ ...addonForm, description: e.target.value })} /></div>
+                                            <div className="grid gap-4 md:grid-cols-2">
+                                                <div className="space-y-2"><Label>Type</Label><Input value={addonForm.addon_type} onChange={(e) => setAddonForm({ ...addonForm, addon_type: e.target.value })} /></div>
+                                                <div className="space-y-2"><Label>Usage Unit</Label><Input value={addonForm.usage_unit} onChange={(e) => setAddonForm({ ...addonForm, usage_unit: e.target.value })} /></div>
+                                                <div className="space-y-2"><Label>Monthly Price</Label><Input type="number" value={addonForm.price_monthly} onChange={(e) => setAddonForm({ ...addonForm, price_monthly: e.target.value })} /></div>
+                                                <div className="space-y-2"><Label>Annual Price</Label><Input type="number" value={addonForm.price_annual} onChange={(e) => setAddonForm({ ...addonForm, price_annual: e.target.value })} /></div>
+                                            </div>
+                                            <Button className="w-full" onClick={handleCreateAddon}>Create Add-on</Button>
+                                        </div>
+                                    </DialogContent>
+                                </Dialog>
                             </div>
 
                             {loading ? (
-                                <div className="text-center py-12">
-                                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-                                    <p className="text-muted-foreground">Loading add-ons...</p>
-                                </div>
+                                <div className="text-center py-12"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div><p className="text-muted-foreground">Loading add-ons...</p></div>
                             ) : (
                                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                                    {addons.length === 0 ? (
-                                        <div className="col-span-full p-8 text-center text-muted-foreground">
-                                            No add-ons found
-                                        </div>
-                                    ) : (
-                                        addons.map((addon) => (
-                                            <Card key={addon.id}>
-                                                <CardHeader>
-                                                    <CardTitle>{addon.display_name || addon.name}</CardTitle>
-                                                    <CardDescription>{addon.description}</CardDescription>
-                                                </CardHeader>
-                                                <CardContent>
-                                                    <div className="space-y-2">
-                                                        <div className="text-2xl font-bold">
-                                                            ${addon.price_monthly}
-                                                            <span className="text-sm font-normal text-muted-foreground">
-                                                                /{addon.addon_type === 'usage' ? addon.usage_unit : 'month'}
-                                                            </span>
-                                                        </div>
-                                                        <Badge variant={addon.is_active ? "default" : "secondary"}>
-                                                            {addon.is_active ? "Active" : "Inactive"}
-                                                        </Badge>
+                                    {addons.length === 0 ? <div className="col-span-full p-8 text-center text-muted-foreground">No add-ons found</div> : addons.map((addon) => (
+                                        <Card key={addon.id}>
+                                            <CardHeader>
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <div>
+                                                        <CardTitle>{addon.display_name || addon.name}</CardTitle>
+                                                        <CardDescription>{addon.description}</CardDescription>
                                                     </div>
-                                                </CardContent>
-                                            </Card>
-                                        ))
-                                    )}
+                                                    <Button size="sm" variant="outline" onClick={() => openEditAddon(addon)}>Edit</Button>
+                                                </div>
+                                            </CardHeader>
+                                            <CardContent>
+                                                <div className="space-y-2">
+                                                    <div className="text-2xl font-bold">${addon.price_monthly}<span className="text-sm font-normal text-muted-foreground">/{addon.addon_type === 'usage' ? addon.usage_unit : 'month'}</span></div>
+                                                    <div className="text-sm text-muted-foreground">Annual: ${addon.price_annual ?? 0}</div>
+                                                    <div className="text-sm text-muted-foreground">Type: {addon.addon_type}</div>
+                                                    <Badge variant={addon.is_active ? "default" : "secondary"}>{addon.is_active ? "Active" : "Inactive"}</Badge>
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    ))}
                                 </div>
                             )}
+
+                            <Dialog open={editAddonOpen} onOpenChange={(open) => { setEditAddonOpen(open); if (!open) resetAddonForm(); }}>
+                                <DialogContent>
+                                    <DialogHeader><DialogTitle>Edit Add-on</DialogTitle><DialogDescription>Update add-on pricing and settings.</DialogDescription></DialogHeader>
+                                    <div className="space-y-4">
+                                        <div className="grid gap-4 md:grid-cols-2">
+                                            <div className="space-y-2"><Label>Name</Label><Input value={addonForm.name} onChange={(e) => setAddonForm({ ...addonForm, name: e.target.value })} /></div>
+                                            <div className="space-y-2"><Label>Display Name</Label><Input value={addonForm.display_name} onChange={(e) => setAddonForm({ ...addonForm, display_name: e.target.value })} /></div>
+                                        </div>
+                                        <div className="space-y-2"><Label>Description</Label><Textarea value={addonForm.description} onChange={(e) => setAddonForm({ ...addonForm, description: e.target.value })} /></div>
+                                        <div className="grid gap-4 md:grid-cols-2">
+                                            <div className="space-y-2"><Label>Type</Label><Input value={addonForm.addon_type} onChange={(e) => setAddonForm({ ...addonForm, addon_type: e.target.value })} /></div>
+                                            <div className="space-y-2"><Label>Usage Unit</Label><Input value={addonForm.usage_unit} onChange={(e) => setAddonForm({ ...addonForm, usage_unit: e.target.value })} /></div>
+                                            <div className="space-y-2"><Label>Monthly Price</Label><Input type="number" value={addonForm.price_monthly} onChange={(e) => setAddonForm({ ...addonForm, price_monthly: e.target.value })} /></div>
+                                            <div className="space-y-2"><Label>Annual Price</Label><Input type="number" value={addonForm.price_annual} onChange={(e) => setAddonForm({ ...addonForm, price_annual: e.target.value })} /></div>
+                                        </div>
+                                        <Button className="w-full" onClick={handleEditAddon}>Save Add-on Changes</Button>
+                                    </div>
+                                </DialogContent>
+                            </Dialog>
                         </TabsContent>
 
                         {/* Roles & Permissions Tab */}

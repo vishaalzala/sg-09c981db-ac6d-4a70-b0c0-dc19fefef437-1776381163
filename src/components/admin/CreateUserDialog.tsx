@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -8,11 +8,12 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { UserPlus, AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
 
 interface CreateUserDialogProps {
-  companyId: string;
+  companyId?: string;
+  companies?: { id: string; name: string }[];
   onUserCreated?: () => void;
 }
 
-export function CreateUserDialog({ companyId, onUserCreated }: CreateUserDialogProps) {
+export function CreateUserDialog({ companyId, companies = [], onUserCreated }: CreateUserDialogProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -21,10 +22,14 @@ export function CreateUserDialog({ companyId, onUserCreated }: CreateUserDialogP
     email: "",
     password: "",
     fullName: "",
-    role: "" // Changed from roleId to role string
+    role: "",
+    companyId: companyId || companies[0]?.id || ""
   });
 
-  // Available roles as strings (NO roles table dependency)
+  useEffect(() => {
+    setFormData((prev) => ({ ...prev, companyId: companyId || prev.companyId || companies[0]?.id || "" }));
+  }, [companyId, companies]);
+
   const availableRoles = [
     { value: "owner", label: "Owner" },
     { value: "branch_manager", label: "Branch Manager" },
@@ -43,51 +48,32 @@ export function CreateUserDialog({ companyId, onUserCreated }: CreateUserDialogP
     setSuccess(false);
 
     try {
-      if (!formData.role) {
-        throw new Error("Please select a role");
-      }
-
-      console.log("Creating user:", { ...formData, companyId });
+      if (!formData.role) throw new Error("Please select a role");
+      if (!formData.companyId) throw new Error("Please select a company");
 
       const response = await fetch("/api/admin/create-user", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: formData.email,
           password: formData.password,
           fullName: formData.fullName,
-          companyId,
-          role: formData.role // Send role string instead of roleId
+          companyId: formData.companyId,
+          role: formData.role
         })
       });
 
       const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to create user");
 
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to create user");
-      }
-
-      console.log("User created:", data.userId);
       setSuccess(true);
-      setFormData({
-        email: "",
-        password: "",
-        fullName: "",
-        role: ""
-      });
-
+      setFormData({ email: "", password: "", fullName: "", role: "", companyId: companyId || companies[0]?.id || "" });
       setTimeout(() => {
         setSuccess(false);
         setOpen(false);
-        if (onUserCreated) {
-          onUserCreated();
-        }
-      }, 2000);
-
+        onUserCreated?.();
+      }, 1500);
     } catch (err) {
-      console.error("Create user error:", err);
       setError(err instanceof Error ? err.message : "Failed to create user");
     } finally {
       setLoading(false);
@@ -105,17 +91,13 @@ export function CreateUserDialog({ companyId, onUserCreated }: CreateUserDialogP
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Create New User</DialogTitle>
-          <DialogDescription>
-            Add a new user to this company
-          </DialogDescription>
+          <DialogDescription>Add a new user to a company</DialogDescription>
         </DialogHeader>
 
         {success && (
           <Alert className="border-green-500 bg-green-50">
             <CheckCircle2 className="h-4 w-4 text-green-600" />
-            <AlertDescription className="text-green-800">
-              User created successfully!
-            </AlertDescription>
+            <AlertDescription className="text-green-800">User created successfully!</AlertDescription>
           </Alert>
         )}
 
@@ -127,71 +109,44 @@ export function CreateUserDialog({ companyId, onUserCreated }: CreateUserDialogP
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {!companyId && (
+            <div className="space-y-2">
+              <Label htmlFor="company">Company *</Label>
+              <Select value={formData.companyId} onValueChange={(value) => setFormData({ ...formData, companyId: value })} disabled={loading}>
+                <SelectTrigger><SelectValue placeholder="Select a company" /></SelectTrigger>
+                <SelectContent>
+                  {companies.map((company) => (
+                    <SelectItem key={company.id} value={company.id}>{company.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="fullName">Full Name *</Label>
-            <Input
-              id="fullName"
-              value={formData.fullName}
-              onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-              required
-              disabled={loading}
-            />
+            <Input id="fullName" value={formData.fullName} onChange={(e) => setFormData({ ...formData, fullName: e.target.value })} required disabled={loading} />
           </div>
-
           <div className="space-y-2">
             <Label htmlFor="email">Email *</Label>
-            <Input
-              id="email"
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              required
-              disabled={loading}
-            />
+            <Input id="email" type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} required disabled={loading} />
           </div>
-
           <div className="space-y-2">
             <Label htmlFor="password">Password *</Label>
-            <Input
-              id="password"
-              type="password"
-              value={formData.password}
-              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              required
-              minLength={8}
-              disabled={loading}
-            />
+            <Input id="password" type="password" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} required minLength={8} disabled={loading} />
           </div>
-
           <div className="space-y-2">
             <Label htmlFor="role">Role *</Label>
-            <Select
-              value={formData.role}
-              onValueChange={(value) => setFormData({ ...formData, role: value })}
-              disabled={loading}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select a role" />
-              </SelectTrigger>
+            <Select value={formData.role} onValueChange={(value) => setFormData({ ...formData, role: value })} disabled={loading}>
+              <SelectTrigger><SelectValue placeholder="Select a role" /></SelectTrigger>
               <SelectContent>
                 {availableRoles.map((role) => (
-                  <SelectItem key={role.value} value={role.value}>
-                    {role.label}
-                  </SelectItem>
+                  <SelectItem key={role.value} value={role.value}>{role.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Creating User...
-              </>
-            ) : (
-              "Create User"
-            )}
+            {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Creating User...</> : "Create User"}
           </Button>
         </form>
       </DialogContent>
