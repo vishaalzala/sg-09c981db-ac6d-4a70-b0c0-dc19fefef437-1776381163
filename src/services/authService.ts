@@ -26,6 +26,8 @@ export interface SignupResult {
     user: User | null;
     company: { id: string; name: string } | null;
     error: Error | null;
+    onboardingRequired: boolean;
+    emailConfirmationRequired: boolean;
 }
 
 // Dynamic URL Helper
@@ -237,7 +239,8 @@ export async function signUp(data: SignupData): Promise<SignupResult> {
             password: data.password,
             options: {
                 data: {
-                    full_name: data.fullName
+                    full_name: data.fullName,
+                    signup_intent: "company_owner"
                 }
             }
         });
@@ -245,72 +248,32 @@ export async function signUp(data: SignupData): Promise<SignupResult> {
         if (authError) throw authError;
         if (!authData.user) throw new Error("User creation failed");
 
-        // 2. Create company
-        const { data: company, error: companyError } = await supabase
-            .from("companies")
-            .insert({
-                name: data.companyName,
-                email: data.email,
-                phone: data.phone,
-                is_active: true
-            })
-            .select()
-            .single();
-
-        if (companyError) throw companyError;
-
-        // 3. Get company_owner role (was 'owner', which doesn't match standard setup)
-        const { data: ownerRole } = await supabase
-            .from("roles")
-            .select("id")
-            .eq("name", "company_owner")
-            .single();
-
-        // 4. Profile row is created by the auth trigger (public.handle_new_user)
-        //    so we do not manually insert into public.profiles here.
-
-        // 5. Create users record
-        const { error: usersError } = await supabase
-            .from("users")
-            .insert({
-                id: authData.user.id,
-                company_id: company.id,
-                email: data.email,
-                full_name: data.fullName,
-                role_id: ownerRole?.id
-            });
-
-        if (usersError) throw usersError;
-
-        // 6. Get free trial plan
-        const { data: trialPlan } = await supabase
-            .from("subscription_plans")
-            .select("id")
-            .eq("name", "free_trial")
-            .single();
-
-        if (trialPlan) {
-            // 7. Create trial subscription
-            const trialStart = new Date();
-            const trialEnd = new Date();
-            trialEnd.setDate(trialEnd.getDate() + 14); // 14 day trial
-
-            await supabase
-                .from("company_subscriptions")
-                .insert({
-                    company_id: company.id,
-                    plan_id: trialPlan.id,
-                    status: "trial_active",
-                    trial_ends_at: trialEnd.toISOString(),
-                    current_period_start: trialStart.toISOString(),
-                    current_period_end: trialEnd.toISOString()
-                });
+        // If email confirmation is enabled, the user may not have a session yet.
+        // In that case we defer company creation until after the first verified login.
+        if (!authData.session) {
+            return {
+                user: authData.user,
+                company: null,
+                error: null,
+                onboardingRequired: true,
+                emailConfirmationRequired: true
+            };
         }
+
+        const company = await completeCompanyOnboarding({
+            companyName: data.companyName,
+            phone: data.phone,
+            email: data.email,
+            fullName: data.fullName,
+            userId: authData.user.id
+        });
 
         return {
             user: authData.user,
-            company: { id: company.id, name: company.name },
-            error: null
+            company,
+            error: null,
+            onboardingRequired: false,
+            emailConfirmationRequired: false
         };
 
     } catch (error) {
@@ -318,7 +281,118 @@ export async function signUp(data: SignupData): Promise<SignupResult> {
         return {
             user: null,
             company: null,
-            error: error as Error
+            error: error as Error,
+            onboardingRequired: false,
+            emailConfirmationRequired: false
         };
     }
+}
+
+interface CompleteCompanyOnboardingInput {
+    companyName: string;
+    phone?: string;
+    email?: string;
+    fullName?: string;
+    userId?: string;
+}
+
+export async function completeCompanyOnboarding(input: CompleteCompanyOnboardingInput): Promise<{ id: string; name: string }> {
+    const { data: authUserData, error: authUserError } = await supabase.auth.getUser();
+    if (authUserError) throw authUserError;
+
+    const currentUser = authUserData.user;
+    const userId = input.userId || currentUser?.id;
+    const userEmail = input.email || currentUser?.email || "";
+    const userFullName = input.fullName || currentUser?.user_metadata?.full_name || userEmail;
+
+    if (!userId) {
+        throw new Error("You must be signed in to complete company setup.");
+    }
+
+    const { data: existingUser } = await supabase
+        .from("users")
+        .select("company_id, companies(id, name)")
+        .eq("id", userId)
+        .maybeSingle() as any;
+
+    if (existingUser?.company_id && existingUser?.companies?.id) {
+        return {
+            id: existingUser.companies.id,
+            name: existingUser.companies.name
+        };
+    }
+
+    // Ensure profile role stays aligned with the owner signup flow.
+    await supabase
+        .from("profiles")
+        .update({
+            role: "company_owner",
+            full_name: userFullName
+        })
+        .eq("id", userId);
+
+    const { data: company, error: companyError } = await supabase
+        .from("companies")
+        .insert({
+            name: input.companyName,
+            email: userEmail,
+            phone: input.phone,
+            is_active: true
+        })
+        .select("id, name")
+        .single();
+
+    if (companyError) throw companyError;
+
+    const { data: ownerRole } = await supabase
+        .from("roles")
+        .select("id")
+        .eq("name", "company_owner")
+        .single();
+
+    const { error: usersError } = await supabase
+        .from("users")
+        .upsert({
+            id: userId,
+            company_id: company.id,
+            email: userEmail,
+            full_name: userFullName,
+            role_id: ownerRole?.id ?? null
+        });
+
+    if (usersError) throw usersError;
+
+    const { data: trialPlan } = await supabase
+        .from("subscription_plans")
+        .select("id")
+        .eq("name", "free_trial")
+        .maybeSingle();
+
+    if (trialPlan?.id) {
+        const trialStart = new Date();
+        const trialEnd = new Date();
+        trialEnd.setDate(trialEnd.getDate() + 14);
+
+        const { error: subscriptionError } = await supabase
+            .from("company_subscriptions")
+            .upsert({
+                company_id: company.id,
+                plan_id: trialPlan.id,
+                status: "trial_active",
+                trial_ends_at: trialEnd.toISOString(),
+                current_period_start: trialStart.toISOString(),
+                current_period_end: trialEnd.toISOString()
+            }, {
+                onConflict: "company_id"
+            });
+
+        if (subscriptionError) {
+            console.warn("Trial subscription setup warning:", subscriptionError);
+        }
+    }
+
+    return {
+        id: company.id,
+        name: company.name
+    };
 }
