@@ -1,98 +1,103 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
+import { AppLayout } from "@/components/AppLayout";
 import { DocumentBuilder } from "@/components/DocumentBuilder";
-import { companyService } from "@/services/companyService";
 import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 
 export default function NewInvoice() {
-  const router = useRouter();
-  const [companyId, setCompanyId] = useState<string>("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+    const router = useRouter();
+    const [companyId, setCompanyId] = useState < string > ("");
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState < string | null > (null);
 
-  useEffect(() => {
-    loadCompany();
-  }, []);
+    useEffect(() => {
+        loadCompany();
+    }, []);
 
-  const loadCompany = async () => {
-    try {
-      // Get current user
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      
-      if (authError) {
-        console.error("Auth error:", authError);
-        setError("Authentication error. Please log in again.");
-        setLoading(false);
-        return;
-      }
+    const loadCompany = async () => {
+        try {
+            const {
+                data: { user },
+                error: authError,
+            } = await supabase.auth.getUser();
 
-      if (!user) {
-        console.error("No user found");
-        router.push("/login");
-        return;
-      }
+            if (authError) {
+                console.error("Auth error:", authError);
+                setError("Authentication error. Please log in again.");
+                setLoading(false);
+                return;
+            }
 
-      // Get user's company_id from users table
-      const { data: userData, error: userError } = await supabase
-        .from("users")
-        .select("company_id")
-        .eq("id", user.id)
-        .single();
+            if (!user) {
+                router.push("/login");
+                return;
+            }
 
-      if (userError) {
-        console.error("Error loading user data:", userError);
-        setError("Failed to load user data. Please contact support.");
-        setLoading(false);
-        return;
-      }
+            const { data: userData, error: userError } = await supabase
+                .from("users")
+                .select("company_id")
+                .eq("id", user.id)
+                .single();
 
-      if (!userData?.company_id) {
-        console.error("No company_id found for user:", user.id);
-        setError("No company context found. Please contact support.");
-        setLoading(false);
-        return;
-      }
+            if (userError) {
+                console.error("Error loading user data:", userError);
+                setError("Failed to load user data. Please contact support.");
+                setLoading(false);
+                return;
+            }
 
-      console.log("Company loaded:", userData.company_id);
-      setCompanyId(userData.company_id);
-      setLoading(false);
-    } catch (error) {
-      console.error("Error loading company:", error);
-      setError("An unexpected error occurred. Please try again.");
-      setLoading(false);
-    }
-  };
+            if (!userData?.company_id) {
+                setError("No company context found. Please contact support.");
+                setLoading(false);
+                return;
+            }
 
-  const handleComplete = (documentId: string) => {
-    router.push(`/dashboard/invoices`);
-  };
+            setCompanyId(userData.company_id);
+            setLoading(false);
+        } catch (err) {
+            console.error("Error loading company:", err);
+            setError("An unexpected error occurred. Please try again.");
+            setLoading(false);
+        }
+    };
 
-  if (loading) {
+    const handleComplete = () => {
+        router.push("/dashboard/invoices");
+    };
+
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading...</p>
-        </div>
-      </div>
+        <AppLayout companyId={companyId}>
+            <div className="p-6">
+                {loading ? (
+                    <div className="flex min-h-[400px] items-center justify-center">
+                        <div className="text-center">
+                            <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-primary"></div>
+                            <p className="text-muted-foreground">Loading new invoice...</p>
+                        </div>
+                    </div>
+                ) : error || !companyId ? (
+                    <div className="flex min-h-[400px] items-center justify-center">
+                        <Card className="w-full max-w-md">
+                            <CardContent className="pt-6 text-center">
+                                <p className="mb-4 text-destructive">
+                                    {error || "No company found. Please set up your company first."}
+                                </p>
+                                <Button onClick={() => router.push("/dashboard/invoices")}>
+                                    Back to Invoices
+                                </Button>
+                            </CardContent>
+                        </Card>
+                    </div>
+                ) : (
+                    <DocumentBuilder
+                        type="invoice"
+                        companyId={companyId}
+                        onComplete={handleComplete}
+                    />
+                )}
+            </div>
+        </AppLayout>
     );
-  }
-
-  if (error || !companyId) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center max-w-md">
-          <p className="text-destructive mb-4">{error || "No company found. Please set up your company first."}</p>
-          <button 
-            onClick={() => router.push("/dashboard")}
-            className="px-4 py-2 bg-primary text-primary-foreground rounded"
-          >
-            Back to Dashboard
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  return <DocumentBuilder type="invoice" companyId={companyId} onComplete={handleComplete} />;
 }
