@@ -1,6 +1,4 @@
 -- Phase 1: Admin Alerts & Control Center
--- Safe rollout: new table only, no changes to existing business logic
-
 CREATE TABLE IF NOT EXISTS public.admin_alerts (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   company_id UUID REFERENCES public.companies(id) ON DELETE CASCADE,
@@ -29,26 +27,13 @@ CREATE INDEX IF NOT EXISTS idx_admin_alerts_created_at ON public.admin_alerts(cr
 ALTER TABLE public.admin_alerts ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "super_admin_select_admin_alerts" ON public.admin_alerts;
-CREATE POLICY "super_admin_select_admin_alerts"
-ON public.admin_alerts
-FOR SELECT
-USING (public.is_super_admin());
+CREATE POLICY "super_admin_select_admin_alerts" ON public.admin_alerts FOR SELECT USING (public.is_super_admin());
 
 DROP POLICY IF EXISTS "super_admin_insert_admin_alerts" ON public.admin_alerts;
-CREATE POLICY "super_admin_insert_admin_alerts"
-ON public.admin_alerts
-FOR INSERT
-WITH CHECK (public.is_super_admin());
+CREATE POLICY "super_admin_insert_admin_alerts" ON public.admin_alerts FOR INSERT WITH CHECK (public.is_super_admin());
 
 DROP POLICY IF EXISTS "super_admin_update_admin_alerts" ON public.admin_alerts;
-CREATE POLICY "super_admin_update_admin_alerts"
-ON public.admin_alerts
-FOR UPDATE
-USING (public.is_super_admin())
-WITH CHECK (public.is_super_admin());
+CREATE POLICY "super_admin_update_admin_alerts" ON public.admin_alerts FOR UPDATE USING (public.is_super_admin()) WITH CHECK (public.is_super_admin());
 
 DROP POLICY IF EXISTS "super_admin_delete_admin_alerts" ON public.admin_alerts;
-CREATE POLICY "super_admin_delete_admin_alerts"
-ON public.admin_alerts
-FOR DELETE
-USING (public.is_super_admin());
+CREATE POLICY "super_admin_delete_admin_alerts" ON public.admin_alerts FOR DELETE USING (public.is_super_admin());
