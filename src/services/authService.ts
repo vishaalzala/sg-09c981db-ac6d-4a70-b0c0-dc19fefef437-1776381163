@@ -275,7 +275,7 @@ export async function signUp(data: SignupData): Promise<SignupResult> {
     //    full_name: data.fullName
     //  }); 
 
-    if (profileError) throw profileError;
+    //if (profileError) throw profileError;
 
     // 5. Create users record
     const { error: usersError } = await supabase
