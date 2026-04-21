@@ -254,26 +254,45 @@ export async function getAllPlans() {
 type PlanInsert = Database["public"]["Tables"]["subscription_plans"]["Insert"];
 
 export async function createPlan(planData: PlanInsert) {
-    const { data, error } = await supabase
-        .from("subscription_plans")
-        .insert(planData)
-        .select()
-        .single();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error("Not authenticated");
 
-    if (error) throw error;
-    return data;
+    const response = await fetch("/api/admin/plans", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify(planData)
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to create plan");
+    }
+
+    return response.json();
 }
 
 export async function updatePlan(planId: string, updates: Partial<Tables<"subscription_plans">>) {
-    const { data, error } = await supabase
-        .from("subscription_plans")
-        .update(updates)
-        .eq("id", planId)
-        .select()
-        .single();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error("Not authenticated");
 
-    if (error) throw error;
-    return data;
+    const response = await fetch("/api/admin/plans", {
+        method: "PUT",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ id: planId, ...updates })
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to update plan");
+    }
+
+    return response.json();
 }
 
 // ============================================
@@ -368,26 +387,45 @@ export async function getAllAddons() {
 type AddonInsert = Database["public"]["Tables"]["addon_catalog"]["Insert"];
 
 export async function createAddon(addonData: AddonInsert) {
-    const { data, error } = await supabase
-        .from("addon_catalog")
-        .insert(addonData)
-        .select()
-        .single();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error("Not authenticated");
 
-    if (error) throw error;
-    return data;
+    const response = await fetch("/api/admin/addons", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify(addonData)
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to create add-on");
+    }
+
+    return response.json();
 }
 
 export async function updateAddon(addonId: string, updates: Partial<Tables<"addon_catalog">>) {
-    const { data, error } = await supabase
-        .from("addon_catalog")
-        .update(updates)
-        .eq("id", addonId)
-        .select()
-        .single();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error("Not authenticated");
 
-    if (error) throw error;
-    return data;
+    const response = await fetch("/api/admin/addons", {
+        method: "PUT",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ id: addonId, ...updates })
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to update add-on");
+    }
+
+    return response.json();
 }
 
 export async function assignAddonToCompany(companyId: string, addonId: string) {
@@ -1212,12 +1250,26 @@ export async function getMessagingData(): Promise<MessagingData> {
     };
 }
 
+export interface LeadItem {
+    id: string;
+    name: string;
+    email: string;
+    phone?: string | null;
+    companyName?: string | null;
+    source?: string | null;
+    message?: string | null;
+    status: string;
+    assignedToId?: string | null;
+    assignedToName?: string | null;
+    createdAt?: string | null;
+}
+
 export async function getLeadsData(): Promise<LeadsData> {
     let rows: any[] = [];
     let usedLeadsTable = true;
     const leadsAttempt = await (supabase as any)
         .from("leads")
-        .select("id, name, email, company_name, source, message, status, assigned_to, created_at")
+        .select("id, name, email, phone, company_name, source, message, status, assigned_to, created_at")
         .order("created_at", { ascending: false })
         .limit(25);
 
@@ -1225,7 +1277,7 @@ export async function getLeadsData(): Promise<LeadsData> {
         usedLeadsTable = false;
         const fallback = await (supabase as any)
             .from("lead_submissions")
-            .select("id, name, email, company_name, source, message, status, created_at")
+            .select("id, name, email, phone, company_name, source, message, status, created_at")
             .order("created_at", { ascending: false })
             .limit(25);
         rows = fallback.data || [];
@@ -1238,15 +1290,18 @@ export async function getLeadsData(): Promise<LeadsData> {
         ? ((await supabase.from("users").select("id, full_name").in("id", assignedIds)).data || [])
         : [];
 
-    const leads = rows.map((row: any) => ({
+    const leads: LeadItem[] = rows.map((row: any) => ({
         id: row.id,
         name: row.name,
         email: row.email,
-        companyName: row.company_name,
-        source: row.source,
-        message: row.message,
+        phone: row.phone ?? null,
+        companyName: row.company_name ?? null,
+        source: row.source ?? null,
+        message: row.message ?? null,
         status: row.status || "new",
+        assignedToId: usedLeadsTable ? row.assigned_to ?? null : null,
         assignedToName: usedLeadsTable ? users.find((u: any) => u.id === row.assigned_to)?.full_name || null : null,
+        createdAt: row.created_at ?? null,
     }));
 
     return {
@@ -1258,4 +1313,46 @@ export async function getLeadsData(): Promise<LeadsData> {
         },
         leads,
     };
+}
+
+export async function updateLeadStatus(leadId: string, status: string) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error("Not authenticated");
+
+    const response = await fetch("/api/admin/leads", {
+        method: "PUT",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ id: leadId, status })
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to update lead status");
+    }
+
+    return response.json();
+}
+
+export async function assignLead(leadId: string, assignedTo: string | null) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error("Not authenticated");
+
+    const response = await fetch("/api/admin/leads", {
+        method: "PUT",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ id: leadId, assigned_to: assignedTo })
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to assign lead");
+    }
+
+    return response.json();
 }
