@@ -8,31 +8,6 @@ export type CompanyWithDetails = Tables<"companies"> & {
     branches: any[];
 };
 
-
-export interface AdminAlert {
-    id: string;
-    company_id: string | null;
-    company_name?: string | null;
-    alert_type: "trial_ending" | "inactive_company" | "no_users_created" | "onboarding_incomplete";
-    severity: "low" | "medium" | "high" | "critical";
-    title: string;
-    message: string;
-    action_url?: string | null;
-    action_label?: string | null;
-    created_at?: string | null;
-    source: "live" | "table";
-}
-
-export interface ControlCenterData {
-    alerts: AdminAlert[];
-    counts: {
-        total: number;
-        critical: number;
-        high: number;
-        medium: number;
-        low: number;
-    };
-}
 export interface DashboardStats {
     totalCompanies: number;
     activeCompanies: number;
@@ -926,166 +901,166 @@ export async function getRevenueReport(options?: {
     };
 }
 
-// ============================================
-// CONTROL CENTER - PHASE 1
-// ============================================
+export interface AdminAlert {
+    id: string;
+    company_id?: string | null;
+    company_name?: string | null;
+    alert_type: string;
+    severity: "low" | "medium" | "high" | "critical";
+    title: string;
+    message: string;
+    action_url?: string | null;
+    action_label?: string | null;
+}
+
+export interface ControlCenterData {
+    alerts: AdminAlert[];
+    summary: {
+        totalAlerts: number;
+        highPriorityAlerts: number;
+        trialsEndingSoon: number;
+        inactiveCompanies: number;
+    };
+}
+
+export interface RevenueOpsData {
+    summary: {
+        activeSubscriptions: number;
+        trialsEndingSoon: number;
+        pastDueSubscriptions: number;
+        renewalsNext14Days: number;
+    };
+    stripeHealth: {
+        secretKeyConfigured: boolean;
+        webhookSecretConfigured: boolean;
+        tablesReady: boolean;
+    };
+}
 
 export async function getControlCenterData(): Promise<ControlCenterData> {
     const now = new Date();
-    const sevenDaysFromNow = new Date(now);
-    sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+    const in7Days = new Date();
+    in7Days.setDate(in7Days.getDate() + 7);
+    const inactiveThreshold = new Date();
+    inactiveThreshold.setDate(inactiveThreshold.getDate() - 7);
 
-    const [companiesResult, usersResult, subscriptionsResult, storedAlertsResult] = await Promise.all([
-        supabase
-            .from("companies")
-            .select("id, name, onboarding_completed, is_active, created_at")
-            .is("deleted_at", null),
-        supabase
-            .from("users")
-            .select("id, company_id, last_login_at, created_at"),
-        supabase
-            .from("company_subscriptions")
-            .select("id, company_id, status, trial_ends_at"),
-        supabase
-            .from("admin_alerts" as any)
-            .select("id, company_id, alert_type, severity, title, message, action_url, action_label, created_at")
-            .eq("status", "active")
-            .eq("is_dismissed", false)
-            .order("created_at", { ascending: false })
-            .limit(20),
+    const [companiesResult, usersResult, subscriptionsResult] = await Promise.all([
+        supabase.from("companies").select("id, name, onboarding_completed, created_at"),
+        supabase.from("users").select("id, company_id, last_login_at"),
+        supabase.from("company_subscriptions").select("company_id, status, trial_ends_at, current_period_end"),
     ]);
-
-    if (companiesResult.error) throw companiesResult.error;
-    if (usersResult.error) throw usersResult.error;
-    if (subscriptionsResult.error) throw subscriptionsResult.error;
 
     const companies = companiesResult.data || [];
     const users = usersResult.data || [];
     const subscriptions = subscriptionsResult.data || [];
-    const storedAlerts = ((storedAlertsResult.data || []) as any[]).map((alert) => ({
-        ...alert,
-        source: "table" as const,
-    }));
 
-    const usersByCompany = new Map < string, typeof users > ();
-    users.forEach((user) => {
-        if (!user.company_id) return;
-        if (!usersByCompany.has(user.company_id)) {
-            usersByCompany.set(user.company_id, []);
-        }
-        usersByCompany.get(user.company_id)!.push(user);
-    });
+    const alerts: AdminAlert[] = [];
 
-    const liveAlerts: AdminAlert[] = [];
+    companies.forEach((company: any) => {
+        const companyUsers = users.filter((u: any) => u.company_id === company.id);
+        const companySub = subscriptions.find((s: any) => s.company_id === company.id);
+        const latestLogin = companyUsers
+            .map((u: any) => u.last_login_at ? new Date(u.last_login_at) : null)
+            .filter(Boolean)
+            .sort((a: any, b: any) => (b as any).getTime() - (a as any).getTime())[0] as Date | undefined;
 
-    subscriptions.forEach((subscription) => {
-        if (!subscription.trial_ends_at) return;
-        if (!["trialing", "trial_active"].includes(subscription.status)) return;
-
-        const trialEndsAt = new Date(subscription.trial_ends_at);
-        if (trialEndsAt < now || trialEndsAt > sevenDaysFromNow) return;
-
-        const company = companies.find((c) => c.id === subscription.company_id);
-        if (!company) return;
-
-        const diffDays = Math.max(0, Math.ceil((trialEndsAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
-
-        liveAlerts.push({
-            id: `trial-${subscription.id}`,
-            company_id: company.id,
-            company_name: company.name,
-            alert_type: "trial_ending",
-            severity: diffDays <= 2 ? "high" : "medium",
-            title: "Trial ending soon",
-            message: `${company.name} trial ends in ${diffDays} day${diffDays === 1 ? "" : "s"}.`,
-            action_url: `/admin/companies/${company.id}`,
-            action_label: "Review company",
-            created_at: subscription.trial_ends_at,
-            source: "live",
-        });
-    });
-
-    companies.forEach((company) => {
-        const companyUsers = usersByCompany.get(company.id) || [];
-
-        if (companyUsers.length === 0) {
-            liveAlerts.push({
+        if (!companyUsers.length) {
+            alerts.push({
                 id: `no-users-${company.id}`,
                 company_id: company.id,
                 company_name: company.name,
                 alert_type: "no_users_created",
                 severity: "high",
                 title: "No users created",
-                message: `${company.name} has no users assigned yet.`,
-                action_url: `/admin/companies/${company.id}`,
-                action_label: "Open company",
-                created_at: company.created_at,
-                source: "live",
+                message: `${company.name} does not have any platform users yet.`,
+                action_url: "/admin?tab=users",
+                action_label: "Review users",
             });
         }
 
         if (!company.onboarding_completed) {
-            liveAlerts.push({
+            alerts.push({
                 id: `onboarding-${company.id}`,
                 company_id: company.id,
                 company_name: company.name,
                 alert_type: "onboarding_incomplete",
                 severity: "medium",
                 title: "Onboarding incomplete",
-                message: `${company.name} has not completed onboarding.`,
-                action_url: `/admin/companies/${company.id}`,
-                action_label: "Continue setup",
-                created_at: company.created_at,
-                source: "live",
+                message: `${company.name} has not completed onboarding yet.`,
+                action_url: "/admin?tab=companies",
+                action_label: "Open company",
             });
         }
 
-        if (companyUsers.length > 0) {
-            const validLogins = companyUsers
-                .map((user) => user.last_login_at)
-                .filter(Boolean)
-                .map((value) => new Date(value as string))
-                .sort((a, b) => b.getTime() - a.getTime());
+        if (latestLogin && latestLogin < inactiveThreshold) {
+            alerts.push({
+                id: `inactive-${company.id}`,
+                company_id: company.id,
+                company_name: company.name,
+                alert_type: "inactive_company",
+                severity: "medium",
+                title: "Inactive company",
+                message: `${company.name} has no user login in the last 7 days.`,
+                action_url: "/admin?tab=companies",
+                action_label: "Review company",
+            });
+        }
 
-            if (validLogins.length > 0) {
-                const lastLogin = validLogins[0];
-                const inactiveCutoff = new Date(now);
-                inactiveCutoff.setDate(inactiveCutoff.getDate() - 7);
-
-                if (lastLogin < inactiveCutoff && company.is_active) {
-                    const inactiveDays = Math.ceil((now.getTime() - lastLogin.getTime()) / (1000 * 60 * 60 * 24));
-                    liveAlerts.push({
-                        id: `inactive-${company.id}`,
-                        company_id: company.id,
-                        company_name: company.name,
-                        alert_type: "inactive_company",
-                        severity: inactiveDays >= 14 ? "high" : "medium",
-                        title: "Inactive company",
-                        message: `${company.name} has had no user login for ${inactiveDays} days.`,
-                        action_url: `/admin/companies/${company.id}`,
-                        action_label: "Investigate",
-                        created_at: lastLogin.toISOString(),
-                        source: "live",
-                    });
-                }
+        if (companySub?.trial_ends_at) {
+            const trialEnds = new Date(companySub.trial_ends_at);
+            if (trialEnds >= now && trialEnds <= in7Days) {
+                alerts.push({
+                    id: `trial-${company.id}`,
+                    company_id: company.id,
+                    company_name: company.name,
+                    alert_type: "trial_ending",
+                    severity: "high",
+                    title: "Trial ending soon",
+                    message: `${company.name} trial ends on ${trialEnds.toLocaleDateString()}.`,
+                    action_url: "/admin?tab=revenue",
+                    action_label: "Open revenue ops",
+                });
             }
         }
     });
 
-    const allAlerts = [...storedAlerts, ...liveAlerts].sort((a, b) => {
-        const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
-        const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
-        return bTime - aTime;
-    });
+    return {
+        alerts: alerts.sort((a, b) => {
+            const order = { critical: 4, high: 3, medium: 2, low: 1 };
+            return order[b.severity] - order[a.severity];
+        }),
+        summary: {
+            totalAlerts: alerts.length,
+            highPriorityAlerts: alerts.filter((a) => a.severity === "high" || a.severity === "critical").length,
+            trialsEndingSoon: alerts.filter((a) => a.alert_type === "trial_ending").length,
+            inactiveCompanies: alerts.filter((a) => a.alert_type === "inactive_company").length,
+        },
+    };
+}
+
+export async function getRevenueOpsData(): Promise<RevenueOpsData> {
+    const now = new Date();
+    const in7Days = new Date();
+    in7Days.setDate(in7Days.getDate() + 7);
+    const in14Days = new Date();
+    in14Days.setDate(in14Days.getDate() + 14);
+
+    const [currentSubsResult, stripeSubsResult, stripeHealthResult] = await Promise.all([
+        supabase.from("company_subscriptions").select("status, trial_ends_at, current_period_end"),
+        (supabase as any).from("subscriptions").select("status, current_period_end"),
+        fetch("/api/admin/stripe-health").then(async (res) => res.ok ? res.json() : { secretKeyConfigured: false, webhookSecretConfigured: false, tablesReady: false }).catch(() => ({ secretKeyConfigured: false, webhookSecretConfigured: false, tablesReady: false })),
+    ]);
+
+    const currentSubs = currentSubsResult.data || [];
+    const stripeSubs = stripeSubsResult.data || [];
+
+    const activeSubscriptions = currentSubs.filter((s: any) => ["active", "trialing", "trial_active"].includes(s.status)).length;
+    const trialsEndingSoon = currentSubs.filter((s: any) => s.trial_ends_at && new Date(s.trial_ends_at) >= now && new Date(s.trial_ends_at) <= in7Days).length;
+    const pastDueSubscriptions = [...currentSubs, ...stripeSubs].filter((s: any) => ["past_due", "unpaid", "incomplete_expired"].includes(s.status)).length;
+    const renewalsNext14Days = currentSubs.filter((s: any) => s.current_period_end && new Date(s.current_period_end) >= now && new Date(s.current_period_end) <= in14Days).length;
 
     return {
-        alerts: allAlerts,
-        counts: {
-            total: allAlerts.length,
-            critical: allAlerts.filter((alert) => alert.severity === "critical").length,
-            high: allAlerts.filter((alert) => alert.severity === "high").length,
-            medium: allAlerts.filter((alert) => alert.severity === "medium").length,
-            low: allAlerts.filter((alert) => alert.severity === "low").length,
-        },
+        summary: { activeSubscriptions, trialsEndingSoon, pastDueSubscriptions, renewalsNext14Days },
+        stripeHealth: stripeHealthResult,
     };
 }
