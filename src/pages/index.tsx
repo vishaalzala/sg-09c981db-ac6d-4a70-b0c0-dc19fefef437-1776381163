@@ -48,7 +48,7 @@ export default function LoginPage() {
             // Fetch user role from profiles table
             const { data: profile, error: profileError } = await supabase
                 .from("profiles")
-                .select("role, email, full_name")
+                .select("role, full_name")
                 .eq("id", authData.user.id)
                 .single();
 
