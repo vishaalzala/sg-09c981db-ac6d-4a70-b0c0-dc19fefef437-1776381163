@@ -7,14 +7,16 @@ import {
     Building2,
     Users,
     CreditCard,
-    Radar,
     Package,
     Shield,
     Settings,
     FileText,
     BarChart3,
     LogOut,
-    Menu
+    Menu,
+    Bell,
+    MessageSquare,
+    BadgeDollarSign
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
@@ -91,10 +93,13 @@ export function AdminLayout({ children, activeTab, onTabChange }: AdminLayoutPro
 
     const navigation = [
         { name: "Dashboard", tab: "dashboard", icon: LayoutDashboard },
-        { name: "Control Center", tab: "control", icon: Radar },
-        { name: "Revenue Ops", tab: "revenue", icon: CreditCard },
+        { name: "Control Center", tab: "control", icon: LayoutDashboard },
+        { name: "Revenue Ops", tab: "revenue", icon: BadgeDollarSign },
         { name: "Companies", tab: "companies", icon: Building2 },
         { name: "Users", tab: "users", icon: Users },
+        { name: "Notifications", tab: "notifications", icon: Bell },
+        { name: "Messaging", tab: "messaging", icon: MessageSquare },
+        { name: "Leads", tab: "leads", icon: Users },
         { name: "Plans & Billing", tab: "plans", icon: CreditCard },
         { name: "Add-ons", tab: "addons", icon: Package },
         { name: "Roles & Permissions", tab: "roles", icon: Shield },
