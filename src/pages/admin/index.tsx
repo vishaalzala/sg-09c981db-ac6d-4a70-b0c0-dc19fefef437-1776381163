@@ -32,11 +32,17 @@ import {
     createPermission,
     updatePermission,
     deletePermission,
-    type DashboardStats,
     getControlCenterData,
     getRevenueOpsData,
+    getNotificationsData,
+    getMessagingData,
+    getLeadsData,
+    type DashboardStats,
     type ControlCenterData,
-    type RevenueOpsData
+    type RevenueOpsData,
+    type NotificationsData,
+    type MessagingData,
+    type LeadsData
 } from "@/services/adminService";
 import {
     Building2,
@@ -58,13 +64,14 @@ import Link from "next/link";
 import { demoCompanies } from "@/lib/demoData";
 import { ControlCenterPanel } from "@/components/admin/ControlCenterPanel";
 import { RevenueOpsPanel } from "@/components/admin/RevenueOpsPanel";
+import { NotificationsPanel } from "@/components/admin/NotificationsPanel";
+import { MessagingPanel } from "@/components/admin/MessagingPanel";
+import { LeadsPanel } from "@/components/admin/LeadsPanel";
 
 export default function AdminPage() {
     const router = useRouter();
     const [activeTab, setActiveTab] = useState("dashboard");
     const [stats, setStats] = useState < DashboardStats | null > (null);
-    const [controlCenterData, setControlCenterData] = useState < ControlCenterData | null > (null);
-    const [revenueOpsData, setRevenueOpsData] = useState < RevenueOpsData | null > (null);
     const [companies, setCompanies] = useState < any[] > ([]);
     const [users, setUsers] = useState < any[] > ([]);
     const [plans, setPlans] = useState < Tables < "subscription_plans" > [] > ([]);
@@ -78,6 +85,11 @@ export default function AdminPage() {
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
     const [searchQuery, setSearchQuery] = useState("");
+    const [controlCenterData, setControlCenterData] = useState < ControlCenterData | null > (null);
+    const [revenueOpsData, setRevenueOpsData] = useState < RevenueOpsData | null > (null);
+    const [notificationsData, setNotificationsData] = useState < NotificationsData | null > (null);
+    const [messagingData, setMessagingData] = useState < MessagingData | null > (null);
+    const [leadsData, setLeadsData] = useState < LeadsData | null > (null);
 
     // Role management state
     const [createRoleOpen, setCreateRoleOpen] = useState(false);
@@ -132,42 +144,29 @@ export default function AdminPage() {
                         recentSignups: demoCompanies,
                         recentChanges: []
                     } as DashboardStats);
-                } else if (activeTab === "control") {
-                    setControlCenterData({
-                        alerts: [
-                            {
-                                id: "demo-trial",
-                                alert_type: "trial_ending",
-                                severity: "high",
-                                title: "Trial ending soon",
-                                message: `${demoCompanies[0]?.name || "Demo Company"} trial ends in 3 days`,
-                                action_url: "/admin?tab=revenue",
-                                action_label: "Open revenue ops",
-                            },
-                        ],
-                        summary: {
-                            totalAlerts: 1,
-                            highPriorityAlerts: 1,
-                            trialsEndingSoon: 1,
-                            inactiveCompanies: 0,
-                        },
-                    });
-                } else if (activeTab === "revenue") {
-                    setRevenueOpsData({
-                        summary: {
-                            activeSubscriptions: demoCompanies.length,
-                            trialsEndingSoon: 1,
-                            pastDueSubscriptions: 0,
-                            renewalsNext14Days: 2,
-                        },
-                        stripeHealth: {
-                            secretKeyConfigured: false,
-                            webhookSecretConfigured: false,
-                            tablesReady: false,
-                        },
-                    });
                 } else if (activeTab === "companies") {
                     setCompanies(demoCompanies);
+                } else if (activeTab === "control") {
+                    setControlCenterData({
+                        summary: { totalAlerts: 3, trialsEndingSoon: 1, inactiveCompanies: 1, onboardingIncomplete: 1 }, alerts: [
+                            { id: "demo-1", alertType: "trial_ending_soon", severity: "high", title: "Trial ending soon", message: "Demo Auto Workshop trial ends in 2 days.", createdAt: new Date().toISOString(), companyName: "Demo Auto Workshop" },
+                            { id: "demo-2", alertType: "inactive_company", severity: "medium", title: "Inactive company", message: "Fleet Services Ltd has no login in 7 days.", createdAt: new Date().toISOString(), companyName: "Fleet Services Ltd" },
+                            { id: "demo-3", alertType: "onboarding_incomplete", severity: "low", title: "Onboarding incomplete", message: "One company still needs setup review.", createdAt: new Date().toISOString(), companyName: "Demo Auto Workshop" },
+                        ]
+                    });
+                } else if (activeTab === "revenue") {
+                    setRevenueOpsData({ summary: { active: 2, trialing: 1, pastDue: 0, renewingSoon: 1 }, subscriptions: [] });
+                } else if (activeTab === "notifications") {
+                    setNotificationsData({ health: { smtpConfigured: false, senderConfigured: false }, summary: { templateCount: 4, sentLast7Days: 0, failedLast7Days: 0 }, templates: [], logs: [] });
+                } else if (activeTab === "messaging") {
+                    setMessagingData({ health: { twilioConfigured: false, messagingServiceConfigured: false }, summary: { numberCount: 0, messagesLast7Days: 0, inboundLast7Days: 0 }, numbers: [], messages: [] });
+                } else if (activeTab === "leads") {
+                    setLeadsData({
+                        summary: { newLeads: 2, qualifiedLeads: 0, convertedLeads: 0, unassignedLeads: 2 }, leads: [
+                            { id: "lead-1", name: "Demo Lead", email: "demo@example.com", companyName: "Demo Company", source: "website", status: "new", message: "Interested in a demo" },
+                            { id: "lead-2", name: "Fleet Manager", email: "fleet@example.com", companyName: "Fleet Co", source: "pricing_page", status: "new", message: "Need workshop software" },
+                        ]
+                    });
                 }
 
                 setLoading(false);
@@ -186,6 +185,15 @@ export default function AdminPage() {
             } else if (activeTab === "revenue") {
                 const data = await getRevenueOpsData();
                 setRevenueOpsData(data);
+            } else if (activeTab === "notifications") {
+                const data = await getNotificationsData();
+                setNotificationsData(data);
+            } else if (activeTab === "messaging") {
+                const data = await getMessagingData();
+                setMessagingData(data);
+            } else if (activeTab === "leads") {
+                const data = await getLeadsData();
+                setLeadsData(data);
             } else if (activeTab === "companies") {
                 const companiesData = await getAllCompanies();
                 setCompanies(companiesData || []);
@@ -438,12 +446,15 @@ export default function AdminPage() {
                     )}
 
                     <Tabs value={activeTab} onValueChange={handleTabChange}>
-                        <TabsList className="grid w-full grid-cols-4 lg:grid-cols-9 lg:w-auto">
+                        <TabsList className="grid w-full grid-cols-3 lg:grid-cols-12 lg:w-auto">
                             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-                            <TabsTrigger value="control">Control Center</TabsTrigger>
-                            <TabsTrigger value="revenue">Revenue Ops</TabsTrigger>
+                            <TabsTrigger value="control">Control</TabsTrigger>
+                            <TabsTrigger value="revenue">Revenue</TabsTrigger>
                             <TabsTrigger value="companies">Companies</TabsTrigger>
                             <TabsTrigger value="users">Users</TabsTrigger>
+                            <TabsTrigger value="notifications">Notifications</TabsTrigger>
+                            <TabsTrigger value="messaging">Messaging</TabsTrigger>
+                            <TabsTrigger value="leads">Leads</TabsTrigger>
                             <TabsTrigger value="plans">Plans</TabsTrigger>
                             <TabsTrigger value="addons">Add-ons</TabsTrigger>
                             <TabsTrigger value="roles">Roles</TabsTrigger>
@@ -580,35 +591,24 @@ export default function AdminPage() {
                             )}
                         </TabsContent>
 
-
                         <TabsContent value="control" className="space-y-6">
-                            {loading ? (
-                                <div className="text-center py-12">
-                                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-                                    <p className="text-muted-foreground">Loading control center...</p>
-                                </div>
-                            ) : controlCenterData ? (
-                                <ControlCenterPanel data={controlCenterData} />
-                            ) : (
-                                <Card>
-                                    <CardContent className="p-8 text-center text-muted-foreground">No control center data available.</CardContent>
-                                </Card>
-                            )}
+                            {loading ? <div className="text-center py-12 text-muted-foreground">Loading control center...</div> : <ControlCenterPanel data={controlCenterData} onRefresh={loadData} />}
                         </TabsContent>
 
                         <TabsContent value="revenue" className="space-y-6">
-                            {loading ? (
-                                <div className="text-center py-12">
-                                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-                                    <p className="text-muted-foreground">Loading revenue ops...</p>
-                                </div>
-                            ) : revenueOpsData ? (
-                                <RevenueOpsPanel data={revenueOpsData} />
-                            ) : (
-                                <Card>
-                                    <CardContent className="p-8 text-center text-muted-foreground">No revenue data available.</CardContent>
-                                </Card>
-                            )}
+                            {loading ? <div className="text-center py-12 text-muted-foreground">Loading revenue ops...</div> : <RevenueOpsPanel data={revenueOpsData} />}
+                        </TabsContent>
+
+                        <TabsContent value="notifications" className="space-y-6">
+                            {loading ? <div className="text-center py-12 text-muted-foreground">Loading notifications...</div> : <NotificationsPanel data={notificationsData} />}
+                        </TabsContent>
+
+                        <TabsContent value="messaging" className="space-y-6">
+                            {loading ? <div className="text-center py-12 text-muted-foreground">Loading messaging...</div> : <MessagingPanel data={messagingData} />}
+                        </TabsContent>
+
+                        <TabsContent value="leads" className="space-y-6">
+                            {loading ? <div className="text-center py-12 text-muted-foreground">Loading leads...</div> : <LeadsPanel data={leadsData} />}
                         </TabsContent>
 
                         {/* Companies Tab */}
