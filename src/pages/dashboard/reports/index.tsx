@@ -1,76 +1,28 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { companyService } from "@/services/companyService";
-
-export default function Reports() {
-  const [companyId, setCompanyId] = useState<string>("");
-
-  useEffect(() => {
-    companyService.getCurrentCompany().then(c => {
-      if (c) setCompanyId(c.id);
-    });
-  }, []);
-
-  const reportData = [
-    { year: "2026", jan: "$0.00", feb: "$0.00", mar: "$0.00", apr: "$0.00", may: "$0.00", jun: "$0.00", jul: "$0.00", aug: "$0.00", sep: "$0.00", oct: "$0.00", nov: "$0.00", dec: "$0.00" },
-    { year: "2025", jan: "$0.00", feb: "$0.00", mar: "$0.00", apr: "$0.00", may: "$0.00", jun: "$0.00", jul: "$0.00", aug: "$0.00", sep: "$0.00", oct: "$0.00", nov: "$0.00", dec: "$0.00" }
-  ];
-
-  return (
-    <AppLayout companyId={companyId}>
-      <div className="p-6 space-y-6">
-        <h1 className="font-heading text-3xl font-bold">Reports</h1>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Revenue Report</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>YEAR</TableHead>
-                    <TableHead>JAN</TableHead>
-                    <TableHead>FEB</TableHead>
-                    <TableHead>MAR</TableHead>
-                    <TableHead>APR</TableHead>
-                    <TableHead>MAY</TableHead>
-                    <TableHead>JUN</TableHead>
-                    <TableHead>JUL</TableHead>
-                    <TableHead>AUG</TableHead>
-                    <TableHead>SEP</TableHead>
-                    <TableHead>OCT</TableHead>
-                    <TableHead>NOV</TableHead>
-                    <TableHead>DEC</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {reportData.map((row, idx) => (
-                    <TableRow key={idx}>
-                      <TableCell className="font-medium">{row.year}</TableCell>
-                      <TableCell>{row.jan}</TableCell>
-                      <TableCell>{row.feb}</TableCell>
-                      <TableCell>{row.mar}</TableCell>
-                      <TableCell>{row.apr}</TableCell>
-                      <TableCell>{row.may}</TableCell>
-                      <TableCell>{row.jun}</TableCell>
-                      <TableCell>{row.jul}</TableCell>
-                      <TableCell>{row.aug}</TableCell>
-                      <TableCell>{row.sep}</TableCell>
-                      <TableCell>{row.oct}</TableCell>
-                      <TableCell>{row.nov}</TableCell>
-                      <TableCell>{row.dec}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </AppLayout>
-  );
+import { supabase } from "@/integrations/supabase/client";
+import { Download, Printer } from "lucide-react";
+const REPORT_GROUPS = [
+    { title: "Payment Reports", items: ["Daily Sales and Cash Report", "Received Payments"] },
+    { title: "Income Reports", items: ["Income by Job Type", "Paid/Unpaid", "by Customer", "by Vehicle", "Invoice Report", "Sales Report", "Customer Statements", "Discount Report"] },
+    { title: "Expense Reports", items: ["Bills", "Purchases", "Purchase Orders", "Suppliers", "Supplier Spending"] },
+    { title: "Work Reports", items: ["Job Report", "Review Report", "Work in Progress Jobs/Invoices", "Workshop Efficiency", "Quote Conversion", "Quote Report"] },
+    { title: "Employee Reports", items: ["Commission", "Productivity", "Efficiency"] },
+    { title: "Marketing Reports", items: ["Lead Report"] },
+    { title: "Inventory Reports", items: ["Buying", "Stock Value", "Stock Manual Adjustment"] },
+    { title: "Miscellaneous Reports", items: ["Checksheets"] },
+];
+export default function ReportsPage() {
+    const [companyId, setCompanyId] = useState(""); const [fromDate, setFromDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10)); const [toDate, setToDate] = useState(new Date().toISOString().slice(0, 10)); const [payments, setPayments] = useState < any[] > ([]);
+    useEffect(() => { void (async () => { const company = await companyService.getCurrentCompany(); if (!company) return; setCompanyId(company.id); })(); }, []);
+    useEffect(() => { if (!companyId) return; void (async () => { const { data } = await supabase.from("payments").select("*").eq("company_id", companyId).gte("payment_date", fromDate).lte("payment_date", toDate).order("payment_date", { ascending: true }); setPayments(data || []); })(); }, [companyId, fromDate, toDate]);
+    const methodSummary = useMemo(() => { const methods = ["Cash", "EFTPOS", "Credit Card", "Bank Transfer", "ZIP", "Chargeback", "Not Specified"]; const totals: Record<string, number> = Object.fromEntries(methods.map((method) => [method, 0])); payments.forEach((payment) => { const key = methods.find((method) => method.toLowerCase() === String(payment.payment_method || "").toLowerCase()) || "Not Specified"; totals[key] += Number(payment.amount || 0); }); return totals; }, [payments]);
+    const dailyRows = useMemo(() => { const grouped = new Map < string, any> (); payments.forEach((payment) => { const date = payment.payment_date; const row = grouped.get(date) || { date, Cash: 0, EFTPOS: 0, "Credit Card": 0, "Bank Transfer": 0, ZIP: 0, Chargeback: 0, "Not Specified": 0, total: 0 }; const key = ["Cash", "EFTPOS", "Credit Card", "Bank Transfer", "ZIP", "Chargeback"].find((method) => method.toLowerCase() === String(payment.payment_method || "").toLowerCase()) || "Not Specified"; row[key] += Number(payment.amount || 0); row.total += Number(payment.amount || 0); grouped.set(date, row); }); return Array.from(grouped.values()); }, [payments]);
+    const totalReceived = payments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0); const chartTotal = totalReceived || 1;
+    return <AppLayout companyId={companyId}><div className="space-y-6"><div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><h1 className="text-3xl font-bold text-slate-900">Reports</h1><p className="mt-1 text-sm text-slate-500">Payment, income, expense, work, employee, marketing and inventory reports from one dashboard workspace.</p></div><div className="grid gap-6 xl:grid-cols-[320px_1fr]"><Card className="rounded-3xl border-slate-200 shadow-sm"><CardHeader><CardTitle>Report Library</CardTitle></CardHeader><CardContent className="space-y-5">{REPORT_GROUPS.map((group) => <div key={group.title}><p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{group.title}</p><div className="space-y-1.5">{group.items.map((item) => <div key={item} className={`rounded-2xl px-3 py-2 text-sm ${item === "Received Payments" ? "bg-slate-900 text-white" : "bg-slate-50 text-slate-600"}`}>{item}</div>)}</div></div>)}</CardContent></Card><div className="space-y-6"><Card className="rounded-3xl border-slate-200 shadow-sm"><CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between"><div><CardTitle>Received Payments</CardTitle><p className="text-sm text-slate-500">Breakdown by payment method for the selected date range.</p></div><div className="flex flex-wrap gap-3"><Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-[160px]" /><Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-[160px]" /><Button className="rounded-2xl">Show Report</Button><Button variant="outline" className="rounded-2xl"><Printer className="mr-2 h-4 w-4" />Print</Button><Button variant="outline" className="rounded-2xl"><Download className="mr-2 h-4 w-4" />Download</Button></div></CardHeader><CardContent className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]"><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{Object.entries(methodSummary).map(([method, total]) => <div key={method} className="rounded-2xl border border-slate-200 p-4"><p className="text-sm text-slate-500">{method}</p><p className="mt-2 text-2xl font-bold text-slate-900">${(total as number).toFixed(2)}</p></div>)}</div><div className="rounded-3xl border border-slate-200 p-5"><p className="mb-4 text-sm font-medium text-slate-700">Payment method share</p><div className="space-y-4">{Object.entries(methodSummary).map(([method, total]) => <div key={method}><div className="mb-1 flex items-center justify-between text-sm text-slate-600"><span>{method}</span><span>{(((total as number) / chartTotal) * 100).toFixed(0)}%</span></div><div className="h-3 rounded-full bg-slate-100"><div className="h-3 rounded-full bg-slate-900" style={{ width: `${(((total as number) / chartTotal) * 100)}%` }} /></div></div>)}</div></div></CardContent></Card><Card className="rounded-3xl border-slate-200 shadow-sm"><CardHeader><CardTitle>Daily breakdown</CardTitle></CardHeader><CardContent><Table><TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Cash</TableHead><TableHead>EFTPOS</TableHead><TableHead>Credit Card</TableHead><TableHead>Bank Transfer</TableHead><TableHead>ZIP</TableHead><TableHead>Chargeback</TableHead><TableHead>Not Specified</TableHead><TableHead>Total</TableHead></TableRow></TableHeader><TableBody>{dailyRows.length === 0 ? <TableRow><TableCell colSpan={9} className="py-10 text-center text-slate-500">No payments found for this date range.</TableCell></TableRow> : dailyRows.map((row) => <TableRow key={row.date}><TableCell>{new Date(row.date).toLocaleDateString()}</TableCell><TableCell>${row.Cash.toFixed(2)}</TableCell><TableCell>${row.EFTPOS.toFixed(2)}</TableCell><TableCell>${row["Credit Card"].toFixed(2)}</TableCell><TableCell>${row["Bank Transfer"].toFixed(2)}</TableCell><TableCell>${row.ZIP.toFixed(2)}</TableCell><TableCell>${row.Chargeback.toFixed(2)}</TableCell><TableCell>${row["Not Specified"].toFixed(2)}</TableCell><TableCell className="font-semibold">${row.total.toFixed(2)}</TableCell></TableRow>)}<TableRow className="bg-slate-50 font-semibold"><TableCell>Total</TableCell><TableCell>${methodSummary.Cash.toFixed(2)}</TableCell><TableCell>${methodSummary.EFTPOS.toFixed(2)}</TableCell><TableCell>${methodSummary["Credit Card"].toFixed(2)}</TableCell><TableCell>${methodSummary["Bank Transfer"].toFixed(2)}</TableCell><TableCell>${methodSummary.ZIP.toFixed(2)}</TableCell><TableCell>${methodSummary.Chargeback.toFixed(2)}</TableCell><TableCell>${methodSummary["Not Specified"].toFixed(2)}</TableCell><TableCell>${totalReceived.toFixed(2)}</TableCell></TableRow></TableBody></Table></CardContent></Card></div></div></div></AppLayout>;
 }
