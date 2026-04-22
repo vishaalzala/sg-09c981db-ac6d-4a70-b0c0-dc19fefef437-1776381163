@@ -1,158 +1,89 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { Tables } from "@/integrations/supabase/types";
+import { invoiceService } from "@/services/invoiceService";
 
-type Job = Tables<"jobs">;
-type JobInsert = Omit<Job, "id" | "created_at" | "updated_at">;
-type JobLineItem = Tables<"job_line_items">;
+export interface CreateInvoiceFromJobOptions {
+    companyId: string;
+    job: any;
+    lineItems: any[];
+}
 
 export const jobService = {
-  async getJobs(companyId: string, branchId?: string, status?: string) {
-    let query = supabase
-      .from("jobs")
-      .select(`
-        *,
-        customer:customers!jobs_customer_id_fkey(id, name, mobile, email),
-        vehicle:vehicles!jobs_vehicle_id_fkey(id, registration_number, make, model, year),
-        assigned_mechanics:users!jobs_assigned_mechanic_ids_fkey(id, full_name)
-      `)
-      .eq("company_id", companyId)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false });
+    async generateJobNumber(companyId: string): Promise<string> {
+        const { data, error } = await supabase
+            .from("jobs")
+            .select("job_number")
+            .eq("company_id", companyId)
+            .not("job_number", "is", null)
+            .order("created_at", { ascending: false })
+            .limit(1);
 
-    if (branchId) {
-      query = query.eq("branch_id", branchId);
-    }
+        if (error) {
+            console.error("Error generating job number:", error);
+            return `JOB-${Date.now()}`;
+        }
 
-    if (status) {
-      query = query.eq("status", status);
-    }
+        const last = data?.[0]?.job_number;
+        if (!last) return "JOB-10001";
+        const match = String(last).match(/(\d+)$/);
+        if (!match) return `JOB-${Date.now()}`;
+        return `JOB-${parseInt(match[1], 10) + 1}`;
+    },
 
-    const { data, error } = await query;
-    if (error) throw error;
-    return data || [];
-  },
+    async createInvoiceFromJob({ companyId, job, lineItems }: CreateInvoiceFromJobOptions) {
+        const invoiceNumber = await invoiceService.generateInvoiceNumber(companyId);
+        const invoiceDate = new Date().toISOString().split("T")[0];
+        const dueDate = invoiceDate;
 
-  async getJob(id: string) {
-    const { data, error } = await supabase
-      .from("jobs")
-      .select(`
-        *,
-        customer:customers!jobs_customer_id_fkey(*),
-        vehicle:vehicles!jobs_vehicle_id_fkey(*),
-        line_items:job_line_items(*),
-        attachments:job_attachments(*),
-        status_history:job_status_history(*)
-      `)
-      .eq("id", id)
-      .single();
+        const subtotal = lineItems.reduce((sum, item) => sum + (Number(item.line_total) || 0), 0);
+        const taxAmount = subtotal * 0.15;
+        const totalAmount = subtotal + taxAmount;
 
-    if (error) throw error;
-    return data;
-  },
+        const { data: invoice, error: invoiceError } = await supabase
+            .from("invoices")
+            .insert({
+                company_id: companyId,
+                customer_id: job.customer_id,
+                vehicle_id: job.vehicle_id,
+                job_id: job.id,
+                invoice_number: invoiceNumber,
+                invoice_date: invoiceDate,
+                due_date: dueDate,
+                status: "unpaid",
+                bill_to_third_party: job.third_party_name || null,
+                invoice_to_third_party: job.invoice_to_third_party || false,
+                payment_term: "COD",
+                order_number: job.order_number || null,
+                odometer: job.odometer || null,
+                notes: job.description || job.job_title,
+                subtotal,
+                tax_amount: taxAmount,
+                total_amount: totalAmount,
+                balance: totalAmount,
+            } as any)
+            .select()
+            .single();
 
-  async createJob(job: JobInsert) {
-    const { data, error } = await supabase
-      .from("jobs")
-      .insert(job)
-      .select()
-      .single();
+        if (invoiceError) throw invoiceError;
 
-    if (error) throw error;
+        if (lineItems.length > 0) {
+            const invoiceItems = lineItems.map((item, index) => ({
+                invoice_id: invoice.id,
+                description: item.description,
+                quantity: item.quantity || 1,
+                unit_price: item.unit_price || 0,
+                line_total: item.line_total || 0,
+                line_type: item.line_type || item.item_type || "item",
+                sort_order: item.sort_order ?? index,
+                notes: item.notes || null,
+            }));
 
-    // Create initial status history entry
-    if (data) {
-      await supabase.from("job_status_history").insert({
-        job_id: data.id,
-        to_status: data.status,
-        changed_by: job.created_by,
-        notes: "Job created",
-      });
-    }
+            const { error: itemsError } = await supabase
+                .from("invoice_line_items")
+                .insert(invoiceItems as any);
 
-    return data;
-  },
+            if (itemsError) throw itemsError;
+        }
 
-  async updateJob(id: string, updates: Partial<Job>) {
-    const { data, error } = await supabase
-      .from("jobs")
-      .update(updates)
-      .eq("id", id)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
-  },
-
-  async updateJobStatus(id: string, status: string, userId: string, notes?: string) {
-    // Get current status first
-    const { data: currentJob } = await supabase
-      .from("jobs")
-      .select("status")
-      .eq("id", id)
-      .single();
-
-    const from_status = currentJob?.status;
-
-    const { data, error } = await supabase
-      .from("jobs")
-      .update({ status, updated_at: new Date().toISOString() })
-      .eq("id", id)
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    // Add status history
-    await supabase.from("job_status_history").insert({
-      job_id: id,
-      from_status,
-      to_status: status,
-      changed_by: userId,
-      notes: notes || `Status changed to ${status}`,
-    });
-
-    return data;
-  },
-
-  async addLineItem(lineItem: any) {
-    const { data, error } = await supabase
-      .from("job_line_items")
-      .insert(lineItem)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
-  },
-
-  async updateLineItem(id: string, updates: Partial<JobLineItem>) {
-    const { data, error } = await supabase
-      .from("job_line_items")
-      .update(updates)
-      .eq("id", id)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
-  },
-
-  async deleteLineItem(id: string) {
-    const { error } = await supabase
-      .from("job_line_items")
-      .delete()
-      .eq("id", id);
-
-    if (error) throw error;
-  },
-
-  async deleteJob(id: string) {
-    const { error } = await supabase
-      .from("jobs")
-      .update({ deleted_at: new Date().toISOString() })
-      .eq("id", id);
-
-    if (error) throw error;
-  },
+        return invoice;
+    },
 };
