@@ -280,7 +280,7 @@ export function DocumentBuilder({ type, companyId, onComplete }: DocumentBuilder
                     .limit(20);
 
                 if (q) {
-                    query = query.ilike("name", `%${q}%`);
+                    query = query.or(`description.ilike.%${q}%,part_number.ilike.%${q}%`);
                 }
 
                 const { data, error } = await query;
@@ -582,11 +582,11 @@ export function DocumentBuilder({ type, companyId, onComplete }: DocumentBuilder
     const handleAddInventoryItem = (item: any) => {
         const newItem: LineItem = {
             id: Date.now().toString(),
-            description: item.name || "",
+            description: item.description || item.name || "",
             quantity: 1,
-            rate: item.unit_price || 0,
+            rate: item.sell_price || item.unit_price || 0,
             discount: 0,
-            total: item.unit_price || 0,
+            total: item.sell_price || item.unit_price || 0,
             type: "item",
             sort_order: lineItems.length,
         };
@@ -607,9 +607,9 @@ export function DocumentBuilder({ type, companyId, onComplete }: DocumentBuilder
                 .from("inventory_items")
                 .insert({
                     company_id: companyId,
-                    name: newStockName,
-                    unit_price: rate,
-                    quantity_in_stock: 0,
+                    description: newStockName,
+                    sell_price: rate,
+                    quantity_on_hand: 0,
                 } as any)
                 .select()
                 .single();
@@ -635,13 +635,13 @@ export function DocumentBuilder({ type, companyId, onComplete }: DocumentBuilder
                 setInventoryLoading(true);
                 let query = supabase
                     .from("inventory_items")
-                    .select("id,name,description,unit_price,quantity_in_stock")
+                    .select("id,description,sell_price,quantity_on_hand,part_number")
                     .eq("company_id", companyId)
                     .order("name", { ascending: true })
                     .limit(30);
 
                 if (q) {
-                    query = query.ilike("name", `%${q}%`);
+                    query = query.or(`description.ilike.%${q}%,part_number.ilike.%${q}%`);
                 }
 
                 const { data, error } = await query;
