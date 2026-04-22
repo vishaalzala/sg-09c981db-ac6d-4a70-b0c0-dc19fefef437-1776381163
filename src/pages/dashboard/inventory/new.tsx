@@ -1,103 +1,37 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import { AppLayout } from "@/components/AppLayout";
-import { DocumentBuilder } from "@/components/DocumentBuilder";
-import { supabase } from "@/integrations/supabase/client";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-
-export default function NewInvoice() {
-    const router = useRouter();
-    const [companyId, setCompanyId] = useState < string > ("");
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState < string | null > (null);
-
-    useEffect(() => {
-        loadCompany();
-    }, []);
-
-    const loadCompany = async () => {
-        try {
-            const {
-                data: { user },
-                error: authError,
-            } = await supabase.auth.getUser();
-
-            if (authError) {
-                console.error("Auth error:", authError);
-                setError("Authentication error. Please log in again.");
-                setLoading(false);
-                return;
-            }
-
-            if (!user) {
-                router.push("/login");
-                return;
-            }
-
-            const { data: userData, error: userError } = await supabase
-                .from("users")
-                .select("company_id")
-                .eq("id", user.id)
-                .single();
-
-            if (userError) {
-                console.error("Error loading user data:", userError);
-                setError("Failed to load user data. Please contact support.");
-                setLoading(false);
-                return;
-            }
-
-            if (!userData?.company_id) {
-                setError("No company context found. Please contact support.");
-                setLoading(false);
-                return;
-            }
-
-            setCompanyId(userData.company_id);
-            setLoading(false);
-        } catch (err) {
-            console.error("Error loading company:", err);
-            setError("An unexpected error occurred. Please try again.");
-            setLoading(false);
-        }
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { supabase } from "@/integrations/supabase/client";
+import { companyService } from "@/services/companyService";
+import { useToast } from "@/hooks/use-toast";
+import { Plus, Search, Wand2 } from "lucide-react";
+const DEFAULT_GST_RATE = 15;
+const DEFAULT_CATEGORIES = ["Tyres", "Parts", "Oils", "Service", "Accessories", "Consumables"];
+const money = (value: string | number) => { const n = typeof value === "number" ? value : parseFloat(value || "0"); return Number.isFinite(n) ? n.toFixed(2) : "0.00"; };
+export default function NewInventoryItem() {
+    const router = useRouter(); const { toast } = useToast(); const [companyId, setCompanyId] = useState(""); const [saving, setSaving] = useState(false); const [suppliers, setSuppliers] = useState < any[] > ([]); const [categoryOptions, setCategoryOptions] = useState(DEFAULT_CATEGORIES); const [showCategoryDialog, setShowCategoryDialog] = useState(false); const [showSupplierDialog, setShowSupplierDialog] = useState(false); const [newCategory, setNewCategory] = useState(""); const [quickSupplierName, setQuickSupplierName] = useState("");
+    const [formData, setFormData] = useState({ stock_number: "", name: "", is_kit: false, category: "", location: "", bin: "", barcode: "", quantity: "0", nonstock_item: false, unit_of_measure: "Each", gst_free: false, alert_quantity: "0", reorder_point: "0", max_quantity: "0", supplier_id: "none", supplier_stock_no: "", supplier_sku: "", brand: "", model: "", size: "", weight: "", specification_note: "", buy_price_excl_gst: "0.00", buy_price_incl_gst: "0.00", custom_duty: "0.00", sell_price: "0.00", sell_price_incl_gst: "0.00", price_level_2: "0.00", price_level_2_incl_gst: "0.00", price_level_3: "0.00", price_level_3_incl_gst: "0.00", price_level_4: "0.00", price_level_4_incl_gst: "0.00", hide_quantity_on_invoice: false, non_discount: false, default_invoice_qty: "1", default_purchasing_qty: "1", invoice_description: "", purchase_account: "none", sale_account: "none" });
+    useEffect(() => { void (async () => { const company = await companyService.getCurrentCompany(); if (!company) return; setCompanyId(company.id); const { data } = await supabase.from("suppliers").select("id, name").eq("company_id", company.id).is("deleted_at", null).order("name"); setSuppliers(data || []); })(); }, []);
+    const gstRate = formData.gst_free ? 0 : DEFAULT_GST_RATE / 100;
+    const setField = (key: string, value: string | boolean) => setFormData((prev) => ({ ...prev, [key]: value }));
+    const syncFromExcl = (fieldExcl: string, fieldIncl: string, value: string) => { const excl = parseFloat(value || "0"); setFormData((prev) => ({ ...prev, [fieldExcl]: money(value), [fieldIncl]: money(excl * (1 + gstRate)) })); };
+    const syncFromIncl = (fieldExcl: string, fieldIncl: string, value: string) => { const incl = parseFloat(value || "0"); const excl = gstRate > 0 ? incl / (1 + gstRate) : incl; setFormData((prev) => ({ ...prev, [fieldExcl]: money(excl), [fieldIncl]: money(value) })); };
+    const generateBarcode = () => setField("barcode", `${Date.now()}`.slice(-12));
+    const addCategory = () => { const value = newCategory.trim(); if (!value) return; setCategoryOptions((prev) => (prev.includes(value) ? prev : [...prev, value])); setField("category", value); setNewCategory(""); setShowCategoryDialog(false); };
+    const addQuickSupplier = async () => { if (!companyId || !quickSupplierName.trim()) return; const { data, error } = await supabase.from("suppliers").insert({ company_id: companyId, name: quickSupplierName.trim(), is_active: true } as any).select("id, name").single(); if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; } setSuppliers((prev) => [...prev, data]); setField("supplier_id", data.id); setQuickSupplierName(""); setShowSupplierDialog(false); };
+    const inventoryDescription = useMemo(() => { const specParts = [formData.brand, formData.model, formData.size].filter(Boolean).join(" • "); return [formData.name, specParts].filter(Boolean).join(" — "); }, [formData.name, formData.brand, formData.model, formData.size]);
+    const handleSave = async () => {
+        if (!companyId) return; if (!formData.name.trim()) { toast({ title: "Name required", description: "Please enter stock name.", variant: "destructive" }); return; } setSaving(true); const payload: any = { company_id: companyId, description: inventoryDescription || formData.name.trim(), part_number: formData.stock_number || null, category: formData.category || null, location: [formData.location, formData.bin].filter(Boolean).join(" / ") || null, quantity_on_hand: Number(formData.quantity || 0), quantity_allocated: 0, reorder_level: Number(formData.reorder_point || 0), supplier_id: formData.supplier_id === "none" ? null : formData.supplier_id, supplier_name: suppliers.find((supplier) => supplier.id === formData.supplier_id)?.name || null, cost_price: Number(formData.buy_price_excl_gst || 0), sell_price: Number(formData.sell_price || 0), tax_rate: formData.gst_free ? 0 : DEFAULT_GST_RATE, notes: JSON.stringify({ stock_number: formData.stock_number, is_kit: formData.is_kit, bin: formData.bin, barcode: formData.barcode, nonstock_item: formData.nonstock_item, unit_of_measure: formData.unit_of_measure, alert_quantity: Number(formData.alert_quantity || 0), max_quantity: Number(formData.max_quantity || 0), supplier_stock_no: formData.supplier_stock_no, supplier_sku: formData.supplier_sku, brand: formData.brand, model: formData.model, size: formData.size, weight: formData.weight, specification_note: formData.specification_note, buy_price_incl_gst: Number(formData.buy_price_incl_gst || 0), custom_duty: Number(formData.custom_duty || 0), sell_price_incl_gst: Number(formData.sell_price_incl_gst || 0), price_levels: { level_2: Number(formData.price_level_2 || 0), level_2_incl_gst: Number(formData.price_level_2_incl_gst || 0), level_3: Number(formData.price_level_3 || 0), level_3_incl_gst: Number(formData.price_level_3_incl_gst || 0), level_4: Number(formData.price_level_4 || 0), level_4_incl_gst: Number(formData.price_level_4_incl_gst || 0) }, hide_quantity_on_invoice: formData.hide_quantity_on_invoice, non_discount: formData.non_discount, default_invoice_qty: Number(formData.default_invoice_qty || 1), default_purchasing_qty: Number(formData.default_purchasing_qty || 1), invoice_description: formData.invoice_description, purchase_account: formData.purchase_account, sale_account: formData.sale_account }), is_active: true };
+        const { error } = await supabase.from("inventory_items").insert(payload); setSaving(false); if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; } toast({ title: "Success", description: "Stock item created successfully." }); router.push("/dashboard/inventory");
     };
-
-    const handleComplete = () => {
-        router.push("/dashboard/invoices");
-    };
-
-    return (
-        <AppLayout companyId={companyId}>
-            <div className="p-6">
-                {loading ? (
-                    <div className="flex min-h-[400px] items-center justify-center">
-                        <div className="text-center">
-                            <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-primary"></div>
-                            <p className="text-muted-foreground">Loading new invoice...</p>
-                        </div>
-                    </div>
-                ) : error || !companyId ? (
-                    <div className="flex min-h-[400px] items-center justify-center">
-                        <Card className="w-full max-w-md">
-                            <CardContent className="pt-6 text-center">
-                                <p className="mb-4 text-destructive">
-                                    {error || "No company found. Please set up your company first."}
-                                </p>
-                                <Button onClick={() => router.push("/dashboard/invoices")}>
-                                    Back to Invoices
-                                </Button>
-                            </CardContent>
-                        </Card>
-                    </div>
-                ) : (
-                    <DocumentBuilder
-                        type="invoice"
-                        companyId={companyId}
-                        onComplete={handleComplete}
-                    />
-                )}
-            </div>
-        </AppLayout>
-    );
+    const FormField = ({ label, children }: any) => <div className="space-y-2"><Label className="text-sm font-medium text-slate-700">{label}</Label>{children}</div>;
+    return <AppLayout companyId={companyId}><div className="mx-auto max-w-7xl space-y-6"><div className="flex flex-col gap-3 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm md:flex-row md:items-center md:justify-between"><div><h1 className="text-3xl font-bold text-slate-900">New Stock</h1><p className="mt-1 text-sm text-slate-500">Create one complete stock record with supplier, pricing, accounting and invoice defaults.</p></div><div className="flex gap-3"><Button variant="outline" onClick={() => router.back()} className="rounded-2xl">Cancel</Button><Button onClick={handleSave} disabled={saving} className="rounded-2xl">{saving ? "Saving..." : "Save"}</Button></div></div><div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]"><div className="space-y-6"><Card className="rounded-3xl border-slate-200 shadow-sm"><CardHeader><CardTitle>Stock</CardTitle></CardHeader><CardContent className="grid gap-4 md:grid-cols-2"><FormField label="Stock Number"><Input value={formData.stock_number} onChange={(e) => setField("stock_number", e.target.value)} /></FormField><FormField label="Name"><Input value={formData.name} onChange={(e) => setField("name", e.target.value)} /></FormField><FormField label="Category"><div className="flex gap-2"><Select value={formData.category} onValueChange={(value) => setField("category", value)}><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger><SelectContent>{categoryOptions.map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}</SelectContent></Select><Button type="button" variant="outline" size="icon" onClick={() => setShowCategoryDialog(true)}><Plus className="h-4 w-4" /></Button></div></FormField><FormField label="Location"><div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><Input className="pl-9" value={formData.location} onChange={(e) => setField("location", e.target.value)} /></div></FormField><FormField label="Bin"><Input value={formData.bin} onChange={(e) => setField("bin", e.target.value)} /></FormField><FormField label="Barcode"><div className="flex gap-2"><Input value={formData.barcode} onChange={(e) => setField("barcode", e.target.value)} /><Button type="button" variant="outline" onClick={generateBarcode}><Wand2 className="mr-2 h-4 w-4" />Generate</Button></div></FormField><FormField label="Quantity"><Input type="number" min="0" value={formData.quantity} onChange={(e) => setField("quantity", e.target.value)} disabled={formData.nonstock_item} /></FormField><FormField label="Unit Of Measure"><Input value={formData.unit_of_measure} onChange={(e) => setField("unit_of_measure", e.target.value)} /></FormField><div className="flex flex-wrap gap-6 md:col-span-2"><label className="flex items-center gap-2 text-sm text-slate-700"><Checkbox checked={formData.is_kit} onCheckedChange={(v) => setField("is_kit", !!v)} />Is Kit?</label><label className="flex items-center gap-2 text-sm text-slate-700"><Checkbox checked={formData.nonstock_item} onCheckedChange={(v) => setField("nonstock_item", !!v)} />Nonstock item</label><label className="flex items-center gap-2 text-sm text-slate-700"><Checkbox checked={formData.gst_free} onCheckedChange={(v) => setField("gst_free", !!v)} />GST Free?</label></div></CardContent></Card><Card className="rounded-3xl border-slate-200 shadow-sm"><CardHeader><CardTitle>Prices</CardTitle></CardHeader><CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><FormField label="Buy Price Excl. GST"><Input type="number" step="0.01" value={formData.buy_price_excl_gst} onChange={(e) => syncFromExcl("buy_price_excl_gst", "buy_price_incl_gst", e.target.value)} /></FormField><FormField label="Buy Price Incl. GST"><Input type="number" step="0.01" value={formData.buy_price_incl_gst} onChange={(e) => syncFromIncl("buy_price_excl_gst", "buy_price_incl_gst", e.target.value)} /></FormField><FormField label="Custom & Duty"><Input type="number" step="0.01" value={formData.custom_duty} onChange={(e) => setField("custom_duty", e.target.value)} /></FormField><div /><FormField label="Sell Price"><Input type="number" step="0.01" value={formData.sell_price} onChange={(e) => syncFromExcl("sell_price", "sell_price_incl_gst", e.target.value)} /></FormField><FormField label="Sell Price Incl. GST"><Input type="number" step="0.01" value={formData.sell_price_incl_gst} onChange={(e) => syncFromIncl("sell_price", "sell_price_incl_gst", e.target.value)} /></FormField><FormField label="Price Lvl 2"><Input type="number" step="0.01" value={formData.price_level_2} onChange={(e) => syncFromExcl("price_level_2", "price_level_2_incl_gst", e.target.value)} /></FormField><FormField label="Price Lvl 2 Incl. GST"><Input type="number" step="0.01" value={formData.price_level_2_incl_gst} onChange={(e) => syncFromIncl("price_level_2", "price_level_2_incl_gst", e.target.value)} /></FormField><FormField label="Price Lvl 3"><Input type="number" step="0.01" value={formData.price_level_3} onChange={(e) => syncFromExcl("price_level_3", "price_level_3_incl_gst", e.target.value)} /></FormField><FormField label="Price Lvl 3 Incl. GST"><Input type="number" step="0.01" value={formData.price_level_3_incl_gst} onChange={(e) => syncFromIncl("price_level_3", "price_level_3_incl_gst", e.target.value)} /></FormField><FormField label="Price Lvl 4"><Input type="number" step="0.01" value={formData.price_level_4} onChange={(e) => syncFromExcl("price_level_4", "price_level_4_incl_gst", e.target.value)} /></FormField><FormField label="Price Lvl 4 Incl. GST"><Input type="number" step="0.01" value={formData.price_level_4_incl_gst} onChange={(e) => syncFromIncl("price_level_4", "price_level_4_incl_gst", e.target.value)} /></FormField></CardContent></Card><Card className="rounded-3xl border-slate-200 shadow-sm"><CardHeader><CardTitle>Sales / Invoice Options</CardTitle></CardHeader><CardContent className="grid gap-4 md:grid-cols-2"><FormField label="Default Invoice Qty."><Input type="number" min="0" value={formData.default_invoice_qty} onChange={(e) => setField("default_invoice_qty", e.target.value)} /></FormField><FormField label="Default Purchasing Qty."><Input type="number" min="0" value={formData.default_purchasing_qty} onChange={(e) => setField("default_purchasing_qty", e.target.value)} /></FormField><div className="space-y-3 md:col-span-2"><label className="flex items-center gap-2 text-sm text-slate-700"><Checkbox checked={formData.hide_quantity_on_invoice} onCheckedChange={(v) => setField("hide_quantity_on_invoice", !!v)} />Hide Quantity On Invoice</label><label className="flex items-center gap-2 text-sm text-slate-700"><Checkbox checked={formData.non_discount} onCheckedChange={(v) => setField("non_discount", !!v)} />Non Discount <span className="text-slate-400">(invoice percentage discount does not apply)</span></label></div><div className="md:col-span-2"><Label className="text-sm font-medium text-slate-700">Invoice Description</Label><Textarea rows={4} value={formData.invoice_description} onChange={(e) => setField("invoice_description", e.target.value)} className="mt-2" /></div></CardContent></Card></div><div className="space-y-6"><Card className="rounded-3xl border-slate-200 shadow-sm"><CardHeader><CardTitle>Stock Alert</CardTitle></CardHeader><CardContent className="grid gap-4"><FormField label="Alert Quantity"><Input type="number" min="0" value={formData.alert_quantity} onChange={(e) => setField("alert_quantity", e.target.value)} disabled={formData.nonstock_item} /></FormField><FormField label="Reorder Point"><Input type="number" min="0" value={formData.reorder_point} onChange={(e) => setField("reorder_point", e.target.value)} disabled={formData.nonstock_item} /></FormField><FormField label="Max Quantity"><Input type="number" min="0" value={formData.max_quantity} onChange={(e) => setField("max_quantity", e.target.value)} disabled={formData.nonstock_item} /></FormField></CardContent></Card><Card className="rounded-3xl border-slate-200 shadow-sm"><CardHeader><CardTitle>Supplier</CardTitle></CardHeader><CardContent className="grid gap-4"><FormField label="Supplier"><div className="flex gap-2"><Select value={formData.supplier_id} onValueChange={(value) => setField("supplier_id", value)}><SelectTrigger><SelectValue placeholder="Select supplier" /></SelectTrigger><SelectContent><SelectItem value="none">None</SelectItem>{suppliers.map((supplier) => <SelectItem key={supplier.id} value={supplier.id}>{supplier.name}</SelectItem>)}</SelectContent></Select><Button type="button" variant="outline" size="icon" onClick={() => setShowSupplierDialog(true)}><Plus className="h-4 w-4" /></Button></div></FormField><FormField label="Supplier Stock No#"><Input value={formData.supplier_stock_no} onChange={(e) => setField("supplier_stock_no", e.target.value)} /></FormField><FormField label="Supplier SKU"><Input value={formData.supplier_sku} onChange={(e) => setField("supplier_sku", e.target.value)} /></FormField></CardContent></Card><Card className="rounded-3xl border-slate-200 shadow-sm"><CardHeader><CardTitle>Specification</CardTitle></CardHeader><CardContent className="grid gap-4 md:grid-cols-2"><FormField label="Brand"><Input value={formData.brand} onChange={(e) => setField("brand", e.target.value)} /></FormField><FormField label="Model"><Input value={formData.model} onChange={(e) => setField("model", e.target.value)} /></FormField><FormField label="Size"><Input value={formData.size} onChange={(e) => setField("size", e.target.value)} /></FormField><FormField label="Weight"><Input value={formData.weight} onChange={(e) => setField("weight", e.target.value)} /></FormField><div className="md:col-span-2"><Label className="text-sm font-medium text-slate-700">Specification / Note</Label><Textarea rows={4} value={formData.specification_note} onChange={(e) => setField("specification_note", e.target.value)} className="mt-2" /></div></CardContent></Card><Card className="rounded-3xl border-slate-200 shadow-sm"><CardHeader><CardTitle>Accounting</CardTitle></CardHeader><CardContent className="grid gap-4"><FormField label="Purchase Account"><Select value={formData.purchase_account} onValueChange={(value) => setField("purchase_account", value)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">None</SelectItem><SelectItem value="cost-of-goods">Cost of Goods Sold</SelectItem><SelectItem value="inventory-assets">Inventory Assets</SelectItem></SelectContent></Select></FormField><FormField label="Sale Account"><Select value={formData.sale_account} onValueChange={(value) => setField("sale_account", value)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">None</SelectItem><SelectItem value="sales">Sales</SelectItem><SelectItem value="parts-income">Parts Income</SelectItem></SelectContent></Select></FormField></CardContent></Card></div></div></div><Dialog open={showCategoryDialog} onOpenChange={setShowCategoryDialog}><DialogContent><DialogHeader><DialogTitle>Add Category</DialogTitle></DialogHeader><div className="space-y-4"><Input value={newCategory} onChange={(e) => setNewCategory(e.target.value)} placeholder="Category name" /><Button onClick={addCategory}>Save Category</Button></div></DialogContent></Dialog><Dialog open={showSupplierDialog} onOpenChange={setShowSupplierDialog}><DialogContent><DialogHeader><DialogTitle>Quick Add Supplier</DialogTitle></DialogHeader><div className="space-y-4"><Input value={quickSupplierName} onChange={(e) => setQuickSupplierName(e.target.value)} placeholder="Supplier name" /><Button onClick={addQuickSupplier}>Save Supplier</Button></div></DialogContent></Dialog></AppLayout>;
 }
