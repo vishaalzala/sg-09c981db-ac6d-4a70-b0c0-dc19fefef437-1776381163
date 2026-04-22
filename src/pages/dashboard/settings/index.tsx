@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { companyService } from "@/services/companyService";
 import { supabase } from "@/integrations/supabase/client";
@@ -627,6 +627,24 @@ const setSection = <K extends keyof SettingsShape>(key: K, value: SettingsShape[
 
 const activeSection = useMemo(() => settingsNav.find((item) => item.key === activeTab), [activeTab]);
 
+const updateArrayItem = <K extends "notifications">(key: K, index: number, value: SettingsShape[K][number]) => {
+    const next = [...settings[key]] as SettingsShape[K];
+    (next as any)[index] = value;
+    setSection(key, next);
+};
+
+const updateNumbering = (index: number, value: SettingsShape["numbering"][number]) => {
+    const next = [...settings.numbering];
+    next[index] = value;
+    setSection("numbering", next);
+};
+
+const updatePaymentMethod = (index: number, value: SettingsShape["payments"]["methods"][number]) => {
+    const next = [...settings.payments.methods];
+    next[index] = value;
+    setSection("payments", { ...settings.payments, methods: next });
+};
+
 return (
     <AppLayout companyId={companyId} companyName={companyName}>
         <div className="mx-auto w-full max-w-[1680px] space-y-6 p-6">
@@ -731,498 +749,422 @@ return (
                                         </div>
                                     </CardContent>
                                 </Card>
-                                </div>
                             )}
 
-                    {activeTab === "documents" && (
-                        <Card className={sectionCard}>
-                            <CardHeader><CardTitle>Document engine</CardTitle><CardDescription>Controls current numbers, templates, footers, surcharge rules and print behavior.</CardDescription></CardHeader>
-                            <CardContent>
-                                <Tabs defaultValue="invoice">
-                                    <TabsList className="grid w-full grid-cols-4">
-                                        <TabsTrigger value="invoice">Invoices</TabsTrigger>
-                                        <TabsTrigger value="quote">Quotes</TabsTrigger>
-                                        <TabsTrigger value="jobCard">Job Cards</TabsTrigger>
-                                        <TabsTrigger value="courtesyVehicle">Courtesy Vehicles</TabsTrigger>
-                                    </TabsList>
-                                    {(["invoice", "quote", "jobCard", "courtesyVehicle"] as DocumentType[]).map((tab) => (
-                                        <TabsContent key={tab} value={tab} className="mt-6">
-                                            {tab === "invoice" && (
-                                                <div className="grid gap-4 md:grid-cols-2">
-                                                    <Field label="Current invoice number"><Input value={settings.documents.invoice.currentNumber} onChange={(e) => setSection("documents", { ...settings.documents, invoice: { ...settings.documents.invoice, currentNumber: e.target.value } })} /></Field>
-                                                    <Field label="Invoice template"><Input value={settings.documents.invoice.templateName} onChange={(e) => setSection("documents", { ...settings.documents, invoice: { ...settings.documents.invoice, templateName: e.target.value } })} /></Field>
-                                                    <Field label="Rounding"><Input value={settings.documents.invoice.rounding} onChange={(e) => setSection("documents", { ...settings.documents, invoice: { ...settings.documents.invoice, rounding: e.target.value } })} /></Field>
-                                                    <Field label="T&C attachment"><Input value={settings.documents.invoice.termsAttachment} onChange={(e) => setSection("documents", { ...settings.documents, invoice: { ...settings.documents.invoice, termsAttachment: e.target.value } })} /></Field>
-                                                    <Field label="Markup level 1"><Input value={settings.documents.invoice.markupLevel1} onChange={(e) => setSection("documents", { ...settings.documents, invoice: { ...settings.documents.invoice, markupLevel1: e.target.value } })} /></Field>
-                                                    <Field label="Credit card surcharge %"><Input type="number" value={settings.documents.invoice.surchargePercent} onChange={(e) => setSection("documents", { ...settings.documents, invoice: { ...settings.documents.invoice, surchargePercent: Number(e.target.value) } })} /></Field>
-                                                    <div className="md:col-span-2"><Field label="Invoice footer"><Textarea rows={4} value={settings.documents.invoice.footer} onChange={(e) => setSection("documents", { ...settings.documents, invoice: { ...settings.documents.invoice, footer: e.target.value } })} /></Field></div>
-                                                </div>
-                                            )}
-                                            {tab === "quote" && (
-                                                <div className="grid gap-4 md:grid-cols-2">
-                                                    <Field label="Expiry days"><Input value={settings.documents.quote.expiryDays} onChange={(e) => setSection("documents", { ...settings.documents, quote: { ...settings.documents.quote, expiryDays: e.target.value } })} /></Field>
-                                                    <Field label="Quote template"><Input value={settings.documents.quote.templateName} onChange={(e) => setSection("documents", { ...settings.documents, quote: { ...settings.documents.quote, templateName: e.target.value } })} /></Field>
-                                                    <Field label="Rounding"><Input value={settings.documents.quote.rounding} onChange={(e) => setSection("documents", { ...settings.documents, quote: { ...settings.documents.quote, rounding: e.target.value } })} /></Field>
-                                                    <Field label="T&C attachment"><Input value={settings.documents.quote.termsAttachment} onChange={(e) => setSection("documents", { ...settings.documents, quote: { ...settings.documents.quote, termsAttachment: e.target.value } })} /></Field>
-                                                    <div className="md:col-span-2"><Field label="Quote footer"><Textarea rows={4} value={settings.documents.quote.quoteFooter} onChange={(e) => setSection("documents", { ...settings.documents, quote: { ...settings.documents.quote, quoteFooter: e.target.value } })} /></Field></div>
-                                                    <div className="md:col-span-2"><Field label="Estimate footer"><Textarea rows={4} value={settings.documents.quote.estimateFooter} onChange={(e) => setSection("documents", { ...settings.documents, quote: { ...settings.documents.quote, estimateFooter: e.target.value } })} /></Field></div>
-                                                </div>
-                                            )}
-                                            {tab === "jobCard" && (
-                                                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                                                    <Field label="Current job number"><Input value={settings.documents.jobCard.currentNumber} onChange={(e) => setSection("documents", { ...settings.documents, jobCard: { ...settings.documents.jobCard, currentNumber: e.target.value } })} /></Field>
-                                                    <Field label="Job card template"><Input value={settings.documents.jobCard.templateName} onChange={(e) => setSection("documents", { ...settings.documents, jobCard: { ...settings.documents.jobCard, templateName: e.target.value } })} /></Field>
-                                                    <Field label="T&C attachment"><Input value={settings.documents.jobCard.termsAttachment} onChange={(e) => setSection("documents", { ...settings.documents, jobCard: { ...settings.documents.jobCard, termsAttachment: e.target.value } })} /></Field>
-                                                    <ToggleRow label="Customer sign-off required" checked={settings.documents.jobCard.customerSignOffRequired} onCheckedChange={(checked) => setSection("documents", { ...settings.documents, jobCard: { ...settings.documents.jobCard, customerSignOffRequired: checked } })} />
-                                                    <ToggleRow label="Print timesheets" checked={settings.documents.jobCard.printTimesheets} onCheckedChange={(checked) => setSection("documents", { ...settings.documents, jobCard: { ...settings.documents.jobCard, printTimesheets: checked } })} />
-                                                    <ToggleRow label="Print customer address" checked={settings.documents.jobCard.printCustomerAddress} onCheckedChange={(checked) => setSection("documents", { ...settings.documents, jobCard: { ...settings.documents.jobCard, printCustomerAddress: checked } })} />
-                                                </div>
-                                            )}
-                                            {tab === "courtesyVehicle" && (
-                                                <div className="grid gap-4">
-                                                    <Field label="Authorization statement"><Textarea rows={5} value={settings.documents.courtesyVehicle.authorizationStatement} onChange={(e) => setSection("documents", { ...settings.documents, courtesyVehicle: { ...settings.documents.courtesyVehicle, authorizationStatement: e.target.value } })} /></Field>
-                                                    <Field label="T&C attachment"><Input value={settings.documents.courtesyVehicle.termsAttachment} onChange={(e) => setSection("documents", { ...settings.documents, courtesyVehicle: { ...settings.documents.courtesyVehicle, termsAttachment: e.target.value } })} /></Field>
-                                                </div>
-                                            )}
-                                        </TabsContent>
-                                    ))}
-                                </Tabs>
-                            </CardContent>
-                        </Card>
-                    )}
-
-                    {activeTab === "templates" && (
-                        <div className="space-y-6">
-                            <Card className={sectionCard}>
-                                <CardHeader><CardTitle>Navigation layout</CardTitle><CardDescription>Choose whether staff see the classic left sidebar or the new horizontal top navigation.</CardDescription></CardHeader>
-                                <CardContent>
-                                    <div className="grid gap-4 md:grid-cols-2">
-                                        {[{ key: "vertical", label: "Vertical menu", description: "Best for staff who use many modules all day.", icon: PanelLeftOpen }, { key: "horizontal", label: "Horizontal menu", description: "Cleaner top navigation with more workspace width.", icon: PanelTopOpen }].map((option) => {
-                                            const active = settings.templates.navigationLayout === option.key;
-                                            const Icon = option.icon;
-                                            return (
-                                                <button key={option.key} type="button" onClick={() => setSection("templates", { navigationLayout: option.key as "vertical" | "horizontal" })} className={cn("rounded-2xl border p-5 text-left transition", active ? "border-blue-300 bg-blue-50 shadow-sm" : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50")}>
-                                                    <div className="mb-3 flex items-center gap-3">
-                                                        <div className={cn("flex h-11 w-11 items-center justify-center rounded-2xl", active ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-600")}><Icon className="h-5 w-5" /></div>
-                                                        <div><div className="font-semibold text-slate-900">{option.label}</div><div className="text-sm text-slate-500">{option.description}</div></div>
-                                                    </div>
-                                                    <Badge variant={active ? "default" : "secondary"}>{active ? "Current layout" : "Available"}</Badge>
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                </CardContent>
-                            </Card>
-                            <Card className={sectionCard}>
-                                <CardHeader><CardTitle>Communication templates</CardTitle><CardDescription>Customer-facing message templates for reminders, signatures, statements, invoices and job completion.</CardDescription></CardHeader>
-                                <CardContent className="space-y-6">
-                                    {commTemplateLibrary.map((templateType) => (
-                                        <div key={templateType} className="rounded-xl border border-slate-200 p-4">
-                                            <div className="mb-3 flex items-center justify-between gap-3">
-                                                <div>
-                                                    <div className="font-semibold text-slate-900">{templateType}</div>
-                                                    <div className="text-xs text-slate-500">Variables such as {'{{customer_name}}'}, {'{{rego}}'}, {'{{document_number}}'} can be used.</div>
-                                                </div>
-                                                <Badge variant="secondary">{templateBodies[templateType]?.channel || "email"}</Badge>
-                                            </div>
-                                            <div className="grid gap-4 md:grid-cols-2">
-                                                <Field label="Channel">
-                                                    <Select value={templateBodies[templateType]?.channel || "email"} onValueChange={(value) => setTemplateBodies((prev) => ({ ...prev, [templateType]: { ...prev[templateType], channel: value } }))}>
-                                                        <SelectTrigger><SelectValue /></SelectTrigger>
-                                                        <SelectContent><SelectItem value="email">Email</SelectItem><SelectItem value="sms">SMS</SelectItem></SelectContent>
-                                                    </Select>
-                                                </Field>
-                                                <Field label="Subject"><Input value={templateBodies[templateType]?.subject || ""} onChange={(e) => setTemplateBodies((prev) => ({ ...prev, [templateType]: { ...prev[templateType], subject: e.target.value } }))} /></Field>
-                                                <div className="md:col-span-2"><Field label="Message"><Textarea rows={5} value={templateBodies[templateType]?.body || ""} onChange={(e) => setTemplateBodies((prev) => ({ ...prev, [templateType]: { ...prev[templateType], body: e.target.value } }))} /></Field></div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </CardContent>
-                            </Card>
-                            )}
-
-                            {activeTab === "notifications" && (
+                            {activeTab === "documents" && (
                                 <Card className={sectionCard}>
-                                    <CardHeader><CardTitle>Internal notifications</CardTitle><CardDescription>Event alerts routed back to the workshop for signatures, quote acceptance, booking requests and SMS replies.</CardDescription></CardHeader>
-                                    <CardContent className="space-y-3">
-                                        {settings.notifications.map((item, index) => (
-                                            <div key={item.key} className="grid gap-3 rounded-xl border border-slate-200 p-4 lg:grid-cols-[1.3fr_120px_120px_1.2fr_1.5fr]">
-                                                <div>
-                                                    <div className="font-medium text-slate-900">{item.name}</div>
-                                                    <div className="text-xs text-slate-500">{item.description}</div>
-                                                </div>
-                                                <div className="flex items-center"><Badge className={item.enabled ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-700"}>{item.enabled ? "Active" : "Disabled"}</Badge></div>
-                                                <Field label="Method" className="space-y-1"><Input value={item.method} onChange={(e) => updateArrayItem("notifications", index, { ...item, method: e.target.value })} /></Field>
-                                                <Field label="Destination" className="space-y-1"><Input value={item.destination} onChange={(e) => updateArrayItem("notifications", index, { ...item, destination: e.target.value })} /></Field>
-                                                <div className="flex items-center justify-between gap-3">
-                                                    <span className="text-sm text-slate-600">Enabled</span>
-                                                    <Switch checked={item.enabled} onCheckedChange={(checked) => updateArrayItem("notifications", index, { ...item, enabled: checked })} />
-                                                </div>
-                                            </div>
-                                        ))}
+                                    <CardHeader><CardTitle>Document engine</CardTitle><CardDescription>Controls current numbers, templates, footers, surcharge rules and print behavior.</CardDescription></CardHeader>
+                                    <CardContent>
+                                        <Tabs defaultValue="invoice">
+                                            <TabsList className="grid w-full grid-cols-4">
+                                                <TabsTrigger value="invoice">Invoices</TabsTrigger>
+                                                <TabsTrigger value="quote">Quotes</TabsTrigger>
+                                                <TabsTrigger value="jobCard">Job Cards</TabsTrigger>
+                                                <TabsTrigger value="courtesyVehicle">Courtesy Vehicles</TabsTrigger>
+                                            </TabsList>
+                                            {(["invoice", "quote", "jobCard", "courtesyVehicle"] as DocumentType[]).map((tab) => (
+                                                <TabsContent key={tab} value={tab} className="mt-6">
+                                                    {tab === "invoice" && (
+                                                        <div className="grid gap-4 md:grid-cols-2">
+                                                            <Field label="Current invoice number"><Input value={settings.documents.invoice.currentNumber} onChange={(e) => setSection("documents", { ...settings.documents, invoice: { ...settings.documents.invoice, currentNumber: e.target.value } })} /></Field>
+                                                            <Field label="Invoice template"><Input value={settings.documents.invoice.templateName} onChange={(e) => setSection("documents", { ...settings.documents, invoice: { ...settings.documents.invoice, templateName: e.target.value } })} /></Field>
+                                                            <Field label="Rounding"><Input value={settings.documents.invoice.rounding} onChange={(e) => setSection("documents", { ...settings.documents, invoice: { ...settings.documents.invoice, rounding: e.target.value } })} /></Field>
+                                                            <Field label="T&C attachment"><Input value={settings.documents.invoice.termsAttachment} onChange={(e) => setSection("documents", { ...settings.documents, invoice: { ...settings.documents.invoice, termsAttachment: e.target.value } })} /></Field>
+                                                            <Field label="Markup level 1"><Input value={settings.documents.invoice.markupLevel1} onChange={(e) => setSection("documents", { ...settings.documents, invoice: { ...settings.documents.invoice, markupLevel1: e.target.value } })} /></Field>
+                                                            <Field label="Credit card surcharge %"><Input type="number" value={settings.documents.invoice.surchargePercent} onChange={(e) => setSection("documents", { ...settings.documents, invoice: { ...settings.documents.invoice, surchargePercent: Number(e.target.value) } })} /></Field>
+                                                            <div className="md:col-span-2"><Field label="Invoice footer"><Textarea rows={4} value={settings.documents.invoice.footer} onChange={(e) => setSection("documents", { ...settings.documents, invoice: { ...settings.documents.invoice, footer: e.target.value } })} /></Field></div>
+                                                        </div>
+                                                    )}
+                                                    {tab === "quote" && (
+                                                        <div className="grid gap-4 md:grid-cols-2">
+                                                            <Field label="Expiry days"><Input value={settings.documents.quote.expiryDays} onChange={(e) => setSection("documents", { ...settings.documents, quote: { ...settings.documents.quote, expiryDays: e.target.value } })} /></Field>
+                                                            <Field label="Quote template"><Input value={settings.documents.quote.templateName} onChange={(e) => setSection("documents", { ...settings.documents, quote: { ...settings.documents.quote, templateName: e.target.value } })} /></Field>
+                                                            <Field label="Rounding"><Input value={settings.documents.quote.rounding} onChange={(e) => setSection("documents", { ...settings.documents, quote: { ...settings.documents.quote, rounding: e.target.value } })} /></Field>
+                                                            <Field label="T&C attachment"><Input value={settings.documents.quote.termsAttachment} onChange={(e) => setSection("documents", { ...settings.documents, quote: { ...settings.documents.quote, termsAttachment: e.target.value } })} /></Field>
+                                                            <div className="md:col-span-2"><Field label="Quote footer"><Textarea rows={4} value={settings.documents.quote.quoteFooter} onChange={(e) => setSection("documents", { ...settings.documents, quote: { ...settings.documents.quote, quoteFooter: e.target.value } })} /></Field></div>
+                                                            <div className="md:col-span-2"><Field label="Estimate footer"><Textarea rows={4} value={settings.documents.quote.estimateFooter} onChange={(e) => setSection("documents", { ...settings.documents, quote: { ...settings.documents.quote, estimateFooter: e.target.value } })} /></Field></div>
+                                                        </div>
+                                                    )}
+                                                    {tab === "jobCard" && (
+                                                        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                                                            <Field label="Current job number"><Input value={settings.documents.jobCard.currentNumber} onChange={(e) => setSection("documents", { ...settings.documents, jobCard: { ...settings.documents.jobCard, currentNumber: e.target.value } })} /></Field>
+                                                            <Field label="Job card template"><Input value={settings.documents.jobCard.templateName} onChange={(e) => setSection("documents", { ...settings.documents, jobCard: { ...settings.documents.jobCard, templateName: e.target.value } })} /></Field>
+                                                            <Field label="T&C attachment"><Input value={settings.documents.jobCard.termsAttachment} onChange={(e) => setSection("documents", { ...settings.documents, jobCard: { ...settings.documents.jobCard, termsAttachment: e.target.value } })} /></Field>
+                                                            <ToggleRow label="Customer sign-off required" checked={settings.documents.jobCard.customerSignOffRequired} onCheckedChange={(checked) => setSection("documents", { ...settings.documents, jobCard: { ...settings.documents.jobCard, customerSignOffRequired: checked } })} />
+                                                            <ToggleRow label="Print timesheets" checked={settings.documents.jobCard.printTimesheets} onCheckedChange={(checked) => setSection("documents", { ...settings.documents, jobCard: { ...settings.documents.jobCard, printTimesheets: checked } })} />
+                                                            <ToggleRow label="Print customer address" checked={settings.documents.jobCard.printCustomerAddress} onCheckedChange={(checked) => setSection("documents", { ...settings.documents, jobCard: { ...settings.documents.jobCard, printCustomerAddress: checked } })} />
+                                                        </div>
+                                                    )}
+                                                    {tab === "courtesyVehicle" && (
+                                                        <div className="grid gap-4">
+                                                            <Field label="Authorization statement"><Textarea rows={5} value={settings.documents.courtesyVehicle.authorizationStatement} onChange={(e) => setSection("documents", { ...settings.documents, courtesyVehicle: { ...settings.documents.courtesyVehicle, authorizationStatement: e.target.value } })} /></Field>
+                                                            <Field label="T&C attachment"><Input value={settings.documents.courtesyVehicle.termsAttachment} onChange={(e) => setSection("documents", { ...settings.documents, courtesyVehicle: { ...settings.documents.courtesyVehicle, termsAttachment: e.target.value } })} /></Field>
+                                                        </div>
+                                                    )}
+                                                </TabsContent>
+                                            ))}
+                                        </Tabs>
                                     </CardContent>
                                 </Card>
                             )}
 
-                            {activeTab === "serviceAttributes" && (
-                                <Card className={sectionCard}>
-                                    <CardHeader><CardTitle>Vehicle & service field engine</CardTitle><CardDescription>Master field controls shared by vehicles, jobs, quotes and invoices.</CardDescription></CardHeader>
-                                    <CardContent className="space-y-6">
-                                        <div className="grid gap-4 md:grid-cols-2">
-                                            <Field label="Service item label"><Input value={settings.serviceAttributes.serviceItemLabel} onChange={(e) => setSection("serviceAttributes", { ...settings.serviceAttributes, serviceItemLabel: e.target.value })} /></Field>
-                                            <Field label="Plural label"><Input value={settings.serviceAttributes.serviceItemPluralLabel} onChange={(e) => setSection("serviceAttributes", { ...settings.serviceAttributes, serviceItemPluralLabel: e.target.value })} /></Field>
-                                        </div>
-                                        <div>
-                                            <Label className="text-sm font-medium">Enabled attributes</Label>
-                                            <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                                                {serviceAttributeOptions.map((option) => {
-                                                    const checked = settings.serviceAttributes.enabledAttributes.includes(option);
+                            {activeTab === "templates" && (
+                                <div className="space-y-6">
+                                    <Card className={sectionCard}>
+                                        <CardHeader><CardTitle>Navigation layout</CardTitle><CardDescription>Choose whether staff see the classic left sidebar or the new horizontal top navigation.</CardDescription></CardHeader>
+                                        <CardContent>
+                                            <div className="grid gap-4 md:grid-cols-2">
+                                                {[{ key: "vertical", label: "Vertical menu", description: "Best for staff who use many modules all day.", icon: PanelLeftOpen }, { key: "horizontal", label: "Horizontal menu", description: "Cleaner top navigation with more workspace width.", icon: PanelTopOpen }].map((option) => {
+                                                    const active = settings.templates.navigationLayout === option.key;
+                                                    const Icon = option.icon;
                                                     return (
-                                                        <label key={option} className="flex items-center gap-3 rounded-xl border border-slate-200 p-3 text-sm">
-                                                            <Checkbox checked={checked} onCheckedChange={(next) => {
-                                                                const enabled = new Set(settings.serviceAttributes.enabledAttributes);
-                                                                if (next) enabled.add(option);
-                                                                else enabled.delete(option);
-                                                                setSection("serviceAttributes", { ...settings.serviceAttributes, enabledAttributes: Array.from(enabled) });
-                                                            }} />
-                                                            <span>{option}</span>
-                                                        </label>
+                                                        <button key={option.key} type="button" onClick={() => setSection("templates", { navigationLayout: option.key as "vertical" | "horizontal" })} className={cn("rounded-2xl border p-5 text-left transition", active ? "border-blue-300 bg-blue-50 shadow-sm" : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50")}>
+                                                            <div className="mb-3 flex items-center gap-3">
+                                                                <div className={cn("flex h-11 w-11 items-center justify-center rounded-2xl", active ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-600")}><Icon className="h-5 w-5" /></div>
+                                                                <div><div className="font-semibold text-slate-900">{option.label}</div><div className="text-sm text-slate-500">{option.description}</div></div>
+                                                            </div>
+                                                            <Badge variant={active ? "default" : "secondary"}>{active ? "Current layout" : "Available"}</Badge>
+                                                        </button>
                                                     );
                                                 })}
                                             </div>
-                                        </div>
-                                        <Field label="Custom attributes note"><Textarea rows={3} value={settings.serviceAttributes.customAttributesNote} onChange={(e) => setSection("serviceAttributes", { ...settings.serviceAttributes, customAttributesNote: e.target.value })} /></Field>
-                                    </CardContent>
-                                </Card>
-                            )}
-
-                            {activeTab === "booking" && (
-                                <Card className={sectionCard}>
-                                    <CardHeader><CardTitle>Online booking</CardTitle><CardDescription>Website booking controls, customer form behavior and routing for workshop notifications.</CardDescription></CardHeader>
-                                    <CardContent className="space-y-6">
-                                        <div className="grid gap-4 md:grid-cols-2">
-                                            <Field label="Booking URL"><Input value={settings.booking.bookingUrl} onChange={(e) => setSection("booking", { ...settings.booking, bookingUrl: e.target.value })} /></Field>
-                                            <Field label="Notification sent to"><Input value={settings.booking.notificationSentTo} onChange={(e) => setSection("booking", { ...settings.booking, notificationSentTo: e.target.value })} /></Field>
-                                            <Field label="Confirmation channel">
-                                                <Select value={settings.booking.confirmationChannel} onValueChange={(value: any) => setSection("booking", { ...settings.booking, confirmationChannel: value })}>
-                                                    <SelectTrigger><SelectValue /></SelectTrigger>
-                                                    <SelectContent><SelectItem value="email">Email</SelectItem><SelectItem value="sms">SMS</SelectItem><SelectItem value="both">Both</SelectItem></SelectContent>
-                                                </Select>
-                                            </Field>
-                                            <div>
-                                                <Label className="text-sm font-medium">Available job types</Label>
-                                                <div className="mt-2 flex flex-wrap gap-2">
-                                                    {settings.booking.availableJobTypes.map((jobType) => <Badge key={jobType} variant="secondary">{jobType}</Badge>)}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="grid gap-4 md:grid-cols-3">
-                                            <ToggleRow label="Disable fully booked dates" checked={settings.booking.disableFullyBookedDates} onCheckedChange={(checked) => setSection("booking", { ...settings.booking, disableFullyBookedDates: checked })} />
-                                            <ToggleRow label="Show address input" checked={settings.booking.showAddressInput} onCheckedChange={(checked) => setSection("booking", { ...settings.booking, showAddressInput: checked })} />
-                                            <ToggleRow label="Disable time selection" checked={settings.booking.disableTimeSelection} onCheckedChange={(checked) => setSection("booking", { ...settings.booking, disableTimeSelection: checked })} />
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            )}
-
-                            {activeTab === "numbering" && (
-                                <Card className={sectionCard}>
-                                    <CardHeader><CardTitle>Numbering rules</CardTitle><CardDescription>Document prefixes and next numbers used by new records across the company side.</CardDescription></CardHeader>
-                                    <CardContent className="space-y-3">
-                                        {settings.numbering.map((row, index) => (
-                                            <div key={row.key} className="grid gap-4 rounded-xl border border-slate-200 p-4 md:grid-cols-[1.5fr_160px_160px]">
-                                                <div className="font-medium text-slate-900">{row.label}</div>
-                                                <Field label="Prefix" className="space-y-1"><Input value={row.prefix} onChange={(e) => updateNumbering(index, { ...row, prefix: e.target.value })} /></Field>
-                                                <Field label="Next number" className="space-y-1"><Input type="number" value={row.nextNumber} onChange={(e) => updateNumbering(index, { ...row, nextNumber: Number(e.target.value) })} /></Field>
-                                            </div>
-                                        ))}
-                                    </CardContent>
-                                </Card>
-                            )}
-
-                            {activeTab === "catalogs" && (
-                                <Card className={sectionCard}>
-                                    <CardHeader><CardTitle>Categories, tags & sources</CardTitle><CardDescription>Shared operational lists used throughout the workflow.</CardDescription></CardHeader>
-                                    <CardContent>
-                                        <Tabs defaultValue="categories">
-                                            <TabsList className="grid w-full grid-cols-5">
-                                                <TabsTrigger value="categories">Job categories</TabsTrigger>
-                                                <TabsTrigger value="sources">Business sources</TabsTrigger>
-                                                <TabsTrigger value="hold">Hold reasons</TabsTrigger>
-                                                <TabsTrigger value="quotes">Quote cancel reasons</TabsTrigger>
-                                                <TabsTrigger value="tags">Tags & shipping</TabsTrigger>
-                                            </TabsList>
-                                            <TabsContent value="categories" className="mt-6"><StringListEditor title="Job categories" items={settings.catalogs.jobCategories} onChange={(items) => setSection("catalogs", { ...settings.catalogs, jobCategories: items })} /></TabsContent>
-                                            <TabsContent value="sources" className="mt-6"><StringListEditor title="Business sources" items={settings.catalogs.businessSources} onChange={(items) => setSection("catalogs", { ...settings.catalogs, businessSources: items })} /></TabsContent>
-                                            <TabsContent value="hold" className="mt-6"><StringListEditor title="Reasons for job on hold" items={settings.catalogs.reasonsOnHold} onChange={(items) => setSection("catalogs", { ...settings.catalogs, reasonsOnHold: items })} /></TabsContent>
-                                            <TabsContent value="quotes" className="mt-6"><StringListEditor title="Reasons for cancel quote" items={settings.catalogs.reasonsCancelQuote} onChange={(items) => setSection("catalogs", { ...settings.catalogs, reasonsCancelQuote: items })} /></TabsContent>
-                                            <TabsContent value="tags" className="mt-6">
-                                                <div className="space-y-4">
-                                                    {Object.entries(settings.catalogs.tagsByEntity).map(([entity, tags]) => (
-                                                        <StringListEditor key={entity} title={`${entity.charAt(0).toUpperCase()}${entity.slice(1)} tags`} items={tags} onChange={(next) => setSection("catalogs", { ...settings.catalogs, tagsByEntity: { ...settings.catalogs.tagsByEntity, [entity]: next } })} />
-                                                    ))}
-                                                    <StringListEditor title="Shipping options" items={settings.catalogs.shippingOptions} onChange={(items) => setSection("catalogs", { ...settings.catalogs, shippingOptions: items })} />
-                                                </div>
-                                            </TabsContent>
-                                        </Tabs>
-                                    </CardContent>
-                                </Card>
-                            )}
-
-                            {activeTab === "payments" && (
-                                <Card className={sectionCard}>
-                                    <CardHeader><CardTitle>Payment methods</CardTitle><CardDescription>Accepted payment methods, POS availability, and default payment term logic.</CardDescription></CardHeader>
-                                    <CardContent className="space-y-6">
-                                        <div className="grid gap-4 md:grid-cols-2">
-                                            <Field label="Default customer payment term"><Input value={settings.payments.defaultCustomerPaymentTerm} onChange={(e) => setSection("payments", { ...settings.payments, defaultCustomerPaymentTerm: e.target.value })} /></Field>
-                                            <Field label="Default supplier payment term"><Input value={settings.payments.defaultSupplierPaymentTerm} onChange={(e) => setSection("payments", { ...settings.payments, defaultSupplierPaymentTerm: e.target.value })} /></Field>
-                                        </div>
-                                        <div className="space-y-3">
-                                            {settings.payments.methods.map((method, index) => (
-                                                <div key={method.key} className="grid gap-4 rounded-xl border border-slate-200 p-4 lg:grid-cols-[1.2fr_120px_120px_120px_120px_120px]">
-                                                    <div>
-                                                        <div className="font-medium text-slate-900">{method.name}</div>
-                                                        <div className="text-xs text-slate-500">{method.type}</div>
+                                        </CardContent>
+                                    </Card>
+                                    <Card className={sectionCard}>
+                                        <CardHeader><CardTitle>Communication templates</CardTitle><CardDescription>Customer-facing message templates for reminders, signatures, statements, invoices and job completion.</CardDescription></CardHeader>
+                                        <CardContent className="space-y-6">
+                                            {commTemplateLibrary.map((templateType) => (
+                                                <div key={templateType} className="rounded-xl border border-slate-200 p-4">
+                                                    <div className="mb-3 flex items-center justify-between gap-3">
+                                                        <div>
+                                                            <div className="font-semibold text-slate-900">{templateType}</div>
+                                                            <div className="text-xs text-slate-500">Variables such as {'{{customer_name}}'}, {'{{rego}}'}, {'{{document_number}}'} can be used.</div>
+                                                        </div>
+                                                        <Badge variant="secondary">{templateBodies[templateType]?.channel || "email"}</Badge>
                                                     </div>
-                                                    <ToggleCompact label="Active" checked={method.active} onChange={(checked) => updatePaymentMethod(index, { ...method, active: checked })} />
-                                                    <ToggleCompact label="POS" checked={method.posEnabled} onChange={(checked) => updatePaymentMethod(index, { ...method, posEnabled: checked })} />
-                                                    <ToggleCompact label="Fee" checked={method.hasFee} onChange={(checked) => updatePaymentMethod(index, { ...method, hasFee: checked })} />
-                                                    <Field label="Amount" className="space-y-1"><Input type="number" value={method.feeAmount} onChange={(e) => updatePaymentMethod(index, { ...method, feeAmount: Number(e.target.value) })} /></Field>
-                                                    <Field label="Fee type" className="space-y-1"><Input value={method.feeType} onChange={(e) => updatePaymentMethod(index, { ...method, feeType: e.target.value })} /></Field>
+                                                    <div className="grid gap-4 md:grid-cols-2">
+                                                        <Field label="Channel">
+                                                            <Select value={templateBodies[templateType]?.channel || "email"} onValueChange={(value) => setTemplateBodies((prev) => ({ ...prev, [templateType]: { ...prev[templateType], channel: value } }))}>
+                                                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                                                <SelectContent><SelectItem value="email">Email</SelectItem><SelectItem value="sms">SMS</SelectItem></SelectContent>
+                                                            </Select>
+                                                        </Field>
+                                                        <Field label="Subject"><Input value={templateBodies[templateType]?.subject || ""} onChange={(e) => setTemplateBodies((prev) => ({ ...prev, [templateType]: { ...prev[templateType], subject: e.target.value } }))} /></Field>
+                                                        <div className="md:col-span-2"><Field label="Message"><Textarea rows={5} value={templateBodies[templateType]?.body || ""} onChange={(e) => setTemplateBodies((prev) => ({ ...prev, [templateType]: { ...prev[templateType], body: e.target.value } }))} /></Field></div>
+                                                    </div>
                                                 </div>
                                             ))}
-                                        </div>
-                                    </CardContent>
-                                </Card>
+                                        </CardContent>
+                                    </Card>
                             )}
 
-                            {activeTab === "branding" && (
-                                <Card className={sectionCard}>
-                                    <CardHeader><CardTitle>Branding & print output</CardTitle><CardDescription>Email branding, barcode defaults, label templates, and visual print controls.</CardDescription></CardHeader>
-                                    <CardContent className="grid gap-4 md:grid-cols-2">
-                                        <Field label="Logo URL"><Input value={settings.branding.logoUrl} onChange={(e) => setSection("branding", { ...settings.branding, logoUrl: e.target.value })} /></Field>
-                                        <Field label="Logo background color"><Input value={settings.branding.logoBgColor} onChange={(e) => setSection("branding", { ...settings.branding, logoBgColor: e.target.value })} /></Field>
-                                        <Field label="Logo alignment">
-                                            <Select value={settings.branding.logoAlignment} onValueChange={(value: any) => setSection("branding", { ...settings.branding, logoAlignment: value })}>
-                                                <SelectTrigger><SelectValue /></SelectTrigger>
-                                                <SelectContent><SelectItem value="left">Left</SelectItem><SelectItem value="center">Center</SelectItem><SelectItem value="right">Right</SelectItem></SelectContent>
-                                            </Select>
-                                        </Field>
-                                        <Field label="Logo position">
-                                            <Select value={settings.branding.logoPosition} onValueChange={(value: any) => setSection("branding", { ...settings.branding, logoPosition: value })}>
-                                                <SelectTrigger><SelectValue /></SelectTrigger>
-                                                <SelectContent><SelectItem value="top">Top</SelectItem><SelectItem value="middle">Middle</SelectItem></SelectContent>
-                                            </Select>
-                                        </Field>
-                                        <Field label="Barcode system"><Input value={settings.branding.barcodeSystem} onChange={(e) => setSection("branding", { ...settings.branding, barcodeSystem: e.target.value })} /></Field>
-                                        <Field label="Barcode template"><Input value={settings.branding.barcodeTemplate} onChange={(e) => setSection("branding", { ...settings.branding, barcodeTemplate: e.target.value })} /></Field>
-                                        <Field label="Label template"><Input value={settings.branding.labelTemplate} onChange={(e) => setSection("branding", { ...settings.branding, labelTemplate: e.target.value })} /></Field>
-                                        <div className="md:col-span-2"><Field label="Email footer"><Textarea rows={4} value={settings.branding.emailFooter} onChange={(e) => setSection("branding", { ...settings.branding, emailFooter: e.target.value })} /></Field></div>
-                                    </CardContent>
-                                </Card>
-                            )}
-
-                            {activeTab === "advanced" && (
-                                <Card className={sectionCard}>
-                                    <CardHeader><CardTitle>Advanced rules</CardTitle><CardDescription>Hidden-but-critical switches for print, workflow, diary defaults and pricing behavior.</CardDescription></CardHeader>
-                                    <CardContent className="space-y-6">
-                                        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                                            <Field label="Quote title"><Input value={settings.advanced.quoteTitle} onChange={(e) => setSection("advanced", { ...settings.advanced, quoteTitle: e.target.value })} /></Field>
-                                            <Field label="Odometer unit"><Input value={settings.advanced.defaultOdometerUnit} onChange={(e) => setSection("advanced", { ...settings.advanced, defaultOdometerUnit: e.target.value })} /></Field>
-                                            <Field label="Hubodometer unit"><Input value={settings.advanced.defaultHubodometerUnit} onChange={(e) => setSection("advanced", { ...settings.advanced, defaultHubodometerUnit: e.target.value })} /></Field>
-                                            <Field label="Default diary view"><Input value={settings.advanced.defaultDiaryView} onChange={(e) => setSection("advanced", { ...settings.advanced, defaultDiaryView: e.target.value })} /></Field>
-                                            <Field label="Default booking time"><Input value={settings.advanced.defaultBookingTime} onChange={(e) => setSection("advanced", { ...settings.advanced, defaultBookingTime: e.target.value })} /></Field>
-                                            <Field label="Default pickup time"><Input value={settings.advanced.defaultPickupTime} onChange={(e) => setSection("advanced", { ...settings.advanced, defaultPickupTime: e.target.value })} /></Field>
-                                            <Field label="SMS workshop name"><Input value={settings.advanced.workshopNameWhenSendSms} onChange={(e) => setSection("advanced", { ...settings.advanced, workshopNameWhenSendSms: e.target.value })} /></Field>
-                                            <Field label="Print margins (T/B/L/R)"><Input value={`${settings.advanced.printMarginTop}/${settings.advanced.printMarginBottom}/${settings.advanced.printMarginLeft}/${settings.advanced.printMarginRight}`} readOnly /></Field>
-                                        </div>
-                                        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                                            {[
-                                                ["Show payments on invoice", "showPaymentsOnInvoice"],
-                                                ["Print quote price incl. tax", "printQuotePriceIncludeTax"],
-                                                ["Print invoice price incl. tax", "printInvoicePriceIncludeTax"],
-                                                ["Print GST amount", "printGstAmount"],
-                                                ["Print without stock number", "printWithoutStockNumber"],
-                                                ["Fit more on invoice", "fitMoreOnInvoice"],
-                                                ["Use large logo", "useLargeLogo"],
-                                                ["Use full size logo", "useFullSizeLogo"],
-                                                ["Auto price update", "automaticPriceUpdate"],
-                                                ["Auto cost update", "automaticCostUpdate"],
-                                                ["Disable WOF", "disableWof"],
-                                                ["Hide finished jobs in diary", "hideFinishedJobsOnDiaryByDefault"],
-                                                ["Print payment term on invoice", "printPaymentTermOnInvoice"],
-                                                ["Print customer address on job card", "printCustomerAddressOnJobCard"],
-                                            ].map(([label, key]) => (
-                                                <ToggleRow key={key} label={label} checked={(settings.advanced as any)[key]} onCheckedChange={(checked) => setSection("advanced", { ...settings.advanced, [key]: checked } as any)} />
-                                            ))}
-                                        </div>
-                                        <Separator />
-                                        <div>
-                                            <Label className="text-sm font-medium">Price level names</Label>
-                                            <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                                                {settings.advanced.priceLevelNames.map((name, index) => (
-                                                    <Input key={index} value={name} onChange={(e) => {
-                                                        const next = [...settings.advanced.priceLevelNames];
-                                                        next[index] = e.target.value;
-                                                        setSection("advanced", { ...settings.advanced, priceLevelNames: next });
-                                                    }} />
+                                    {activeTab === "notifications" && (
+                                        <Card className={sectionCard}>
+                                            <CardHeader><CardTitle>Internal notifications</CardTitle><CardDescription>Event alerts routed back to the workshop for signatures, quote acceptance, booking requests and SMS replies.</CardDescription></CardHeader>
+                                            <CardContent className="space-y-3">
+                                                {settings.notifications.map((item, index) => (
+                                                    <div key={item.key} className="grid gap-3 rounded-xl border border-slate-200 p-4 lg:grid-cols-[1.3fr_120px_120px_1.2fr_1.5fr]">
+                                                        <div>
+                                                            <div className="font-medium text-slate-900">{item.name}</div>
+                                                            <div className="text-xs text-slate-500">{item.description}</div>
+                                                        </div>
+                                                        <div className="flex items-center"><Badge className={item.enabled ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-700"}>{item.enabled ? "Active" : "Disabled"}</Badge></div>
+                                                        <Field label="Method" className="space-y-1"><Input value={item.method} onChange={(e) => updateArrayItem("notifications", index, { ...item, method: e.target.value })} /></Field>
+                                                        <Field label="Destination" className="space-y-1"><Input value={item.destination} onChange={(e) => updateArrayItem("notifications", index, { ...item, destination: e.target.value })} /></Field>
+                                                        <div className="flex items-center justify-between gap-3">
+                                                            <span className="text-sm text-slate-600">Enabled</span>
+                                                            <Switch checked={item.enabled} onCheckedChange={(checked) => updateArrayItem("notifications", index, { ...item, enabled: checked })} />
+                                                        </div>
+                                                    </div>
                                                 ))}
-                                            </div>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            )}
+                                            </CardContent>
+                                        </Card>
+                                    )}
 
-                            {activeTab === "dataTools" && (
-                                <Card className={sectionCard}>
-                                    <CardHeader><CardTitle>Data tools</CardTitle><CardDescription>Phase-one safe rollout: fully functional exports, guided imports, no open-ended destructive workflows.</CardDescription></CardHeader>
-                                    <CardContent>
-                                        <Tabs defaultValue="export">
-                                            <TabsList className="grid w-full grid-cols-3">
-                                                <TabsTrigger value="export">Export</TabsTrigger>
-                                                <TabsTrigger value="import">Import</TabsTrigger>
-                                                <TabsTrigger value="bulkDelete">Bulk Delete</TabsTrigger>
-                                            </TabsList>
-                                            <TabsContent value="export" className="mt-6 space-y-6">
-                                                <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-                                                    <Card className="rounded-xl border border-slate-200"><CardContent className="p-5 space-y-4">
-                                                        <p className="text-sm text-slate-600">Select resources to export. Requests run in the background and should notify the workshop when finished.</p>
-                                                        <div className="grid gap-3 md:grid-cols-2">
-                                                            {exportResources.map((resource) => {
-                                                                const checked = settings.dataTools.exportSelections.includes(resource);
-                                                                return (
-                                                                    <label key={resource} className="flex items-center gap-3 rounded-lg border border-slate-200 p-3 text-sm">
-                                                                        <Checkbox checked={checked} onCheckedChange={(next) => {
-                                                                            const values = new Set(settings.dataTools.exportSelections);
-                                                                            if (next) values.add(resource); else values.delete(resource);
-                                                                            setSection("dataTools", { ...settings.dataTools, exportSelections: Array.from(values) });
-                                                                        }} />
-                                                                        <span>{resource}</span>
-                                                                    </label>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                        <div className="grid gap-4 md:grid-cols-2">
-                                                            <Field label="Export from date"><Input type="date" value={settings.dataTools.exportFromDate} onChange={(e) => setSection("dataTools", { ...settings.dataTools, exportFromDate: e.target.value })} /></Field>
-                                                            <Field label="Format">
-                                                                <Select value={settings.dataTools.exportFormat} onValueChange={(value: any) => setSection("dataTools", { ...settings.dataTools, exportFormat: value })}>
-                                                                    <SelectTrigger><SelectValue /></SelectTrigger>
-                                                                    <SelectContent><SelectItem value="xlsx">Excel</SelectItem><SelectItem value="csv">CSV</SelectItem></SelectContent>
-                                                                </Select>
-                                                            </Field>
-                                                        </div>
-                                                        <Button onClick={requestExport} className="bg-[#123E97] hover:bg-[#0f327c] text-white">Request export</Button>
-                                                    </CardContent></Card>
-                                                    <Card className="rounded-xl border border-slate-200"><CardContent className="p-5 space-y-4">
-                                                        <h3 className="font-semibold text-slate-900">Current request</h3>
-                                                        <Badge variant="secondary">{settings.dataTools.currentRequestStatus}</Badge>
-                                                        <p className="text-sm text-slate-500">Phase one supports full export and queue/history management from the company side.</p>
-                                                    </CardContent></Card>
+                                    {activeTab === "serviceAttributes" && (
+                                        <Card className={sectionCard}>
+                                            <CardHeader><CardTitle>Vehicle & service field engine</CardTitle><CardDescription>Master field controls shared by vehicles, jobs, quotes and invoices.</CardDescription></CardHeader>
+                                            <CardContent className="space-y-6">
+                                                <div className="grid gap-4 md:grid-cols-2">
+                                                    <Field label="Service item label"><Input value={settings.serviceAttributes.serviceItemLabel} onChange={(e) => setSection("serviceAttributes", { ...settings.serviceAttributes, serviceItemLabel: e.target.value })} /></Field>
+                                                    <Field label="Plural label"><Input value={settings.serviceAttributes.serviceItemPluralLabel} onChange={(e) => setSection("serviceAttributes", { ...settings.serviceAttributes, serviceItemPluralLabel: e.target.value })} /></Field>
                                                 </div>
-                                            </TabsContent>
-                                            <TabsContent value="import" className="mt-6">
-                                                <Card className="rounded-xl border border-slate-200"><CardContent className="p-5 space-y-4">
-                                                    <p className="text-sm text-slate-600">Guided import is intentionally limited in phase one to safer datasets such as customers, vehicles, inventory and suppliers.</p>
-                                                    <Textarea rows={4} value={settings.dataTools.importNote} onChange={(e) => setSection("dataTools", { ...settings.dataTools, importNote: e.target.value })} />
-                                                    <div className="flex flex-wrap gap-2">
-                                                        <Badge variant="secondary">Customers</Badge>
-                                                        <Badge variant="secondary">Vehicles</Badge>
-                                                        <Badge variant="secondary">Inventory</Badge>
-                                                        <Badge variant="secondary">Suppliers</Badge>
+                                                <div>
+                                                    <Label className="text-sm font-medium">Enabled attributes</Label>
+                                                    <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                                                        {serviceAttributeOptions.map((option) => {
+                                                            const checked = settings.serviceAttributes.enabledAttributes.includes(option);
+                                                            return (
+                                                                <label key={option} className="flex items-center gap-3 rounded-xl border border-slate-200 p-3 text-sm">
+                                                                    <Checkbox checked={checked} onCheckedChange={(next) => {
+                                                                        const enabled = new Set(settings.serviceAttributes.enabledAttributes);
+                                                                        if (next) enabled.add(option);
+                                                                        else enabled.delete(option);
+                                                                        setSection("serviceAttributes", { ...settings.serviceAttributes, enabledAttributes: Array.from(enabled) });
+                                                                    }} />
+                                                                    <span>{option}</span>
+                                                                </label>
+                                                            );
+                                                        })}
                                                     </div>
-                                                </CardContent></Card>
-                                            </TabsContent>
-                                            <TabsContent value="bulkDelete" className="mt-6">
-                                                <Card className="rounded-xl border border-amber-200 bg-amber-50"><CardContent className="p-5 space-y-3">
-                                                    <div className="font-semibold text-amber-900">Restricted in phase one</div>
-                                                    <p className="text-sm text-amber-800">Bulk delete should remain admin-controlled or hidden until safeguards, previews, and rollback/audit tools are in place.</p>
-                                                </CardContent></Card>
-                                            </TabsContent>
-                                        </Tabs>
-                                    </CardContent>
-                                </Card>
+                                                </div>
+                                                <Field label="Custom attributes note"><Textarea rows={3} value={settings.serviceAttributes.customAttributesNote} onChange={(e) => setSection("serviceAttributes", { ...settings.serviceAttributes, customAttributesNote: e.target.value })} /></Field>
+                                            </CardContent>
+                                        </Card>
+                                    )}
+
+                                    {activeTab === "booking" && (
+                                        <Card className={sectionCard}>
+                                            <CardHeader><CardTitle>Online booking</CardTitle><CardDescription>Website booking controls, customer form behavior and routing for workshop notifications.</CardDescription></CardHeader>
+                                            <CardContent className="space-y-6">
+                                                <div className="grid gap-4 md:grid-cols-2">
+                                                    <Field label="Booking URL"><Input value={settings.booking.bookingUrl} onChange={(e) => setSection("booking", { ...settings.booking, bookingUrl: e.target.value })} /></Field>
+                                                    <Field label="Notification sent to"><Input value={settings.booking.notificationSentTo} onChange={(e) => setSection("booking", { ...settings.booking, notificationSentTo: e.target.value })} /></Field>
+                                                    <Field label="Confirmation channel">
+                                                        <Select value={settings.booking.confirmationChannel} onValueChange={(value: any) => setSection("booking", { ...settings.booking, confirmationChannel: value })}>
+                                                            <SelectTrigger><SelectValue /></SelectTrigger>
+                                                            <SelectContent><SelectItem value="email">Email</SelectItem><SelectItem value="sms">SMS</SelectItem><SelectItem value="both">Both</SelectItem></SelectContent>
+                                                        </Select>
+                                                    </Field>
+                                                    <div>
+                                                        <Label className="text-sm font-medium">Available job types</Label>
+                                                        <div className="mt-2 flex flex-wrap gap-2">
+                                                            {settings.booking.availableJobTypes.map((jobType) => <Badge key={jobType} variant="secondary">{jobType}</Badge>)}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="grid gap-4 md:grid-cols-3">
+                                                    <ToggleRow label="Disable fully booked dates" checked={settings.booking.disableFullyBookedDates} onCheckedChange={(checked) => setSection("booking", { ...settings.booking, disableFullyBookedDates: checked })} />
+                                                    <ToggleRow label="Show address input" checked={settings.booking.showAddressInput} onCheckedChange={(checked) => setSection("booking", { ...settings.booking, showAddressInput: checked })} />
+                                                    <ToggleRow label="Disable time selection" checked={settings.booking.disableTimeSelection} onCheckedChange={(checked) => setSection("booking", { ...settings.booking, disableTimeSelection: checked })} />
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    )}
+
+                                    {activeTab === "numbering" && (
+                                        <Card className={sectionCard}>
+                                            <CardHeader><CardTitle>Numbering rules</CardTitle><CardDescription>Document prefixes and next numbers used by new records across the company side.</CardDescription></CardHeader>
+                                            <CardContent className="space-y-3">
+                                                {settings.numbering.map((row, index) => (
+                                                    <div key={row.key} className="grid gap-4 rounded-xl border border-slate-200 p-4 md:grid-cols-[1.5fr_160px_160px]">
+                                                        <div className="font-medium text-slate-900">{row.label}</div>
+                                                        <Field label="Prefix" className="space-y-1"><Input value={row.prefix} onChange={(e) => updateNumbering(index, { ...row, prefix: e.target.value })} /></Field>
+                                                        <Field label="Next number" className="space-y-1"><Input type="number" value={row.nextNumber} onChange={(e) => updateNumbering(index, { ...row, nextNumber: Number(e.target.value) })} /></Field>
+                                                    </div>
+                                                ))}
+                                            </CardContent>
+                                        </Card>
+                                    )}
+
+                                    {activeTab === "catalogs" && (
+                                        <Card className={sectionCard}>
+                                            <CardHeader><CardTitle>Categories, tags & sources</CardTitle><CardDescription>Shared operational lists used throughout the workflow.</CardDescription></CardHeader>
+                                            <CardContent>
+                                                <Tabs defaultValue="categories">
+                                                    <TabsList className="grid w-full grid-cols-5">
+                                                        <TabsTrigger value="categories">Job categories</TabsTrigger>
+                                                        <TabsTrigger value="sources">Business sources</TabsTrigger>
+                                                        <TabsTrigger value="hold">Hold reasons</TabsTrigger>
+                                                        <TabsTrigger value="quotes">Quote cancel reasons</TabsTrigger>
+                                                        <TabsTrigger value="tags">Tags & shipping</TabsTrigger>
+                                                    </TabsList>
+                                                    <TabsContent value="categories" className="mt-6"><StringListEditor title="Job categories" items={settings.catalogs.jobCategories} onChange={(items) => setSection("catalogs", { ...settings.catalogs, jobCategories: items })} /></TabsContent>
+                                                    <TabsContent value="sources" className="mt-6"><StringListEditor title="Business sources" items={settings.catalogs.businessSources} onChange={(items) => setSection("catalogs", { ...settings.catalogs, businessSources: items })} /></TabsContent>
+                                                    <TabsContent value="hold" className="mt-6"><StringListEditor title="Reasons for job on hold" items={settings.catalogs.reasonsOnHold} onChange={(items) => setSection("catalogs", { ...settings.catalogs, reasonsOnHold: items })} /></TabsContent>
+                                                    <TabsContent value="quotes" className="mt-6"><StringListEditor title="Reasons for cancel quote" items={settings.catalogs.reasonsCancelQuote} onChange={(items) => setSection("catalogs", { ...settings.catalogs, reasonsCancelQuote: items })} /></TabsContent>
+                                                    <TabsContent value="tags" className="mt-6">
+                                                        <div className="space-y-4">
+                                                            {Object.entries(settings.catalogs.tagsByEntity).map(([entity, tags]) => (
+                                                                <StringListEditor key={entity} title={`${entity.charAt(0).toUpperCase()}${entity.slice(1)} tags`} items={tags} onChange={(next) => setSection("catalogs", { ...settings.catalogs, tagsByEntity: { ...settings.catalogs.tagsByEntity, [entity]: next } })} />
+                                                            ))}
+                                                            <StringListEditor title="Shipping options" items={settings.catalogs.shippingOptions} onChange={(items) => setSection("catalogs", { ...settings.catalogs, shippingOptions: items })} />
+                                                        </div>
+                                                    </TabsContent>
+                                                </Tabs>
+                                            </CardContent>
+                                        </Card>
+                                    )}
+
+                                    {activeTab === "payments" && (
+                                        <Card className={sectionCard}>
+                                            <CardHeader><CardTitle>Payment methods</CardTitle><CardDescription>Accepted payment methods, POS availability, and default payment term logic.</CardDescription></CardHeader>
+                                            <CardContent className="space-y-6">
+                                                <div className="grid gap-4 md:grid-cols-2">
+                                                    <Field label="Default customer payment term"><Input value={settings.payments.defaultCustomerPaymentTerm} onChange={(e) => setSection("payments", { ...settings.payments, defaultCustomerPaymentTerm: e.target.value })} /></Field>
+                                                    <Field label="Default supplier payment term"><Input value={settings.payments.defaultSupplierPaymentTerm} onChange={(e) => setSection("payments", { ...settings.payments, defaultSupplierPaymentTerm: e.target.value })} /></Field>
+                                                </div>
+                                                <div className="space-y-3">
+                                                    {settings.payments.methods.map((method, index) => (
+                                                        <div key={method.key} className="grid gap-4 rounded-xl border border-slate-200 p-4 lg:grid-cols-[1.2fr_120px_120px_120px_120px_120px]">
+                                                            <div>
+                                                                <div className="font-medium text-slate-900">{method.name}</div>
+                                                                <div className="text-xs text-slate-500">{method.type}</div>
+                                                            </div>
+                                                            <ToggleCompact label="Active" checked={method.active} onChange={(checked) => updatePaymentMethod(index, { ...method, active: checked })} />
+                                                            <ToggleCompact label="POS" checked={method.posEnabled} onChange={(checked) => updatePaymentMethod(index, { ...method, posEnabled: checked })} />
+                                                            <ToggleCompact label="Fee" checked={method.hasFee} onChange={(checked) => updatePaymentMethod(index, { ...method, hasFee: checked })} />
+                                                            <Field label="Amount" className="space-y-1"><Input type="number" value={method.feeAmount} onChange={(e) => updatePaymentMethod(index, { ...method, feeAmount: Number(e.target.value) })} /></Field>
+                                                            <Field label="Fee type" className="space-y-1"><Input value={method.feeType} onChange={(e) => updatePaymentMethod(index, { ...method, feeType: e.target.value })} /></Field>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    )}
+
+                                    {activeTab === "branding" && (
+                                        <Card className={sectionCard}>
+                                            <CardHeader><CardTitle>Branding & print output</CardTitle><CardDescription>Email branding, barcode defaults, label templates, and visual print controls.</CardDescription></CardHeader>
+                                            <CardContent className="grid gap-4 md:grid-cols-2">
+                                                <Field label="Logo URL"><Input value={settings.branding.logoUrl} onChange={(e) => setSection("branding", { ...settings.branding, logoUrl: e.target.value })} /></Field>
+                                                <Field label="Logo background color"><Input value={settings.branding.logoBgColor} onChange={(e) => setSection("branding", { ...settings.branding, logoBgColor: e.target.value })} /></Field>
+                                                <Field label="Logo alignment">
+                                                    <Select value={settings.branding.logoAlignment} onValueChange={(value: any) => setSection("branding", { ...settings.branding, logoAlignment: value })}>
+                                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                                        <SelectContent><SelectItem value="left">Left</SelectItem><SelectItem value="center">Center</SelectItem><SelectItem value="right">Right</SelectItem></SelectContent>
+                                                    </Select>
+                                                </Field>
+                                                <Field label="Logo position">
+                                                    <Select value={settings.branding.logoPosition} onValueChange={(value: any) => setSection("branding", { ...settings.branding, logoPosition: value })}>
+                                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                                        <SelectContent><SelectItem value="top">Top</SelectItem><SelectItem value="middle">Middle</SelectItem></SelectContent>
+                                                    </Select>
+                                                </Field>
+                                                <Field label="Barcode system"><Input value={settings.branding.barcodeSystem} onChange={(e) => setSection("branding", { ...settings.branding, barcodeSystem: e.target.value })} /></Field>
+                                                <Field label="Barcode template"><Input value={settings.branding.barcodeTemplate} onChange={(e) => setSection("branding", { ...settings.branding, barcodeTemplate: e.target.value })} /></Field>
+                                                <Field label="Label template"><Input value={settings.branding.labelTemplate} onChange={(e) => setSection("branding", { ...settings.branding, labelTemplate: e.target.value })} /></Field>
+                                                <div className="md:col-span-2"><Field label="Email footer"><Textarea rows={4} value={settings.branding.emailFooter} onChange={(e) => setSection("branding", { ...settings.branding, emailFooter: e.target.value })} /></Field></div>
+                                            </CardContent>
+                                        </Card>
+                                    )}
+
+                                    {activeTab === "advanced" && (
+                                        <Card className={sectionCard}>
+                                            <CardHeader><CardTitle>Advanced rules</CardTitle><CardDescription>Hidden-but-critical switches for print, workflow, diary defaults and pricing behavior.</CardDescription></CardHeader>
+                                            <CardContent className="space-y-6">
+                                                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                                                    <Field label="Quote title"><Input value={settings.advanced.quoteTitle} onChange={(e) => setSection("advanced", { ...settings.advanced, quoteTitle: e.target.value })} /></Field>
+                                                    <Field label="Odometer unit"><Input value={settings.advanced.defaultOdometerUnit} onChange={(e) => setSection("advanced", { ...settings.advanced, defaultOdometerUnit: e.target.value })} /></Field>
+                                                    <Field label="Hubodometer unit"><Input value={settings.advanced.defaultHubodometerUnit} onChange={(e) => setSection("advanced", { ...settings.advanced, defaultHubodometerUnit: e.target.value })} /></Field>
+                                                    <Field label="Default diary view"><Input value={settings.advanced.defaultDiaryView} onChange={(e) => setSection("advanced", { ...settings.advanced, defaultDiaryView: e.target.value })} /></Field>
+                                                    <Field label="Default booking time"><Input value={settings.advanced.defaultBookingTime} onChange={(e) => setSection("advanced", { ...settings.advanced, defaultBookingTime: e.target.value })} /></Field>
+                                                    <Field label="Default pickup time"><Input value={settings.advanced.defaultPickupTime} onChange={(e) => setSection("advanced", { ...settings.advanced, defaultPickupTime: e.target.value })} /></Field>
+                                                    <Field label="SMS workshop name"><Input value={settings.advanced.workshopNameWhenSendSms} onChange={(e) => setSection("advanced", { ...settings.advanced, workshopNameWhenSendSms: e.target.value })} /></Field>
+                                                    <Field label="Print margins (T/B/L/R)"><Input value={`${settings.advanced.printMarginTop}/${settings.advanced.printMarginBottom}/${settings.advanced.printMarginLeft}/${settings.advanced.printMarginRight}`} readOnly /></Field>
+                                                </div>
+                                                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                                                    {[
+                                                        ["Show payments on invoice", "showPaymentsOnInvoice"],
+                                                        ["Print quote price incl. tax", "printQuotePriceIncludeTax"],
+                                                        ["Print invoice price incl. tax", "printInvoicePriceIncludeTax"],
+                                                        ["Print GST amount", "printGstAmount"],
+                                                        ["Print without stock number", "printWithoutStockNumber"],
+                                                        ["Fit more on invoice", "fitMoreOnInvoice"],
+                                                        ["Use large logo", "useLargeLogo"],
+                                                        ["Use full size logo", "useFullSizeLogo"],
+                                                        ["Auto price update", "automaticPriceUpdate"],
+                                                        ["Auto cost update", "automaticCostUpdate"],
+                                                        ["Disable WOF", "disableWof"],
+                                                        ["Hide finished jobs in diary", "hideFinishedJobsOnDiaryByDefault"],
+                                                        ["Print payment term on invoice", "printPaymentTermOnInvoice"],
+                                                        ["Print customer address on job card", "printCustomerAddressOnJobCard"],
+                                                    ].map(([label, key]) => (
+                                                        <ToggleRow key={key} label={label} checked={(settings.advanced as any)[key]} onCheckedChange={(checked) => setSection("advanced", { ...settings.advanced, [key]: checked } as any)} />
+                                                    ))}
+                                                </div>
+                                                <Separator />
+                                                <div>
+                                                    <Label className="text-sm font-medium">Price level names</Label>
+                                                    <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                                                        {settings.advanced.priceLevelNames.map((name, index) => (
+                                                            <Input key={index} value={name} onChange={(e) => {
+                                                                const next = [...settings.advanced.priceLevelNames];
+                                                                next[index] = e.target.value;
+                                                                setSection("advanced", { ...settings.advanced, priceLevelNames: next });
+                                                            }} />
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    )}
+
+                                    {activeTab === "dataTools" && (
+                                        <Card className={sectionCard}>
+                                            <CardHeader><CardTitle>Data tools</CardTitle><CardDescription>Phase-one safe rollout: fully functional exports, guided imports, no open-ended destructive workflows.</CardDescription></CardHeader>
+                                            <CardContent>
+                                                <Tabs defaultValue="export">
+                                                    <TabsList className="grid w-full grid-cols-3">
+                                                        <TabsTrigger value="export">Export</TabsTrigger>
+                                                        <TabsTrigger value="import">Import</TabsTrigger>
+                                                        <TabsTrigger value="bulkDelete">Bulk Delete</TabsTrigger>
+                                                    </TabsList>
+                                                    <TabsContent value="export" className="mt-6 space-y-6">
+                                                        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+                                                            <Card className="rounded-xl border border-slate-200"><CardContent className="p-5 space-y-4">
+                                                                <p className="text-sm text-slate-600">Select resources to export. Requests run in the background and should notify the workshop when finished.</p>
+                                                                <div className="grid gap-3 md:grid-cols-2">
+                                                                    {exportResources.map((resource) => {
+                                                                        const checked = settings.dataTools.exportSelections.includes(resource);
+                                                                        return (
+                                                                            <label key={resource} className="flex items-center gap-3 rounded-lg border border-slate-200 p-3 text-sm">
+                                                                                <Checkbox checked={checked} onCheckedChange={(next) => {
+                                                                                    const values = new Set(settings.dataTools.exportSelections);
+                                                                                    if (next) values.add(resource); else values.delete(resource);
+                                                                                    setSection("dataTools", { ...settings.dataTools, exportSelections: Array.from(values) });
+                                                                                }} />
+                                                                                <span>{resource}</span>
+                                                                            </label>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                                <div className="grid gap-4 md:grid-cols-2">
+                                                                    <Field label="Export from date"><Input type="date" value={settings.dataTools.exportFromDate} onChange={(e) => setSection("dataTools", { ...settings.dataTools, exportFromDate: e.target.value })} /></Field>
+                                                                    <Field label="Format">
+                                                                        <Select value={settings.dataTools.exportFormat} onValueChange={(value: any) => setSection("dataTools", { ...settings.dataTools, exportFormat: value })}>
+                                                                            <SelectTrigger><SelectValue /></SelectTrigger>
+                                                                            <SelectContent><SelectItem value="xlsx">Excel</SelectItem><SelectItem value="csv">CSV</SelectItem></SelectContent>
+                                                                        </Select>
+                                                                    </Field>
+                                                                </div>
+                                                                <Button onClick={requestExport} className="bg-[#123E97] hover:bg-[#0f327c] text-white">Request export</Button>
+                                                            </CardContent></Card>
+                                                            <Card className="rounded-xl border border-slate-200"><CardContent className="p-5 space-y-4">
+                                                                <h3 className="font-semibold text-slate-900">Current request</h3>
+                                                                <Badge variant="secondary">{settings.dataTools.currentRequestStatus}</Badge>
+                                                                <p className="text-sm text-slate-500">Phase one supports full export and queue/history management from the company side.</p>
+                                                            </CardContent></Card>
+                                                        </div>
+                                                    </TabsContent>
+                                                    <TabsContent value="import" className="mt-6">
+                                                        <Card className="rounded-xl border border-slate-200"><CardContent className="p-5 space-y-4">
+                                                            <p className="text-sm text-slate-600">Guided import is intentionally limited in phase one to safer datasets such as customers, vehicles, inventory and suppliers.</p>
+                                                            <Textarea rows={4} value={settings.dataTools.importNote} onChange={(e) => setSection("dataTools", { ...settings.dataTools, importNote: e.target.value })} />
+                                                            <div className="flex flex-wrap gap-2">
+                                                                <Badge variant="secondary">Customers</Badge>
+                                                                <Badge variant="secondary">Vehicles</Badge>
+                                                                <Badge variant="secondary">Inventory</Badge>
+                                                                <Badge variant="secondary">Suppliers</Badge>
+                                                            </div>
+                                                        </CardContent></Card>
+                                                    </TabsContent>
+                                                    <TabsContent value="bulkDelete" className="mt-6">
+                                                        <Card className="rounded-xl border border-amber-200 bg-amber-50"><CardContent className="p-5 space-y-3">
+                                                            <div className="font-semibold text-amber-900">Restricted in phase one</div>
+                                                            <p className="text-sm text-amber-800">Bulk delete should remain admin-controlled or hidden until safeguards, previews, and rollback/audit tools are in place.</p>
+                                                        </CardContent></Card>
+                                                    </TabsContent>
+                                                </Tabs>
+                                            </CardContent>
+                                        </Card>
+                                    )}
+                                </>
                             )}
-                        </>
-                    )}
+                        </div>
                 </div>
             </div>
-        </div>
     </AppLayout>
 );
-
-function updateArrayItem<K extends "notifications">(key: K, index: number, value: SettingsShape[K][number]) {
-    const next = [...settings[key]] as SettingsShape[K];
-    (next as any)[index] = value;
-    setSection(key, next);
 }
 
-function updateNumbering(index: number, value: SettingsShape["numbering"][number]) {
-    const next = [...settings.numbering];
-    next[index] = value;
-    setSection("numbering", next);
-}
-
-function updatePaymentMethod(index: number, value: SettingsShape["payments"]["methods"][number]) {
-    const next = [...settings.payments.methods];
-    next[index] = value;
-    setSection("payments", { ...settings.payments, methods: next });
-}
-}
-
-function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
-    return <div className={cn("space-y-2", className)}><Label>{label}</Label>{children}</div>;
-}
-
-function ToggleRow({ label, checked, onCheckedChange }: { label: string; checked: boolean; onCheckedChange: (checked: boolean) => void }) {
-    return (
-        <div className="flex items-center justify-between rounded-xl border border-slate-200 p-4">
-            <span className="text-sm font-medium text-slate-700">{label}</span>
-            <Switch checked={checked} onCheckedChange={onCheckedChange} />
-        </div>
-    );
-}
-
-function ToggleCompact({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
-    return <div className="flex flex-col items-center justify-center gap-2 text-sm"><span className="text-xs text-slate-500">{label}</span><Switch checked={checked} onCheckedChange={onChange} /></div>;
-}
-
-function StringListEditor({ title, items, onChange }: { title: string; items: string[]; onChange: (items: string[]) => void }) {
-    const [draft, setDraft] = useState("");
-    return (
-        <Card className="rounded-xl border border-slate-200">
-            <CardHeader><CardTitle className="text-base">{title}</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-                <div className="flex flex-wrap gap-2">
-                    {items.map((item) => (
-                        <Badge key={item} variant="secondary" className="gap-2 px-3 py-1">
-                            {item}
-                            <button type="button" onClick={() => onChange(items.filter((entry) => entry !== item))}>×</button>
-                        </Badge>
-                    ))}
-                </div>
-                <div className="flex gap-2">
-                    <Input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Add new value" />
-                    <Button type="button" variant="outline" onClick={() => {
-                        const trimmed = draft.trim();
-                        if (!trimmed || items.includes(trimmed)) return;
-                        onChange([...items, trimmed]);
-                        setDraft("");
-                    }}>
-                        <Plus className="mr-2 h-4 w-4" /> Add
-                    </Button>
-                </div>
-            </CardContent>
-        </Card>
-    );
-}
-
-function deepMerge<T>(base: T, incoming?: Partial<T>): T {
-    if (!incoming) return base;
-    const output: any = Array.isArray(base) ? [...(base as any)] : { ...(base as any) };
-    for (const [key, value] of Object.entries(incoming as any)) {
-        if (Array.isArray(value)) output[key] = value;
-        else if (value && typeof value === "object") output[key] = deepMerge((output[key] ?? {}) as any, value as any);
-        else output[key] = value;
-    }
-    return output;
-}
