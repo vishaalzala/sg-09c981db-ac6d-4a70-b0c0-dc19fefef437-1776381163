@@ -34,6 +34,8 @@ import {
     Save,
     RefreshCcw,
     Database,
+    PanelLeftOpen,
+    PanelTopOpen,
 } from "lucide-react";
 
 type SettingsTab =
@@ -104,6 +106,9 @@ type SettingsShape = {
             authorizationStatement: string;
             termsAttachment: string;
         };
+    };
+    templates: {
+        navigationLayout: "vertical" | "horizontal";
     };
     notifications: Array<{
         key: string;
@@ -348,6 +353,9 @@ const defaultSettings = (companyName = "Workshop", companyEmail = "", companyPho
             termsAttachment: "",
         },
     },
+    templates: {
+        navigationLayout: "vertical",
+    },
     notifications: [
         { key: "booking-request", name: "Booking Request", enabled: false, method: "email", destination: companyEmail, description: "Notify the workshop when a new booking request is submitted." },
         { key: "courtesy-vehicle-signature", name: "Courtesy Vehicle Signature", enabled: true, method: "email", destination: companyEmail, description: "Notification when a courtesy vehicle signature is successfully added." },
@@ -513,7 +521,11 @@ const loadSettings = async () => {
 
         if (row?.settings_payload) {
             setSettingRowId(row.id);
-            setSettings(deepMerge(defaults, row.settings_payload as Partial<SettingsShape>));
+            const merged = deepMerge(defaults, row.settings_payload as Partial<SettingsShape>);
+            setSettings(merged);
+            if (typeof window !== "undefined" && merged.templates?.navigationLayout) localStorage.setItem("workshoppro:nav-layout", merged.templates.navigationLayout);
+        } else if (typeof window !== "undefined") {
+            localStorage.setItem("workshoppro:nav-layout", defaults.templates.navigationLayout);
         }
 
         const { data: templates } = await supabase
@@ -544,6 +556,7 @@ const saveSettings = async () => {
     try {
         setSaving(true);
         const payload = { company_id: companyId, settings_payload: settings, updated_at: new Date().toISOString() };
+        if (typeof window !== "undefined") localStorage.setItem("workshoppro:nav-layout", settings.templates.navigationLayout);
         if (settingRowId) {
             const { error } = await (supabase as any).from("company_settings").update(payload).eq("id", settingRowId);
             if (error) throw error;
@@ -718,92 +731,114 @@ return (
                                         </div>
                                     </CardContent>
                                 </Card>
+                                </div>
                             )}
 
-                            {activeTab === "documents" && (
-                                <Card className={sectionCard}>
-                                    <CardHeader><CardTitle>Document engine</CardTitle><CardDescription>Controls current numbers, templates, footers, surcharge rules and print behavior.</CardDescription></CardHeader>
-                                    <CardContent>
-                                        <Tabs defaultValue="invoice">
-                                            <TabsList className="grid w-full grid-cols-4">
-                                                <TabsTrigger value="invoice">Invoices</TabsTrigger>
-                                                <TabsTrigger value="quote">Quotes</TabsTrigger>
-                                                <TabsTrigger value="jobCard">Job Cards</TabsTrigger>
-                                                <TabsTrigger value="courtesyVehicle">Courtesy Vehicles</TabsTrigger>
-                                            </TabsList>
-                                            {(["invoice", "quote", "jobCard", "courtesyVehicle"] as DocumentType[]).map((tab) => (
-                                                <TabsContent key={tab} value={tab} className="mt-6">
-                                                    {tab === "invoice" && (
-                                                        <div className="grid gap-4 md:grid-cols-2">
-                                                            <Field label="Current invoice number"><Input value={settings.documents.invoice.currentNumber} onChange={(e) => setSection("documents", { ...settings.documents, invoice: { ...settings.documents.invoice, currentNumber: e.target.value } })} /></Field>
-                                                            <Field label="Invoice template"><Input value={settings.documents.invoice.templateName} onChange={(e) => setSection("documents", { ...settings.documents, invoice: { ...settings.documents.invoice, templateName: e.target.value } })} /></Field>
-                                                            <Field label="Rounding"><Input value={settings.documents.invoice.rounding} onChange={(e) => setSection("documents", { ...settings.documents, invoice: { ...settings.documents.invoice, rounding: e.target.value } })} /></Field>
-                                                            <Field label="T&C attachment"><Input value={settings.documents.invoice.termsAttachment} onChange={(e) => setSection("documents", { ...settings.documents, invoice: { ...settings.documents.invoice, termsAttachment: e.target.value } })} /></Field>
-                                                            <Field label="Markup level 1"><Input value={settings.documents.invoice.markupLevel1} onChange={(e) => setSection("documents", { ...settings.documents, invoice: { ...settings.documents.invoice, markupLevel1: e.target.value } })} /></Field>
-                                                            <Field label="Credit card surcharge %"><Input type="number" value={settings.documents.invoice.surchargePercent} onChange={(e) => setSection("documents", { ...settings.documents, invoice: { ...settings.documents.invoice, surchargePercent: Number(e.target.value) } })} /></Field>
-                                                            <div className="md:col-span-2"><Field label="Invoice footer"><Textarea rows={4} value={settings.documents.invoice.footer} onChange={(e) => setSection("documents", { ...settings.documents, invoice: { ...settings.documents.invoice, footer: e.target.value } })} /></Field></div>
-                                                        </div>
-                                                    )}
-                                                    {tab === "quote" && (
-                                                        <div className="grid gap-4 md:grid-cols-2">
-                                                            <Field label="Expiry days"><Input value={settings.documents.quote.expiryDays} onChange={(e) => setSection("documents", { ...settings.documents, quote: { ...settings.documents.quote, expiryDays: e.target.value } })} /></Field>
-                                                            <Field label="Quote template"><Input value={settings.documents.quote.templateName} onChange={(e) => setSection("documents", { ...settings.documents, quote: { ...settings.documents.quote, templateName: e.target.value } })} /></Field>
-                                                            <Field label="Rounding"><Input value={settings.documents.quote.rounding} onChange={(e) => setSection("documents", { ...settings.documents, quote: { ...settings.documents.quote, rounding: e.target.value } })} /></Field>
-                                                            <Field label="T&C attachment"><Input value={settings.documents.quote.termsAttachment} onChange={(e) => setSection("documents", { ...settings.documents, quote: { ...settings.documents.quote, termsAttachment: e.target.value } })} /></Field>
-                                                            <div className="md:col-span-2"><Field label="Quote footer"><Textarea rows={4} value={settings.documents.quote.quoteFooter} onChange={(e) => setSection("documents", { ...settings.documents, quote: { ...settings.documents.quote, quoteFooter: e.target.value } })} /></Field></div>
-                                                            <div className="md:col-span-2"><Field label="Estimate footer"><Textarea rows={4} value={settings.documents.quote.estimateFooter} onChange={(e) => setSection("documents", { ...settings.documents, quote: { ...settings.documents.quote, estimateFooter: e.target.value } })} /></Field></div>
-                                                        </div>
-                                                    )}
-                                                    {tab === "jobCard" && (
-                                                        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                                                            <Field label="Current job number"><Input value={settings.documents.jobCard.currentNumber} onChange={(e) => setSection("documents", { ...settings.documents, jobCard: { ...settings.documents.jobCard, currentNumber: e.target.value } })} /></Field>
-                                                            <Field label="Job card template"><Input value={settings.documents.jobCard.templateName} onChange={(e) => setSection("documents", { ...settings.documents, jobCard: { ...settings.documents.jobCard, templateName: e.target.value } })} /></Field>
-                                                            <Field label="T&C attachment"><Input value={settings.documents.jobCard.termsAttachment} onChange={(e) => setSection("documents", { ...settings.documents, jobCard: { ...settings.documents.jobCard, termsAttachment: e.target.value } })} /></Field>
-                                                            <ToggleRow label="Customer sign-off required" checked={settings.documents.jobCard.customerSignOffRequired} onCheckedChange={(checked) => setSection("documents", { ...settings.documents, jobCard: { ...settings.documents.jobCard, customerSignOffRequired: checked } })} />
-                                                            <ToggleRow label="Print timesheets" checked={settings.documents.jobCard.printTimesheets} onCheckedChange={(checked) => setSection("documents", { ...settings.documents, jobCard: { ...settings.documents.jobCard, printTimesheets: checked } })} />
-                                                            <ToggleRow label="Print customer address" checked={settings.documents.jobCard.printCustomerAddress} onCheckedChange={(checked) => setSection("documents", { ...settings.documents, jobCard: { ...settings.documents.jobCard, printCustomerAddress: checked } })} />
-                                                        </div>
-                                                    )}
-                                                    {tab === "courtesyVehicle" && (
-                                                        <div className="grid gap-4">
-                                                            <Field label="Authorization statement"><Textarea rows={5} value={settings.documents.courtesyVehicle.authorizationStatement} onChange={(e) => setSection("documents", { ...settings.documents, courtesyVehicle: { ...settings.documents.courtesyVehicle, authorizationStatement: e.target.value } })} /></Field>
-                                                            <Field label="T&C attachment"><Input value={settings.documents.courtesyVehicle.termsAttachment} onChange={(e) => setSection("documents", { ...settings.documents, courtesyVehicle: { ...settings.documents.courtesyVehicle, termsAttachment: e.target.value } })} /></Field>
-                                                        </div>
-                                                    )}
-                                                </TabsContent>
-                                            ))}
-                                        </Tabs>
-                                    </CardContent>
-                                </Card>
-                            )}
-
-                            {activeTab === "templates" && (
-                                <Card className={sectionCard}>
-                                    <CardHeader><CardTitle>Communication templates</CardTitle><CardDescription>Customer-facing message templates for reminders, signatures, statements, invoices and job completion.</CardDescription></CardHeader>
-                                    <CardContent className="space-y-6">
-                                        {commTemplateLibrary.map((templateType) => (
-                                            <div key={templateType} className="rounded-xl border border-slate-200 p-4">
-                                                <div className="mb-3 flex items-center justify-between gap-3">
-                                                    <div>
-                                                        <div className="font-semibold text-slate-900">{templateType}</div>
-                                                        <div className="text-xs text-slate-500">Variables such as {'{{customer_name}}'}, {'{{rego}}'}, {'{{document_number}}'} can be used.</div>
-                                                    </div>
-                                                    <Badge variant="secondary">{templateBodies[templateType]?.channel || "email"}</Badge>
-                                                </div>
+                    {activeTab === "documents" && (
+                        <Card className={sectionCard}>
+                            <CardHeader><CardTitle>Document engine</CardTitle><CardDescription>Controls current numbers, templates, footers, surcharge rules and print behavior.</CardDescription></CardHeader>
+                            <CardContent>
+                                <Tabs defaultValue="invoice">
+                                    <TabsList className="grid w-full grid-cols-4">
+                                        <TabsTrigger value="invoice">Invoices</TabsTrigger>
+                                        <TabsTrigger value="quote">Quotes</TabsTrigger>
+                                        <TabsTrigger value="jobCard">Job Cards</TabsTrigger>
+                                        <TabsTrigger value="courtesyVehicle">Courtesy Vehicles</TabsTrigger>
+                                    </TabsList>
+                                    {(["invoice", "quote", "jobCard", "courtesyVehicle"] as DocumentType[]).map((tab) => (
+                                        <TabsContent key={tab} value={tab} className="mt-6">
+                                            {tab === "invoice" && (
                                                 <div className="grid gap-4 md:grid-cols-2">
-                                                    <Field label="Channel">
-                                                        <Select value={templateBodies[templateType]?.channel || "email"} onValueChange={(value) => setTemplateBodies((prev) => ({ ...prev, [templateType]: { ...prev[templateType], channel: value } }))}>
-                                                            <SelectTrigger><SelectValue /></SelectTrigger>
-                                                            <SelectContent><SelectItem value="email">Email</SelectItem><SelectItem value="sms">SMS</SelectItem></SelectContent>
-                                                        </Select>
-                                                    </Field>
-                                                    <Field label="Subject"><Input value={templateBodies[templateType]?.subject || ""} onChange={(e) => setTemplateBodies((prev) => ({ ...prev, [templateType]: { ...prev[templateType], subject: e.target.value } }))} /></Field>
-                                                    <div className="md:col-span-2"><Field label="Message"><Textarea rows={5} value={templateBodies[templateType]?.body || ""} onChange={(e) => setTemplateBodies((prev) => ({ ...prev, [templateType]: { ...prev[templateType], body: e.target.value } }))} /></Field></div>
+                                                    <Field label="Current invoice number"><Input value={settings.documents.invoice.currentNumber} onChange={(e) => setSection("documents", { ...settings.documents, invoice: { ...settings.documents.invoice, currentNumber: e.target.value } })} /></Field>
+                                                    <Field label="Invoice template"><Input value={settings.documents.invoice.templateName} onChange={(e) => setSection("documents", { ...settings.documents, invoice: { ...settings.documents.invoice, templateName: e.target.value } })} /></Field>
+                                                    <Field label="Rounding"><Input value={settings.documents.invoice.rounding} onChange={(e) => setSection("documents", { ...settings.documents, invoice: { ...settings.documents.invoice, rounding: e.target.value } })} /></Field>
+                                                    <Field label="T&C attachment"><Input value={settings.documents.invoice.termsAttachment} onChange={(e) => setSection("documents", { ...settings.documents, invoice: { ...settings.documents.invoice, termsAttachment: e.target.value } })} /></Field>
+                                                    <Field label="Markup level 1"><Input value={settings.documents.invoice.markupLevel1} onChange={(e) => setSection("documents", { ...settings.documents, invoice: { ...settings.documents.invoice, markupLevel1: e.target.value } })} /></Field>
+                                                    <Field label="Credit card surcharge %"><Input type="number" value={settings.documents.invoice.surchargePercent} onChange={(e) => setSection("documents", { ...settings.documents, invoice: { ...settings.documents.invoice, surchargePercent: Number(e.target.value) } })} /></Field>
+                                                    <div className="md:col-span-2"><Field label="Invoice footer"><Textarea rows={4} value={settings.documents.invoice.footer} onChange={(e) => setSection("documents", { ...settings.documents, invoice: { ...settings.documents.invoice, footer: e.target.value } })} /></Field></div>
                                                 </div>
+                                            )}
+                                            {tab === "quote" && (
+                                                <div className="grid gap-4 md:grid-cols-2">
+                                                    <Field label="Expiry days"><Input value={settings.documents.quote.expiryDays} onChange={(e) => setSection("documents", { ...settings.documents, quote: { ...settings.documents.quote, expiryDays: e.target.value } })} /></Field>
+                                                    <Field label="Quote template"><Input value={settings.documents.quote.templateName} onChange={(e) => setSection("documents", { ...settings.documents, quote: { ...settings.documents.quote, templateName: e.target.value } })} /></Field>
+                                                    <Field label="Rounding"><Input value={settings.documents.quote.rounding} onChange={(e) => setSection("documents", { ...settings.documents, quote: { ...settings.documents.quote, rounding: e.target.value } })} /></Field>
+                                                    <Field label="T&C attachment"><Input value={settings.documents.quote.termsAttachment} onChange={(e) => setSection("documents", { ...settings.documents, quote: { ...settings.documents.quote, termsAttachment: e.target.value } })} /></Field>
+                                                    <div className="md:col-span-2"><Field label="Quote footer"><Textarea rows={4} value={settings.documents.quote.quoteFooter} onChange={(e) => setSection("documents", { ...settings.documents, quote: { ...settings.documents.quote, quoteFooter: e.target.value } })} /></Field></div>
+                                                    <div className="md:col-span-2"><Field label="Estimate footer"><Textarea rows={4} value={settings.documents.quote.estimateFooter} onChange={(e) => setSection("documents", { ...settings.documents, quote: { ...settings.documents.quote, estimateFooter: e.target.value } })} /></Field></div>
+                                                </div>
+                                            )}
+                                            {tab === "jobCard" && (
+                                                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                                                    <Field label="Current job number"><Input value={settings.documents.jobCard.currentNumber} onChange={(e) => setSection("documents", { ...settings.documents, jobCard: { ...settings.documents.jobCard, currentNumber: e.target.value } })} /></Field>
+                                                    <Field label="Job card template"><Input value={settings.documents.jobCard.templateName} onChange={(e) => setSection("documents", { ...settings.documents, jobCard: { ...settings.documents.jobCard, templateName: e.target.value } })} /></Field>
+                                                    <Field label="T&C attachment"><Input value={settings.documents.jobCard.termsAttachment} onChange={(e) => setSection("documents", { ...settings.documents, jobCard: { ...settings.documents.jobCard, termsAttachment: e.target.value } })} /></Field>
+                                                    <ToggleRow label="Customer sign-off required" checked={settings.documents.jobCard.customerSignOffRequired} onCheckedChange={(checked) => setSection("documents", { ...settings.documents, jobCard: { ...settings.documents.jobCard, customerSignOffRequired: checked } })} />
+                                                    <ToggleRow label="Print timesheets" checked={settings.documents.jobCard.printTimesheets} onCheckedChange={(checked) => setSection("documents", { ...settings.documents, jobCard: { ...settings.documents.jobCard, printTimesheets: checked } })} />
+                                                    <ToggleRow label="Print customer address" checked={settings.documents.jobCard.printCustomerAddress} onCheckedChange={(checked) => setSection("documents", { ...settings.documents, jobCard: { ...settings.documents.jobCard, printCustomerAddress: checked } })} />
+                                                </div>
+                                            )}
+                                            {tab === "courtesyVehicle" && (
+                                                <div className="grid gap-4">
+                                                    <Field label="Authorization statement"><Textarea rows={5} value={settings.documents.courtesyVehicle.authorizationStatement} onChange={(e) => setSection("documents", { ...settings.documents, courtesyVehicle: { ...settings.documents.courtesyVehicle, authorizationStatement: e.target.value } })} /></Field>
+                                                    <Field label="T&C attachment"><Input value={settings.documents.courtesyVehicle.termsAttachment} onChange={(e) => setSection("documents", { ...settings.documents, courtesyVehicle: { ...settings.documents.courtesyVehicle, termsAttachment: e.target.value } })} /></Field>
+                                                </div>
+                                            )}
+                                        </TabsContent>
+                                    ))}
+                                </Tabs>
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {activeTab === "templates" && (
+                        <div className="space-y-6">
+                            <Card className={sectionCard}>
+                                <CardHeader><CardTitle>Navigation layout</CardTitle><CardDescription>Choose whether staff see the classic left sidebar or the new horizontal top navigation.</CardDescription></CardHeader>
+                                <CardContent>
+                                    <div className="grid gap-4 md:grid-cols-2">
+                                        {[{ key: "vertical", label: "Vertical menu", description: "Best for staff who use many modules all day.", icon: PanelLeftOpen }, { key: "horizontal", label: "Horizontal menu", description: "Cleaner top navigation with more workspace width.", icon: PanelTopOpen }].map((option) => {
+                                            const active = settings.templates.navigationLayout === option.key;
+                                            const Icon = option.icon;
+                                            return (
+                                                <button key={option.key} type="button" onClick={() => setSection("templates", { navigationLayout: option.key as "vertical" | "horizontal" })} className={cn("rounded-2xl border p-5 text-left transition", active ? "border-blue-300 bg-blue-50 shadow-sm" : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50")}>
+                                                    <div className="mb-3 flex items-center gap-3">
+                                                        <div className={cn("flex h-11 w-11 items-center justify-center rounded-2xl", active ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-600")}><Icon className="h-5 w-5" /></div>
+                                                        <div><div className="font-semibold text-slate-900">{option.label}</div><div className="text-sm text-slate-500">{option.description}</div></div>
+                                                    </div>
+                                                    <Badge variant={active ? "default" : "secondary"}>{active ? "Current layout" : "Available"}</Badge>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                            <Card className={sectionCard}>
+                                <CardHeader><CardTitle>Communication templates</CardTitle><CardDescription>Customer-facing message templates for reminders, signatures, statements, invoices and job completion.</CardDescription></CardHeader>
+                                <CardContent className="space-y-6">
+                                    {commTemplateLibrary.map((templateType) => (
+                                        <div key={templateType} className="rounded-xl border border-slate-200 p-4">
+                                            <div className="mb-3 flex items-center justify-between gap-3">
+                                                <div>
+                                                    <div className="font-semibold text-slate-900">{templateType}</div>
+                                                    <div className="text-xs text-slate-500">Variables such as {'{{customer_name}}'}, {'{{rego}}'}, {'{{document_number}}'} can be used.</div>
+                                                </div>
+                                                <Badge variant="secondary">{templateBodies[templateType]?.channel || "email"}</Badge>
                                             </div>
-                                        ))}
-                                    </CardContent>
-                                </Card>
+                                            <div className="grid gap-4 md:grid-cols-2">
+                                                <Field label="Channel">
+                                                    <Select value={templateBodies[templateType]?.channel || "email"} onValueChange={(value) => setTemplateBodies((prev) => ({ ...prev, [templateType]: { ...prev[templateType], channel: value } }))}>
+                                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                                        <SelectContent><SelectItem value="email">Email</SelectItem><SelectItem value="sms">SMS</SelectItem></SelectContent>
+                                                    </Select>
+                                                </Field>
+                                                <Field label="Subject"><Input value={templateBodies[templateType]?.subject || ""} onChange={(e) => setTemplateBodies((prev) => ({ ...prev, [templateType]: { ...prev[templateType], subject: e.target.value } }))} /></Field>
+                                                <div className="md:col-span-2"><Field label="Message"><Textarea rows={5} value={templateBodies[templateType]?.body || ""} onChange={(e) => setTemplateBodies((prev) => ({ ...prev, [templateType]: { ...prev[templateType], body: e.target.value } }))} /></Field></div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </CardContent>
+                            </Card>
                             )}
 
                             {activeTab === "notifications" && (
