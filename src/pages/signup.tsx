@@ -18,9 +18,7 @@ export default function SignupPage() {
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
 
-    const handleChange = (
-        e: React.ChangeEvent<HTMLInputElement>
-    ) => {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
         setForm((prev) => ({
             ...prev,
@@ -31,6 +29,16 @@ export default function SignupPage() {
     const validateForm = () => {
         if (!form.fullName.trim()) {
             setError("Full name is required.");
+            return false;
+        }
+
+        if (!form.companyName.trim()) {
+            setError("Company name is required.");
+            return false;
+        }
+
+        if (!form.phone.trim()) {
+            setError("Phone number is required.");
             return false;
         }
 
@@ -71,11 +79,11 @@ export default function SignupPage() {
 
         try {
             const result = await signUp({
-                fullName: form.fullName,
-                email: form.email,
+                fullName: form.fullName.trim(),
+                email: form.email.trim(),
                 password: form.password,
-                companyName: form.companyName,
-                phone: form.phone,
+                companyName: form.companyName.trim(),
+                phone: form.phone.trim(),
             });
 
             if (result.error) {
@@ -120,6 +128,26 @@ export default function SignupPage() {
                     />
 
                     <input
+                        type="text"
+                        name="companyName"
+                        placeholder="Company name"
+                        value={form.companyName}
+                        onChange={handleChange}
+                        style={styles.input}
+                        required
+                    />
+
+                    <input
+                        type="text"
+                        name="phone"
+                        placeholder="Phone number"
+                        value={form.phone}
+                        onChange={handleChange}
+                        style={styles.input}
+                        required
+                    />
+
+                    <input
                         type="email"
                         name="email"
                         placeholder="Email address"
@@ -147,24 +175,6 @@ export default function SignupPage() {
                         onChange={handleChange}
                         style={styles.input}
                         required
-                    />
-
-                    <input
-                        type="text"
-                        name="companyName"
-                        placeholder="Company name (optional here, can finish in onboarding)"
-                        value={form.companyName}
-                        onChange={handleChange}
-                        style={styles.input}
-                    />
-
-                    <input
-                        type="text"
-                        name="phone"
-                        placeholder="Phone number (optional)"
-                        value={form.phone}
-                        onChange={handleChange}
-                        style={styles.input}
                     />
 
                     <button
