@@ -13,12 +13,11 @@ export interface AuthError {
     code?: string;
 }
 
-// Add new interface for signup
 export interface SignupData {
     email: string;
     password: string;
     fullName: string;
-    companyName: string;
+    companyName?: string;
     phone?: string;
 }
 
@@ -26,112 +25,140 @@ export interface SignupResult {
     user: User | null;
     company: { id: string; name: string } | null;
     error: Error | null;
-    onboardingRequired: boolean;
-    emailConfirmationRequired: boolean;
+    requiresEmailConfirmation?: boolean;
 }
 
-// Dynamic URL Helper
 const getURL = () => {
-    let url = process?.env?.NEXT_PUBLIC_VERCEL_URL ??
+    let url =
         process?.env?.NEXT_PUBLIC_SITE_URL ??
-        'http://localhost:3000'
+        process?.env?.NEXT_PUBLIC_VERCEL_URL ??
+        "http://localhost:3000";
 
-    // Handle undefined or null url
     if (!url) {
-        url = 'http://localhost:3000';
+        url = "http://localhost:3000";
     }
 
-    // Ensure url has protocol
-    url = url.startsWith('http') ? url : `https://${url}`
+    url = url.startsWith("http") ? url : `https://${url}`;
+    url = url.endsWith("/") ? url : `${url}/`;
 
-    // Ensure url ends with slash
-    url = url.endsWith('/') ? url : `${url}/`
+    return url;
+};
 
-    return url
-}
+const mapAuthUser = (user: User | null): AuthUser | null => {
+    if (!user) return null;
+
+    return {
+        id: user.id,
+        email: user.email || "",
+        user_metadata: user.user_metadata,
+        created_at: user.created_at,
+    };
+};
 
 export const authService = {
-    // Get current user
     async getCurrentUser(): Promise<AuthUser | null> {
-        const { data: { user } } = await supabase.auth.getUser();
-        return user ? {
-            id: user.id,
-            email: user.email || "",
-            user_metadata: user.user_metadata,
-            created_at: user.created_at
-        } : null;
+        const {
+            data: { user },
+        } = await supabase.auth.getUser();
+
+        return mapAuthUser(user);
     },
 
-    // Get current session
     async getCurrentSession(): Promise<Session | null> {
-        const { data: { session } } = await supabase.auth.getSession();
+        const {
+            data: { session },
+        } = await supabase.auth.getSession();
+
         return session;
     },
 
-    // Get current user's company_id
     async getCurrentUserCompanyId(): Promise<string | null> {
         const user = await this.getCurrentUser();
         if (!user) return null;
 
-        const { data } = await supabase
+        const { data, error } = await supabase
             .from("users")
             .select("company_id")
             .eq("id", user.id)
-            .single();
+            .maybeSingle();
+
+        if (error) {
+            console.error("Error loading user company:", error);
+            throw error;
+        }
 
         return data?.company_id || null;
     },
 
-    // Validate user belongs to company
     async validateCompanyAccess(companyId: string): Promise<boolean> {
-        const userCompanyId = await this.getCurrentUserCompanyId();
-        if (!userCompanyId) return false;
+        const user = await this.getCurrentUser();
+        if (!user) return false;
 
-        // Check if super admin
-        const { data: profile } = await supabase
+        const { data: profile, error: profileError } = await supabase
             .from("profiles")
             .select("role")
-            .eq("id", (await this.getCurrentUser())?.id || "")
-            .single();
+            .eq("id", user.id)
+            .maybeSingle();
+
+        if (profileError) {
+            console.error("Error loading profile role:", profileError);
+            return false;
+        }
 
         if (profile?.role === "super_admin") return true;
+
+        const userCompanyId = await this.getCurrentUserCompanyId();
+        if (!userCompanyId) return false;
 
         return userCompanyId === companyId;
     },
 
-    // Sign up with email and password
-    async signUp(email: string, password: string): Promise<{ user: AuthUser | null; error: AuthError | null }> {
+    async signUp(
+        email: string,
+        password: string,
+        fullName?: string
+    ): Promise<{ user: AuthUser | null; error: AuthError | null }> {
         try {
             const { data, error } = await supabase.auth.signUp({
                 email,
                 password,
                 options: {
-                    emailRedirectTo: `${getURL()}auth/confirm-email`
-                }
+                    emailRedirectTo: `${getURL()}auth/confirm-email`,
+                    data: {
+                        full_name: fullName || "",
+                    },
+                },
             });
 
             if (error) {
-                return { user: null, error: { message: error.message, code: error.status?.toString() } };
+                return {
+                    user: null,
+                    error: {
+                        message: error.message,
+                        code: error.status?.toString(),
+                    },
+                };
             }
 
-            const authUser = data.user ? {
-                id: data.user.id,
-                email: data.user.email || "",
-                user_metadata: data.user.user_metadata,
-                created_at: data.user.created_at
-            } : null;
-
-            return { user: authUser, error: null };
+            return {
+                user: mapAuthUser(data.user),
+                error: null,
+            };
         } catch (error) {
+            console.error("Unexpected sign up error:", error);
             return {
                 user: null,
-                error: { message: "An unexpected error occurred during sign up" }
+                error: {
+                    message: "An unexpected error occurred during sign up",
+                },
             };
         }
     },
 
-    // Sign in with email and password
-    async signIn(email: string, password: string): Promise<{ user: AuthUser | null; error: AuthError | null }> {
+    async signIn(
+        email: string,
+        password: string
+    ): Promise<{ user: AuthUser | null; error: AuthError | null }> {
         try {
             const { data, error } = await supabase.auth.signInWithPassword({
                 email,
@@ -139,43 +166,53 @@ export const authService = {
             });
 
             if (error) {
-                return { user: null, error: { message: error.message, code: error.status?.toString() } };
+                return {
+                    user: null,
+                    error: {
+                        message: error.message,
+                        code: error.status?.toString(),
+                    },
+                };
             }
 
-            const authUser = data.user ? {
-                id: data.user.id,
-                email: data.user.email || "",
-                user_metadata: data.user.user_metadata,
-                created_at: data.user.created_at
-            } : null;
-
-            return { user: authUser, error: null };
+            return {
+                user: mapAuthUser(data.user),
+                error: null,
+            };
         } catch (error) {
+            console.error("Unexpected sign in error:", error);
             return {
                 user: null,
-                error: { message: "An unexpected error occurred during sign in" }
+                error: {
+                    message: "An unexpected error occurred during sign in",
+                },
             };
         }
     },
 
-    // Sign out
     async signOut(): Promise<{ error: AuthError | null }> {
         try {
             const { error } = await supabase.auth.signOut();
 
             if (error) {
-                return { error: { message: error.message } };
+                return {
+                    error: {
+                        message: error.message,
+                    },
+                };
             }
 
             return { error: null };
         } catch (error) {
+            console.error("Unexpected sign out error:", error);
             return {
-                error: { message: "An unexpected error occurred during sign out" }
+                error: {
+                    message: "An unexpected error occurred during sign out",
+                },
             };
         }
     },
 
-    // Reset password
     async resetPassword(email: string): Promise<{ error: AuthError | null }> {
         try {
             const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -183,154 +220,119 @@ export const authService = {
             });
 
             if (error) {
-                return { error: { message: error.message } };
+                return {
+                    error: {
+                        message: error.message,
+                    },
+                };
             }
 
             return { error: null };
         } catch (error) {
+            console.error("Unexpected reset password error:", error);
             return {
-                error: { message: "An unexpected error occurred during password reset" }
+                error: {
+                    message: "An unexpected error occurred during password reset",
+                },
             };
         }
     },
 
-    // Confirm email (REQUIRED)
-    async confirmEmail(token: string, type: 'signup' | 'recovery' | 'email_change' = 'signup'): Promise<{ user: AuthUser | null; error: AuthError | null }> {
+    async confirmEmail(
+        token: string,
+        type: "signup" | "recovery" | "email_change" = "signup"
+    ): Promise<{ user: AuthUser | null; error: AuthError | null }> {
         try {
             const { data, error } = await supabase.auth.verifyOtp({
                 token_hash: token,
-                type: type
+                type,
             });
 
             if (error) {
-                return { user: null, error: { message: error.message, code: error.status?.toString() } };
+                return {
+                    user: null,
+                    error: {
+                        message: error.message,
+                        code: error.status?.toString(),
+                    },
+                };
             }
 
-            const authUser = data.user ? {
-                id: data.user.id,
-                email: data.user.email || "",
-                user_metadata: data.user.user_metadata,
-                created_at: data.user.created_at
-            } : null;
-
-            return { user: authUser, error: null };
+            return {
+                user: mapAuthUser(data.user),
+                error: null,
+            };
         } catch (error) {
+            console.error("Unexpected confirm email error:", error);
             return {
                 user: null,
-                error: { message: "An unexpected error occurred during email confirmation" }
+                error: {
+                    message: "An unexpected error occurred during email confirmation",
+                },
             };
         }
     },
 
-    // Listen to auth state changes
     onAuthStateChange(callback: (event: string, session: Session | null) => void) {
         return supabase.auth.onAuthStateChange(callback);
-    }
+    },
 };
 
 /**
- * Sign up new user with company and trial subscription
+ * Main signup flow for the app.
+ *
+ * Important:
+ * - This creates the auth user only.
+ * - The database trigger creates the `profiles` row.
+ * - Company / users / subscription setup should happen after signup
+ *   on the onboarding page or server onboarding API.
  */
 export async function signUp(data: SignupData): Promise<SignupResult> {
     try {
-        // 1. Create auth user
         const { data: authData, error: authError } = await supabase.auth.signUp({
             email: data.email,
             password: data.password,
             options: {
+                emailRedirectTo: `${getURL()}auth/confirm-email`,
                 data: {
                     full_name: data.fullName,
-                    signup_intent: "company_owner"
-                }
-            }
+                },
+            },
         });
 
-        if (authError) throw authError;
-        if (!authData.user) throw new Error("User creation failed");
-
-        // If email confirmation is enabled, the user may not have a session yet.
-        // In that case we defer company creation until after the first verified login.
-        if (!authData.session) {
-            return {
-                user: authData.user,
-                company: null,
-                error: null,
-                onboardingRequired: true,
-                emailConfirmationRequired: true
-            };
+        if (authError) {
+            throw authError;
         }
 
-        const company = await completeCompanyOnboarding({
-            companyName: data.companyName,
-            phone: data.phone,
-            email: data.email,
-            fullName: data.fullName,
-            userId: authData.user.id
-        });
+        if (!authData.user) {
+            throw new Error("User creation failed");
+        }
+
+        const requiresEmailConfirmation =
+            !authData.session &&
+            !!authData.user &&
+            authData.user.identities !== undefined;
 
         return {
             user: authData.user,
-            company,
+            company: null,
             error: null,
-            onboardingRequired: false,
-            emailConfirmationRequired: false
+            requiresEmailConfirmation,
         };
-
-    } catch (error) {
+    } catch (error: any) {
         console.error("Signup error:", error);
+
+        let message = error?.message || "Signup failed.";
+
+        if (message.toLowerCase().includes("email rate limit exceeded")) {
+            message = "Too many signup attempts. Please wait a moment and try again.";
+        }
+
         return {
             user: null,
             company: null,
-            error: error as Error,
-            onboardingRequired: false,
-            emailConfirmationRequired: false
+            error: new Error(message),
+            requiresEmailConfirmation: false,
         };
     }
-}
-
-interface CompleteCompanyOnboardingInput {
-    companyName: string;
-    phone?: string;
-    email?: string;
-    fullName?: string;
-    userId?: string;
-}
-
-export async function completeCompanyOnboarding(input: CompleteCompanyOnboardingInput): Promise<{ id: string; name: string }> {
-    const {
-        data: { session },
-        error: sessionError,
-    } = await supabase.auth.getSession();
-
-    if (sessionError) {
-        throw sessionError;
-    }
-
-    if (!session?.access_token) {
-        throw new Error("You must be signed in to complete company setup.");
-    }
-
-    const response = await fetch("/api/onboarding/complete-company", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-            companyName: input.companyName,
-            phone: input.phone,
-        }),
-    });
-
-    const payload = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-        throw new Error(payload.error || "Unable to complete company setup.");
-    }
-
-    if (!payload.company?.id || !payload.company?.name) {
-        throw new Error("Company onboarding completed but no company was returned.");
-    }
-
-    return payload.company;
 }
