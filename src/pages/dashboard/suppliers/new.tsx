@@ -1,130 +1,27 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/router";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { supabase } from "@/integrations/supabase/client";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { companyService } from "@/services/companyService";
+import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { useRouter } from "next/router";
-import { useEffect } from "react";
-
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Plus, Search } from "lucide-react";
 export default function NewSupplier() {
-  const router = useRouter();
-  const { toast } = useToast();
-  const [companyId, setCompanyId] = useState<string>("");
-  const [formData, setFormData] = useState({
-    name: "",
-    contact_person: "",
-    email: "",
-    phone: "",
-    address: "",
-    notes: ""
-  });
-
-  useEffect(() => {
-    companyService.getCurrentCompany().then(c => {
-      if (c) setCompanyId(c.id);
-    });
-  }, []);
-
-  const handleSave = async () => {
-    if (!companyId) return;
-
-    const { error } = await supabase
-      .from("suppliers")
-      .insert({
-        company_id: companyId,
-        ...formData
-      });
-
-    if (error) {
-      toast({ title: "Error", description: "Failed to create supplier", variant: "destructive" });
-      return;
-    }
-
-    toast({ title: "Success", description: "Supplier created successfully" });
-    router.push("/dashboard/suppliers");
-  };
-
-  return (
-    <AppLayout companyId={companyId}>
-      <div className="p-6 max-w-4xl mx-auto">
-        <h1 className="font-heading text-3xl font-bold mb-6">New Supplier</h1>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Supplier Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Supplier Name *</Label>
-                <Input
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Enter supplier name"
-                />
-              </div>
-              <div>
-                <Label>Contact Person</Label>
-                <Input
-                  value={formData.contact_person}
-                  onChange={(e) => setFormData({ ...formData, contact_person: e.target.value })}
-                  placeholder="Contact person name"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Email</Label>
-                <Input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="email@example.com"
-                />
-              </div>
-              <div>
-                <Label>Phone</Label>
-                <Input
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="Phone number"
-                />
-              </div>
-            </div>
-
-            <div>
-              <Label>Address</Label>
-              <Textarea
-                value={formData.address}
-                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                placeholder="Full address"
-                rows={3}
-              />
-            </div>
-
-            <div>
-              <Label>Notes</Label>
-              <Textarea
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                placeholder="Additional notes"
-                rows={3}
-              />
-            </div>
-
-            <div className="flex gap-2 pt-4">
-              <Button onClick={handleSave}>Save Supplier</Button>
-              <Button variant="outline" onClick={() => router.back()}>Cancel</Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </AppLayout>
-  );
+    const router = useRouter(); const { toast } = useToast(); const [companyId, setCompanyId] = useState(""); const [saving, setSaving] = useState(false); const [showGroupDialog, setShowGroupDialog] = useState(false); const [newGroup, setNewGroup] = useState(""); const [groups, setGroups] = useState(["Buying Group", "Preferred Supplier", "Creditor"]);
+    const [formData, setFormData] = useState({ name: "", is_creditor: false, account_number: "", abn: "", phone: "", mobile: "", fax: "", email: "", website: "", contact_name: "", address: "", suburb: "", state_city: "", postcode: "", street_address: "", payment_term: "30 Days", buying_group: "", more_details: "" });
+    useEffect(() => { companyService.getCurrentCompany().then((company) => { if (company) setCompanyId(company.id); }); }, []);
+    const setField = (key: string, value: string | boolean) => setFormData((prev) => ({ ...prev, [key]: value }));
+    const handleSave = async () => {
+        if (!companyId) return; if (!formData.name.trim()) { toast({ title: "Name required", description: "Please enter supplier name.", variant: "destructive" }); return; } setSaving(true); const payload: any = { company_id: companyId, name: formData.name, contact_person: formData.contact_name || null, email: formData.email || null, phone: formData.phone || formData.mobile || null, website: formData.website || null, address: [formData.street_address, formData.address, formData.suburb].filter(Boolean).join(", ") || null, city: formData.state_city || null, postal_code: formData.postcode || null, payment_terms: formData.payment_term || null, supplier_code: formData.account_number || null, notes: JSON.stringify({ is_creditor: formData.is_creditor, abn: formData.abn, mobile: formData.mobile, fax: formData.fax, suburb: formData.suburb, state_city: formData.state_city, postcode: formData.postcode, buying_group: formData.buying_group, more_details: formData.more_details }), is_active: true };
+        const { error } = await supabase.from("suppliers").insert(payload); setSaving(false); if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; } toast({ title: "Success", description: "Supplier created successfully." }); router.push("/dashboard/suppliers");
+    };
+    const FormField = ({ label, children }: any) => <div className="space-y-2"><Label className="text-sm font-medium text-slate-700">{label}</Label>{children}</div>;
+    return <AppLayout companyId={companyId}><div className="mx-auto max-w-5xl space-y-6"><div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><h1 className="text-3xl font-bold text-slate-900">New Supplier</h1><p className="mt-1 text-sm text-slate-500">Create a supplier with buying group, payment term, contact and address details.</p></div><Card className="rounded-3xl border-slate-200 shadow-sm"><CardHeader><CardTitle>Supplier Details</CardTitle></CardHeader><CardContent className="grid gap-5 md:grid-cols-2"><FormField label="Name"><Input value={formData.name} onChange={(e) => setField("name", e.target.value)} /></FormField><div className="flex items-end pb-2"><label className="flex items-center gap-2 text-sm text-slate-700"><Checkbox checked={formData.is_creditor} onCheckedChange={(v) => setField("is_creditor", !!v)} />Is Creditor / Buying Group</label></div><FormField label="Account Number"><Input value={formData.account_number} onChange={(e) => setField("account_number", e.target.value)} /></FormField><FormField label="ABN"><Input value={formData.abn} onChange={(e) => setField("abn", e.target.value)} /></FormField><FormField label="Phone"><Input value={formData.phone} onChange={(e) => setField("phone", e.target.value)} /></FormField><FormField label="Mobile"><Input value={formData.mobile} onChange={(e) => setField("mobile", e.target.value)} /></FormField><FormField label="Fax"><Input value={formData.fax} onChange={(e) => setField("fax", e.target.value)} /></FormField><FormField label="Email"><Input type="email" value={formData.email} onChange={(e) => setField("email", e.target.value)} /></FormField><FormField label="Website"><Input value={formData.website} onChange={(e) => setField("website", e.target.value)} /></FormField><FormField label="Contact Name"><Input value={formData.contact_name} onChange={(e) => setField("contact_name", e.target.value)} /></FormField><FormField label="Address"><div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><Input className="pl-9" value={formData.address} onChange={(e) => setField("address", e.target.value)} /></div></FormField><FormField label="Suburb"><Input value={formData.suburb} onChange={(e) => setField("suburb", e.target.value)} /></FormField><FormField label="State / City"><Input value={formData.state_city} onChange={(e) => setField("state_city", e.target.value)} /></FormField><FormField label="Postcode"><Input value={formData.postcode} onChange={(e) => setField("postcode", e.target.value)} /></FormField><FormField label="Add Street Address"><Input value={formData.street_address} onChange={(e) => setField("street_address", e.target.value)} /></FormField><FormField label="Payment Term"><Select value={formData.payment_term} onValueChange={(v) => setField("payment_term", v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="7 Days">7 Days</SelectItem><SelectItem value="14 Days">14 Days</SelectItem><SelectItem value="30 Days">30 Days</SelectItem><SelectItem value="Due on Receipt">Due on Receipt</SelectItem></SelectContent></Select></FormField><FormField label="Creditor / Buying Group"><div className="flex gap-2"><Select value={formData.buying_group || "none"} onValueChange={(v) => setField("buying_group", v === "none" ? "" : v)}><SelectTrigger><SelectValue placeholder="Select group" /></SelectTrigger><SelectContent><SelectItem value="none">None</SelectItem>{groups.map((group) => <SelectItem key={group} value={group}>{group}</SelectItem>)}</SelectContent></Select><Button variant="outline" size="icon" onClick={() => setShowGroupDialog(true)}><Plus className="h-4 w-4" /></Button></div></FormField><div className="space-y-2 md:col-span-2"><Label className="text-sm font-medium text-slate-700">More details</Label><Textarea rows={4} value={formData.more_details} onChange={(e) => setField("more_details", e.target.value)} placeholder="Any account, delivery or internal note" /></div></CardContent></Card><div className="flex gap-3"><Button onClick={handleSave} disabled={saving} className="rounded-2xl">{saving ? "Saving..." : "Save"}</Button><Button variant="outline" onClick={() => router.back()} className="rounded-2xl">Cancel</Button></div></div><Dialog open={showGroupDialog} onOpenChange={setShowGroupDialog}><DialogContent><DialogHeader><DialogTitle>Add buying group</DialogTitle></DialogHeader><div className="space-y-4"><Input value={newGroup} onChange={(e) => setNewGroup(e.target.value)} placeholder="Group name" /><Button onClick={() => { const value = newGroup.trim(); if (!value) return; setGroups((prev) => prev.includes(value) ? prev : [...prev, value]); setField("buying_group", value); setNewGroup(""); setShowGroupDialog(false); }}>Save Group</Button></div></DialogContent></Dialog></AppLayout>;
 }
