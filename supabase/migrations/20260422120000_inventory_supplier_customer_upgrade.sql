@@ -1,0 +1,24 @@
+-- Run this in Supabase SQL editor if you want dedicated columns for the new UI
+alter table public.inventory_items add column if not exists metadata jsonb default '{}'::jsonb;
+alter table public.inventory_items add column if not exists stock_number text;
+alter table public.inventory_items add column if not exists barcode text;
+alter table public.inventory_items add column if not exists bin text;
+alter table public.inventory_items add column if not exists unit_of_measure text;
+alter table public.inventory_items add column if not exists max_quantity numeric;
+alter table public.inventory_items add column if not exists alert_quantity numeric;
+alter table public.inventory_items add column if not exists buy_price_incl_gst numeric;
+alter table public.inventory_items add column if not exists sell_price_incl_gst numeric;
+alter table public.inventory_items add column if not exists is_kit boolean default false;
+alter table public.inventory_items add column if not exists is_nonstock boolean default false;
+alter table public.inventory_items add column if not exists gst_free boolean default false;
+alter table public.inventory_items add column if not exists default_invoice_qty numeric;
+alter table public.inventory_items add column if not exists default_purchasing_qty numeric;
+alter table public.inventory_items add column if not exists invoice_description text;
+alter table public.inventory_items add column if not exists purchase_account text;
+alter table public.inventory_items add column if not exists sale_account text;
+alter table public.suppliers add column if not exists metadata jsonb default '{}'::jsonb;
+alter table public.suppliers add column if not exists mobile text;
+alter table public.suppliers add column if not exists fax text;
+alter table public.suppliers add column if not exists abn text;
+alter table public.suppliers add column if not exists suburb text;
+alter table public.suppliers add column if not exists buying_group text;
