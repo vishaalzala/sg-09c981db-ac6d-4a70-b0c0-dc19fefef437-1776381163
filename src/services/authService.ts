@@ -297,102 +297,40 @@ interface CompleteCompanyOnboardingInput {
 }
 
 export async function completeCompanyOnboarding(input: CompleteCompanyOnboardingInput): Promise<{ id: string; name: string }> {
-    const { data: authUserData, error: authUserError } = await supabase.auth.getUser();
-    if (authUserError) throw authUserError;
+    const {
+        data: { session },
+        error: sessionError,
+    } = await supabase.auth.getSession();
 
-    const currentUser = authUserData.user;
-    const userId = input.userId || currentUser?.id;
-    const userEmail = input.email || currentUser?.email || "";
-    const userFullName = input.fullName || currentUser?.user_metadata?.full_name || userEmail;
+    if (sessionError) {
+        throw sessionError;
+    }
 
-    if (!userId) {
+    if (!session?.access_token) {
         throw new Error("You must be signed in to complete company setup.");
     }
 
-    const { data: existingUser } = await supabase
-        .from("users")
-        .select("company_id, companies(id, name)")
-        .eq("id", userId)
-        .maybeSingle() as any;
-
-    if (existingUser?.company_id && existingUser?.companies?.id) {
-        return {
-            id: existingUser.companies.id,
-            name: existingUser.companies.name
-        };
-    }
-
-    // Ensure profile role stays aligned with the owner signup flow.
-    await supabase
-        .from("profiles")
-        .update({
-            role: "company_owner",
-            full_name: userFullName
-        })
-        .eq("id", userId);
-
-    const { data: company, error: companyError } = await supabase
-        .from("companies")
-        .insert({
-            name: input.companyName,
-            email: userEmail,
+    const response = await fetch("/api/onboarding/complete-company", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+            companyName: input.companyName,
             phone: input.phone,
-            is_active: true
-        })
-        .select("id, name")
-        .single();
+        }),
+    });
 
-    if (companyError) throw companyError;
+    const payload = await response.json().catch(() => ({}));
 
-    const { data: ownerRole } = await supabase
-        .from("roles")
-        .select("id")
-        .eq("name", "company_owner")
-        .single();
-
-    const { error: usersError } = await supabase
-        .from("users")
-        .upsert({
-            id: userId,
-            company_id: company.id,
-            email: userEmail,
-            full_name: userFullName,
-            role_id: ownerRole?.id ?? null
-        });
-
-    if (usersError) throw usersError;
-
-    const { data: trialPlan } = await supabase
-        .from("subscription_plans")
-        .select("id")
-        .eq("name", "free_trial")
-        .maybeSingle();
-
-    if (trialPlan?.id) {
-        const trialStart = new Date();
-        const trialEnd = new Date();
-        trialEnd.setDate(trialEnd.getDate() + 14);
-
-        const { error: subscriptionError } = await supabase
-            .from("company_subscriptions")
-            .upsert({
-                company_id: company.id,
-                plan_id: trialPlan.id,
-                status: "trial_active",
-                trial_ends_at: trialEnd.toISOString(),
-                current_period_start: trialStart.toISOString(),
-                current_period_end: trialEnd.toISOString()
-            }, {
-                onConflict: "company_id"
-            });
-
-        if (subscriptionError) {
-            console.warn("Trial subscription setup warning:", subscriptionError);
-        }
+    if (!response.ok) {
+        throw new Error(payload.error || "Unable to complete company setup.");
     }
 
-    return {
-        id: company.id,
-        name: company.name
-    };
+    if (!payload.company?.id || !payload.company?.name) {
+        throw new Error("Company onboarding completed but no company was returned.");
+    }
+
+    return payload.company;
 }
