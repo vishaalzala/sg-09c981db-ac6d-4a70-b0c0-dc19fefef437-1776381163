@@ -24,6 +24,8 @@ import {
     removeAddonFromCompany,
     getCompanyBillingHistory,
     getCompanyActivity,
+    runCompanyAdminAction,
+    resetCompanyOwnerPassword,
     type CompanyWithDetails
 } from "@/services/adminService";
 import {
@@ -69,6 +71,9 @@ export default function CompanyDetailsPage() {
     const [changingPlan, setChangingPlan] = useState(false);
     const [billingHistory, setBillingHistory] = useState < any[] > ([]);
     const [activityRows, setActivityRows] = useState < any[] > ([]);
+    const [adminReason, setAdminReason] = useState("");
+    const [resetPassword, setResetPassword] = useState("");
+    const [adminActionLoading, setAdminActionLoading] = useState(false);
 
     useEffect(() => {
         if (id) {
@@ -167,6 +172,37 @@ export default function CompanyDetailsPage() {
             setTimeout(() => setSuccess(""), 3000);
         } catch (err) {
             setError(err instanceof Error ? err.message : "Failed to update add-on");
+        }
+    };
+
+    const runAction = async (action: string, days?: number) => {
+        try {
+            setAdminActionLoading(true);
+            setError("");
+            await runCompanyAdminAction(id as string, action, { reason: adminReason, days });
+            setSuccess(`Admin action completed: `);
+            setAdminReason("");
+            await loadCompanyData();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Admin action failed");
+        } finally {
+            setAdminActionLoading(false);
+        }
+    };
+
+    const resetOwnerPassword = async () => {
+        try {
+            setAdminActionLoading(true);
+            setError("");
+            await resetCompanyOwnerPassword(id as string, resetPassword, adminReason);
+            setSuccess("Owner password reset successfully");
+            setResetPassword("");
+            setAdminReason("");
+            await loadCompanyData();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Password reset failed");
+        } finally {
+            setAdminActionLoading(false);
         }
     };
 
@@ -269,6 +305,33 @@ export default function CompanyDetailsPage() {
                             <AlertDescription className="text-green-800">{success}</AlertDescription>
                         </Alert>
                     )}
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Super admin controls</CardTitle>
+                            <CardDescription>Sensitive actions require a reason and are written to audit logs.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="grid gap-3 md:grid-cols-2">
+                                <div className="space-y-2">
+                                    <Label>Reason for admin action</Label>
+                                    <Textarea value={adminReason} onChange={(e) => setAdminReason(e.target.value)} placeholder="Example: customer requested support access" rows={2} />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>New owner password</Label>
+                                    <Input type="password" value={resetPassword} onChange={(e) => setResetPassword(e.target.value)} placeholder="Only for owner password reset" />
+                                </div>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                                <Button variant="outline" disabled={adminActionLoading} onClick={() => runAction("impersonate")}>Log impersonation reason</Button>
+                                <Button variant="outline" disabled={adminActionLoading} onClick={() => runAction("extend_trial", 14)}>Extend trial 14 days</Button>
+                                <Button variant="outline" disabled={adminActionLoading} onClick={() => runAction("pause_subscription", 30)}>Pause 30 days</Button>
+                                <Button variant="outline" disabled={adminActionLoading} onClick={() => runAction("reactivate")}>Reactivate</Button>
+                                <Button variant="destructive" disabled={adminActionLoading} onClick={() => runAction("suspend")}>Suspend</Button>
+                                <Button variant="destructive" disabled={adminActionLoading || !resetPassword} onClick={resetOwnerPassword}>Reset owner password</Button>
+                            </div>
+                        </CardContent>
+                    </Card>
 
                     <Tabs defaultValue="profile" className="space-y-4">
                         <TabsList>
