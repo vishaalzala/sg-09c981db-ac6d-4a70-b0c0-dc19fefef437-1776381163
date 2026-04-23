@@ -617,24 +617,50 @@ const saveSettings = async () => {
 
 const toggleAddon = async (addonId: string, enabled: boolean) => {
     if (!companyId) return;
+
     try {
         setAddonSaving(addonId);
-        if (enabled) {
-            const existing = companyAddons.find((row: any) => row.addon_id === addonId);
-            if (existing) {
-                await supabase.from("company_addons").update({ is_enabled: true, enabled_at: new Date().toISOString(), disabled_at: null } as any).eq("id", existing.id);
-            } else {
-                await billingService.enableAddon(companyId, addonId, "company_settings");
-            }
-        } else {
-            const existing = companyAddons.find((row: any) => row.addon_id === addonId && row.is_enabled);
-            if (existing) await billingService.disableAddon(existing.id);
+
+        const {
+            data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session) {
+            throw new Error("You must be logged in");
         }
+
+        const response = await fetch("/api/company/toggle-addon", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({
+                companyId,
+                addonId,
+                enabled,
+            }),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.error || "Could not update add-on");
+        }
+
         const refreshed = await companyService.getCompanyAddons(companyId).catch(() => []);
         setCompanyAddons(refreshed || []);
-        toast({ title: enabled ? "Add-on activated" : "Add-on disabled", description: "Your company add-on settings were updated." });
+
+        toast({
+            title: enabled ? "Add-on activated" : "Add-on disabled",
+            description: "Your company add-on settings were updated.",
+        });
     } catch (error: any) {
-        toast({ title: "Add-on update failed", description: error.message || "Could not update add-on.", variant: "destructive" });
+        toast({
+            title: "Add-on update failed",
+            description: error.message || "Could not update add-on.",
+            variant: "destructive",
+        });
     } finally {
         setAddonSaving(null);
     }
