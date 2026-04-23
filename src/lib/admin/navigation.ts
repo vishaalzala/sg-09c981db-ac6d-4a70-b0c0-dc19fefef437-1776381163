@@ -1,4 +1,4 @@
-import { LayoutDashboard, Building2, CreditCard, Package, MessageSquare, FileText, Settings, Shield, Activity, LifeBuoy, KeyRound, ScrollText, type LucideIcon } from "lucide-react";
+import { LayoutDashboard, Building2, CreditCard, Package, MessageSquare, UserRoundCheck, FileText, Settings, Shield, Activity, LifeBuoy, KeyRound, ScrollText, type LucideIcon } from "lucide-react";
 export type AdminNavItem={name:string;href:string;icon:LucideIcon;description?:string};
 export const adminNavigation:AdminNavItem[]=[
 {name:"Dashboard",href:"/admin/dashboard",icon:LayoutDashboard,description:"SaaS control overview"},
@@ -7,6 +7,7 @@ export const adminNavigation:AdminNavItem[]=[
 {name:"Plans",href:"/admin/plans",icon:CreditCard,description:"Subscription catalog"},
 {name:"Add-ons",href:"/admin/addons",icon:Package,description:"Feature catalog and activation"},
 {name:"Communications",href:"/admin/communications",icon:MessageSquare,description:"Templates and delivery logs"},
+{name:"Leads",href:"/admin/leads",icon:UserRoundCheck,description:"Website enquiries and trial conversion"},
 {name:"Audit",href:"/admin/audit",icon:FileText,description:"Admin and system actions"},
 {name:"System Health",href:"/admin/system-health",icon:Activity,description:"Stripe, SMTP, queue, database"},
 {name:"Security",href:"/admin/security",icon:Shield,description:"Sessions, lockouts, policies"},

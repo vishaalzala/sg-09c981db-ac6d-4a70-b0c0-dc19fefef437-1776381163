@@ -308,51 +308,31 @@ export async function assignPlanToCompany(
         trial_ends_at?: string;
     }
 ) {
-    // Check if subscription exists
-    const { data: existing } = await supabase
-        .from("company_subscriptions")
-        .select("id")
-        .eq("company_id", companyId)
-        .single();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error("Not authenticated");
 
-    const periodStart = new Date();
-    const periodEnd = new Date();
-    periodEnd.setMonth(periodEnd.getMonth() + 1);
+    const response = await fetch("/api/admin/company-subscription", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+            companyId,
+            planId,
+            status: options?.status || "active",
+            billing_cycle: options?.billing_cycle || "monthly",
+            trial_ends_at: options?.trial_ends_at || null
+        })
+    });
 
-    const subscriptionData = {
-        company_id: companyId,
-        plan_id: planId,
-        status: options?.status || "active",
-        billing_cycle: options?.billing_cycle || "monthly",
-        trial_ends_at: options?.trial_ends_at || null,
-        current_period_start: periodStart.toISOString(),
-        current_period_end: periodEnd.toISOString()
-    };
-
-    if (existing) {
-        // Update existing
-        const { data, error } = await supabase
-            .from("company_subscriptions")
-            .update(subscriptionData)
-            .eq("id", existing.id)
-            .select()
-            .single();
-
-        if (error) throw error;
-        return data;
-    } else {
-        // Create new
-        const { data, error } = await supabase
-            .from("company_subscriptions")
-            .insert(subscriptionData)
-            .select()
-            .single();
-
-        if (error) throw error;
-        return data;
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error || "Failed to assign plan");
     }
-}
 
+    return response.json();
+}
 export async function startTrial(companyId: string, planId: string, days: number = 14) {
     const trialEnd = new Date();
     trialEnd.setDate(trialEnd.getDate() + days);
@@ -428,29 +408,33 @@ export async function updateAddon(addonId: string, updates: Partial<Tables<"addo
     return response.json();
 }
 
-export async function assignAddonToCompany(companyId: string, addonId: string) {
-    const { data, error } = await supabase
-        .from("company_addons")
-        .insert({
-            company_id: companyId,
-            addon_id: addonId,
-            is_enabled: true
-        })
-        .select()
-        .single();
+async function setCompanyAddon(companyId: string, addonId: string, enabled: boolean) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error("Not authenticated");
 
-    if (error) throw error;
-    return data;
+    const response = await fetch("/api/admin/company-addons", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ companyId, addonId, enabled })
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error || "Failed to update company add-on");
+    }
+
+    return response.json();
+}
+
+export async function assignAddonToCompany(companyId: string, addonId: string) {
+    return setCompanyAddon(companyId, addonId, true);
 }
 
 export async function removeAddonFromCompany(companyId: string, addonId: string) {
-    const { error } = await supabase
-        .from("company_addons")
-        .delete()
-        .eq("company_id", companyId)
-        .eq("addon_id", addonId);
-
-    if (error) throw error;
+    return setCompanyAddon(companyId, addonId, false);
 }
 
 export async function toggleAddon(companyId: string, addonId: string, enabled: boolean) {
