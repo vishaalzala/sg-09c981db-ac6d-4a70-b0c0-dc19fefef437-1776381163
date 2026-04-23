@@ -15,7 +15,7 @@ type NavigationLayout = "vertical" | "horizontal";
 const STORAGE_KEY = "workshoppro:nav-layout";
 const sections = [
     { title: "Overview", items: [{ name: "Dashboard", href: "/dashboard", icon: LayoutDashboard }] },
-    { title: "Operations", items: [{ name: "Bookings", href: "/dashboard/bookings", icon: Calendar }, { name: "Jobs", href: "/dashboard/jobs", icon: Briefcase }, { name: "Quotes", href: "/dashboard/quotes", icon: FileText }, { name: "Invoices", href: "/dashboard/invoices", icon: Receipt }, { name: "WOF", href: "/dashboard/wof", icon: ShieldCheck }, { name: "Reminders", href: "/dashboard/reminders", icon: Clock3 }] },
+    { title: "Operations", items: [{ name: "Bookings", href: "/dashboard/bookings", icon: Calendar }, { name: "Jobs", href: "/dashboard/jobs", icon: Briefcase }, { name: "Quotes", href: "/dashboard/quotes", icon: FileText }, { name: "Invoices", href: "/dashboard/invoices", icon: Receipt }, { name: "WOF", href: "/wof", icon: ShieldCheck }, { name: "Reminders", href: "/dashboard/reminders", icon: Clock3 }] },
     { title: "CRM", items: [{ name: "Customers", href: "/dashboard/customers", icon: Users }, { name: "Vehicles", href: "/dashboard/vehicles", icon: Car }] },
     { title: "Stock & Suppliers", items: [{ name: "Inventory", href: "/dashboard/inventory", icon: Package }, { name: "Suppliers", href: "/dashboard/suppliers", icon: Truck }] },
     { title: "Insights", items: [{ name: "Reports", href: "/dashboard/reports", icon: BarChart3 }] },
