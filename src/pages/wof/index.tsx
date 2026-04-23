@@ -1,222 +1,155 @@
-import { useState, useEffect } from "react";
-import { AppLayout } from "@/components/AppLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Search, Plus, Calendar, CheckCircle, XCircle } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/router";
 import { supabase } from "@/integrations/supabase/client";
 import { companyService } from "@/services/companyService";
-import { useRouter } from "next/router";
+import { WofPortalLayout } from "@/components/wof/WofPortalLayout";
+import { Button } from "@/components/ui/button";
 
-export default function WOFInspections() {
-  const router = useRouter();
-  const [companyId, setCompanyId] = useState<string>("");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [inspections, setInspections] = useState<any[]>([]);
-  const [filter, setFilter] = useState<"all" | "pending" | "passed" | "failed">("all");
+export default function WofStartPage() {
+    const router = useRouter();
+    const [companyId, setCompanyId] = useState("");
+    const [rego, setRego] = useState("");
+    const [odometer, setOdometer] = useState("");
+    const [loading, setLoading] = useState(false);
+    const [vehicle, setVehicle] = useState < any > (null);
+    const [customer, setCustomer] = useState < any > (null);
+    const [inspector, setInspector] = useState < { id: string; name: string; number: string } | null > (null);
+    const [buttonLabel, setButtonLabel] = useState("Process");
+    const [latestInspection, setLatestInspection] = useState < any > (null);
+    const [error, setError] = useState("");
 
-  useEffect(() => {
-    companyService.getCurrentCompany().then(c => {
-      if (c) {
-        setCompanyId(c.id);
-        loadInspections(c.id);
-      }
-    });
-  }, []);
+    useEffect(() => {
+        (async () => {
+            const company = await companyService.getCurrentCompany();
+            if (company) setCompanyId(company.id);
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+            const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle();
+            const { data: inspectorProfile } = await supabase.from("inspector_certifications").select("certification_number").eq("inspector_id", user.id).maybeSingle();
+            setInspector({
+                id: user.id,
+                name: (profile as any)?.full_name || user.email || "WOF Inspector",
+                number: (inspectorProfile as any)?.certification_number || "WOF Inspector",
+            });
+        })();
+    }, []);
 
-  const loadInspections = async (cId: string) => {
-    let query = supabase
-      .from("wof_inspections")
-      .select(`
-        *,
-        vehicles (
-          registration,
-          make,
-          model,
-          year
-        ),
-        customers (
-          name,
-          phone,
-          email
-        )
-      `)
-      .eq("company_id", cId)
-      .order("inspection_date", { ascending: false });
+    const vehicleDisplay = useMemo(() => {
+        if (!vehicle) return "🚗 Vehicle details will appear here";
+        return `${vehicle.year || ""} ${vehicle.make || ""} ${vehicle.model || ""} · VIN ${vehicle.vin || "N/A"}`.trim();
+    }, [vehicle]);
 
-    if (filter !== "all") {
-      query = query.eq("status", filter);
-    }
+    const handleFetch = async () => {
+        setLoading(true);
+        setError("");
+        setVehicle(null);
+        setCustomer(null);
+        setLatestInspection(null);
+        setButtonLabel("Process");
+        try {
+            if (!companyId) throw new Error("No company found for current user.");
+            if (!rego.trim()) throw new Error("Please enter a rego.");
+            const regoValue = rego.trim().toUpperCase();
+            const { data: vehicleRow, error: vehicleError } = await supabase
+                .from("vehicles")
+                .select("*")
+                .eq("company_id", companyId)
+                .ilike("registration_number", regoValue)
+                .maybeSingle();
+            if (vehicleError) throw vehicleError;
+            if (!vehicleRow) throw new Error("Vehicle not found in this company database.");
+            setVehicle(vehicleRow);
+            if (vehicleRow.customer_id) {
+                const { data: customerRow } = await supabase.from("customers").select("*").eq("id", vehicleRow.customer_id).maybeSingle();
+                setCustomer(customerRow || null);
+            }
+            const { data: latest } = await supabase
+                .from("wof_inspections")
+                .select("*")
+                .eq("company_id", companyId)
+                .eq("vehicle_id", vehicleRow.id)
+                .order("created_at", { ascending: false })
+                .limit(1)
+                .maybeSingle();
+            if (latest) {
+                setLatestInspection(latest);
+                const inspectionDate = new Date((latest as any).inspection_date || (latest as any).created_at);
+                const ageDays = Math.floor((Date.now() - inspectionDate.getTime()) / (1000 * 60 * 60 * 24));
+                if ((latest as any).overall_result !== "pass" && ageDays <= 28) {
+                    setButtonLabel("Recheck");
+                }
+            }
+        } catch (e: any) {
+            setError(e.message || "Failed to fetch vehicle details.");
+        } finally {
+            setLoading(false);
+        }
+    };
 
-    const { data } = await query;
-    setInspections(data || []);
-  };
+    const handleProcess = () => {
+        if (!vehicle || !inspector) return;
+        const payload = {
+            rego: rego.trim().toUpperCase(),
+            odometer,
+            vehicle,
+            customer,
+            inspector,
+            recheckOf: latestInspection?.id || null,
+            isRecheck: buttonLabel === "Recheck",
+        };
+        if (typeof window !== "undefined") {
+            sessionStorage.setItem("wof-start-payload", JSON.stringify(payload));
+        }
+        router.push("/wof/process");
+    };
 
-  useEffect(() => {
-    if (companyId) {
-      loadInspections(companyId);
-    }
-  }, [filter, companyId]);
+    return (
+        <WofPortalLayout title="New WOF Inspection" subtitle="Enter rego to auto-fetch vehicle and customer details, then start the WOF process.">
+            <section className="rounded-[20px] border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="flex items-start justify-between gap-4 flex-wrap">
+                    <div>
+                        <h2 className="text-[24px] font-bold">WOF Start Page</h2>
+                        <p className="text-slate-500 mt-1">Reception creates the customer and vehicle first. Inspectors fetch that data here by rego.</p>
+                    </div>
+                    <button className="h-11 rounded-full border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-600">Own Company Database</button>
+                </div>
 
-  const filteredInspections = inspections.filter(inspection => {
-    const vehicleInfo = `${inspection.vehicles?.registration} ${inspection.vehicles?.make} ${inspection.vehicles?.model}`.toLowerCase();
-    const customerInfo = inspection.customers?.name?.toLowerCase() || "";
-    return vehicleInfo.includes(searchTerm.toLowerCase()) || customerInfo.includes(searchTerm.toLowerCase());
-  });
+                <div className="mt-8">
+                    <label className="mb-2 block text-[15px] font-semibold">Rego *</label>
+                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto]">
+                        <input className="h-[46px] w-full rounded-[14px] border border-slate-300 px-4" value={rego} onChange={(e) => setRego(e.target.value.toUpperCase())} placeholder="Enter rego e.g. LAZ204" />
+                        <Button onClick={handleFetch} disabled={loading} className="h-[46px] rounded-[14px] bg-slate-100 px-7 text-slate-700 hover:bg-slate-200">
+                            {loading ? "Fetching..." : "Fetch"}
+                        </Button>
+                    </div>
+                    {error && <p className="mt-3 text-sm font-medium text-rose-600">{error}</p>}
+                </div>
 
-  return (
-    <AppLayout companyId={companyId}>
-      <div className="p-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="font-heading text-3xl font-bold">WOF Inspections</h1>
-          <Button onClick={() => router.push("/wof/new")}>
-            <Plus className="h-4 w-4 mr-2" />
-            New WOF Inspection
-          </Button>
-        </div>
+                <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2">
+                    <div>
+                        <label className="mb-2 block text-[15px] font-semibold">Vehicle</label>
+                        <div className="flex h-[46px] items-center rounded-[14px] border border-slate-200 bg-slate-50 px-4 text-sm text-slate-600">{vehicleDisplay}</div>
+                    </div>
+                    <div>
+                        <label className="mb-2 block text-[15px] font-semibold">Customer</label>
+                        <div className="flex h-[46px] items-center rounded-[14px] border border-slate-200 bg-slate-50 px-4 text-sm text-slate-600">{customer?.name || "👤 Customer name will appear here"}</div>
+                    </div>
+                    <div>
+                        <label className="mb-2 block text-[15px] font-semibold">WOF Inspector</label>
+                        <div className="flex h-[46px] items-center rounded-[14px] border border-slate-200 bg-slate-50 px-4 text-sm text-slate-600">{inspector ? `${inspector.name} · ${inspector.number}` : "👤 Auto-fetch logged-in inspector"}</div>
+                    </div>
+                    <div>
+                        <label className="mb-2 block text-[15px] font-semibold">Odometer (km)</label>
+                        <input className="h-[46px] w-full rounded-[14px] border border-slate-300 px-4" type="number" value={odometer} onChange={(e) => setOdometer(e.target.value)} placeholder="Enter odometer reading" />
+                    </div>
+                </div>
 
-        <div className="grid grid-cols-4 gap-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total Inspections</CardTitle>
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{inspections.length}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Pending</CardTitle>
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {inspections.filter(i => i.status === "pending").length}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Passed</CardTitle>
-              <CheckCircle className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">
-                {inspections.filter(i => i.status === "passed").length}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Failed</CardTitle>
-              <XCircle className="h-4 w-4 text-red-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">
-                {inspections.filter(i => i.status === "failed").length}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by vehicle or customer..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9"
-            />
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant={filter === "all" ? "default" : "outline"}
-              onClick={() => setFilter("all")}
-            >
-              All
-            </Button>
-            <Button
-              variant={filter === "pending" ? "default" : "outline"}
-              onClick={() => setFilter("pending")}
-            >
-              Pending
-            </Button>
-            <Button
-              variant={filter === "passed" ? "default" : "outline"}
-              onClick={() => setFilter("passed")}
-            >
-              Passed
-            </Button>
-            <Button
-              variant={filter === "failed" ? "default" : "outline"}
-              onClick={() => setFilter("failed")}
-            >
-              Failed
-            </Button>
-          </div>
-        </div>
-
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>DATE</TableHead>
-                  <TableHead>VEHICLE</TableHead>
-                  <TableHead>CUSTOMER</TableHead>
-                  <TableHead>INSPECTOR</TableHead>
-                  <TableHead>STATUS</TableHead>
-                  <TableHead>EXPIRY DATE</TableHead>
-                  <TableHead>ACTIONS</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredInspections.map((inspection) => (
-                  <TableRow
-                    key={inspection.id}
-                    className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => router.push(`/wof/${inspection.id}`)}
-                  >
-                    <TableCell>
-                      {new Date(inspection.inspection_date).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell>
-                      {inspection.vehicles?.registration} - {inspection.vehicles?.make} {inspection.vehicles?.model}
-                    </TableCell>
-                    <TableCell>{inspection.customers?.name}</TableCell>
-                    <TableCell>{inspection.inspector_name || "N/A"}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          inspection.status === "passed"
-                            ? "default"
-                            : inspection.status === "failed"
-                            ? "destructive"
-                            : "secondary"
-                        }
-                      >
-                        {inspection.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {inspection.expiry_date
-                        ? new Date(inspection.expiry_date).toLocaleDateString()
-                        : "N/A"}
-                    </TableCell>
-                    <TableCell>
-                      <Button variant="ghost" size="sm">View</Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </div>
-    </AppLayout>
-  );
+                <div className="mt-8 flex justify-center">
+                    <Button onClick={handleProcess} disabled={!vehicle || !odometer || !inspector} className="h-[46px] rounded-[14px] px-10 bg-blue-600 hover:bg-blue-700">
+                        {buttonLabel}
+                    </Button>
+                </div>
+            </section>
+        </WofPortalLayout>
+    );
 }
