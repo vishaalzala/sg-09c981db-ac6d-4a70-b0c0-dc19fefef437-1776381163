@@ -5,18 +5,42 @@ import { verifyAdmin } from "./_auth";
 function getAdminClient() {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!url || !serviceKey) throw new Error("Missing Supabase service role environment variables");
+    if (!url || !serviceKey) throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_URL");
     return createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
-async function safeInsertBillingEvent(supabase: any, payload: any) {
-    const { error } = await supabase.from("billing_events").insert(payload);
-    if (error) console.error("billing_events insert failed", error);
+async function safeInsertBillingEvent(supabase: any, input: any) {
+    const oldPayload = {
+        company_id: input.company_id,
+        event_type: input.event_type,
+        amount: input.amount ?? 0,
+        currency: input.currency ?? "NZD",
+        description: input.description,
+        status: input.status ?? "success",
+        metadata: input.metadata ?? {},
+    };
+    const first = await supabase.from("billing_events").insert(oldPayload);
+    if (!first.error) return;
+
+    const newPayload = {
+        company_id: input.company_id,
+        event_type: input.event_type,
+        processing_status: "processed",
+        payload: {
+            amount: input.amount ?? 0,
+            currency: input.currency ?? "NZD",
+            description: input.description,
+            metadata: input.metadata ?? {},
+        },
+        processed_at: new Date().toISOString(),
+    };
+    const second = await supabase.from("billing_events").insert(newPayload);
+    if (second.error) console.error("billing_events insert skipped", first.error.message, second.error.message);
 }
 
 async function safeInsertAuditLog(supabase: any, payload: any) {
     const { error } = await supabase.from("audit_logs").insert(payload);
-    if (error) console.error("audit_logs insert failed", error);
+    if (error) console.error("audit_logs insert skipped", error.message);
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -37,7 +61,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             .select("id, name, display_name, price_monthly")
             .eq("id", addonId)
             .maybeSingle();
-
         if (addonError) throw addonError;
         if (!addon) return res.status(404).json({ error: "Add-on not found" });
 
@@ -47,37 +70,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             .eq("company_id", companyId)
             .eq("addon_id", addonId)
             .maybeSingle();
-
         if (existingError) throw existingError;
 
-        let result: any = null;
         const timestamp = new Date().toISOString();
+        const patch = { is_enabled: enabled, enabled_at: enabled ? timestamp : null, disabled_at: enabled ? null : timestamp };
+        let result: any;
 
         if (existing?.id) {
-            const { data, error } = await supabase
-                .from("company_addons")
-                .update({
-                    is_enabled: enabled,
-                    enabled_at: enabled ? timestamp : null,
-                    disabled_at: enabled ? null : timestamp,
-                })
-                .eq("id", existing.id)
-                .select()
-                .single();
+            const { data, error } = await supabase.from("company_addons").update(patch).eq("id", existing.id).select().single();
             if (error) throw error;
             result = data;
         } else {
-            const { data, error } = await supabase
-                .from("company_addons")
-                .insert({
-                    company_id: companyId,
-                    addon_id: addonId,
-                    is_enabled: enabled,
-                    enabled_at: enabled ? timestamp : null,
-                    disabled_at: enabled ? null : timestamp,
-                })
-                .select()
-                .single();
+            const { data, error } = await supabase.from("company_addons").insert({ company_id: companyId, addon_id: addonId, ...patch }).select().single();
             if (error) throw error;
             result = data;
         }
@@ -89,12 +93,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             currency: "NZD",
             description: `${addon.display_name || addon.name} ${enabled ? "enabled" : "disabled"} by super admin`,
             status: "success",
-            metadata: {
-                addon_id: addonId,
-                company_addon_id: result.id,
-                changed_by: user?.id,
-                source: "admin_company_detail",
-            },
+            metadata: { addon_id: addonId, company_addon_id: result.id, changed_by: user?.id, source: "admin_company_detail" },
         });
 
         await safeInsertAuditLog(supabase, {
@@ -103,12 +102,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             action_type: enabled ? "addon_enabled" : "addon_disabled",
             entity_type: "company_addon",
             entity_id: result.id,
-            changes: {
-                addon_id: addonId,
-                addon_name: addon.display_name || addon.name,
-                enabled,
-                source: "admin_company_detail",
-            },
+            changes: { addon_id: addonId, addon_name: addon.display_name || addon.name, enabled, source: "admin_company_detail" },
         });
 
         return res.status(200).json(result);
