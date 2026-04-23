@@ -438,20 +438,7 @@ export async function removeAddonFromCompany(companyId: string, addonId: string)
 }
 
 export async function toggleAddon(companyId: string, addonId: string, enabled: boolean) {
-    const { data, error } = await supabase
-        .from("company_addons")
-        .update({
-            is_enabled: enabled,
-            enabled_at: enabled ? new Date().toISOString() : null,
-            disabled_at: enabled ? null : new Date().toISOString()
-        })
-        .eq("company_id", companyId)
-        .eq("addon_id", addonId)
-        .select()
-        .single();
-
-    if (error) throw error;
-    return data;
+    return setCompanyAddon(companyId, addonId, enabled);
 }
 
 // ============================================
