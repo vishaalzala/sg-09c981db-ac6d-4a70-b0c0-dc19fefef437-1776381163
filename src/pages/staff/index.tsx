@@ -168,11 +168,15 @@ export default function Staff() {
                         <div><Label>Phone</Label><Input value={newStaff.mobile} onChange={(e) => setNewStaff({ ...newStaff, mobile: e.target.value })} /></div>
                         <div>
                             <Label>Role</Label>
-                            <select className="w-full rounded-md border px-3 py-2" value={newStaff.role} onChange={(e) => setNewStaff({ ...newStaff, role: e.target.value })}>
+                            <select
+                                className="w-full border rounded px-3 py-2 h-11 bg-white"
+                                value={newStaff.role}
+                                onChange={(e) => setNewStaff({ ...newStaff, role: e.target.value })}
+                            >
                                 <option value="service_advisor">Service Advisor</option>
                                 <option value="technician">Technician</option>
                                 <option value="reception">Reception</option>
-                                {wofAddonEnabled && <option value="wof_inspector">WOF Inspector</option>}
+                                <option value="wof_inspector">WOF Inspector</option>
                             </select>
                         </div>
                         {newStaff.role === "wof_inspector" && wofAddonEnabled && (
