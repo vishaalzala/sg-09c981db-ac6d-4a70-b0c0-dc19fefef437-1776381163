@@ -556,8 +556,9 @@ const loadSettings = async () => {
         }
         setTemplateBodies(templateMap);
     } catch (error) {
-        console.error(error);
-        toast({ title: "Failed to load settings", description: "Please refresh and try again.", variant: "destructive" });
+        // Do not block the whole settings page if optional settings/template tables are missing or not migrated yet.
+        // Add-on activation must remain usable.
+        console.error("Settings load warning", error);
     } finally {
         setLoading(false);
     }
