@@ -14,7 +14,7 @@ export const billingService = {
       .from("subscription_plans")
       .select("*")
       .eq("is_active", true)
-      .order("monthly_price");
+      .order("price_monthly");
 
     if (error) throw error;
     return data || [];
@@ -63,16 +63,28 @@ export const billingService = {
   async enableAddon(companyId: string, addonId: string, enabledBy: string) {
     const { data, error } = await supabase
       .from("company_addons")
-      .insert({
+      .upsert({
         company_id: companyId,
         addon_id: addonId,
         is_enabled: true,
         enabled_at: new Date().toISOString(),
-      })
+        disabled_at: null,
+      }, { onConflict: "company_id,addon_id" })
       .select()
       .single();
 
     if (error) throw error;
+
+    await this.recordBillingEvent({
+      company_id: companyId,
+      event_type: "addon_enabled",
+      amount: 0,
+      currency: "NZD",
+      description: `Add-on ${addonId} enabled by ${enabledBy}`,
+      status: "success",
+      metadata: { addon_id: addonId, enabled_by: enabledBy },
+    });
+
     return data;
   },
 
