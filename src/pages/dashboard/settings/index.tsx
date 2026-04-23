@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { companyService } from "@/services/companyService";
-import { billingService } from "@/services/billingService";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -621,12 +620,9 @@ const toggleAddon = async (addonId: string, enabled: boolean) => {
     try {
         setAddonSaving(addonId);
 
-        const {
-            data: { session },
-        } = await supabase.auth.getSession();
-
-        if (!session) {
-            throw new Error("You must be logged in");
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) {
+            throw new Error("You must be logged in to update add-ons.");
         }
 
         const response = await fetch("/api/company/toggle-addon", {
@@ -635,17 +631,12 @@ const toggleAddon = async (addonId: string, enabled: boolean) => {
                 "Content-Type": "application/json",
                 Authorization: `Bearer ${session.access_token}`,
             },
-            body: JSON.stringify({
-                companyId,
-                addonId,
-                enabled,
-            }),
+            body: JSON.stringify({ companyId, addonId, enabled }),
         });
 
-        const result = await response.json();
-
+        const result = await response.json().catch(() => ({}));
         if (!response.ok) {
-            throw new Error(result.error || "Could not update add-on");
+            throw new Error(result?.error || "Could not update add-on.");
         }
 
         const refreshed = await companyService.getCompanyAddons(companyId).catch(() => []);
