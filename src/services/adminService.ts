@@ -1356,3 +1356,28 @@ export async function assignLead(leadId: string, assignedTo: string | null) {
 
     return response.json();
 }
+
+
+export async function getCompanyBillingHistory(companyId: string) {
+    const { data, error } = await supabase
+        .from("billing_events")
+        .select("id, event_type, status, amount, currency, description, created_at")
+        .eq("company_id", companyId)
+        .order("created_at", { ascending: false })
+        .limit(20);
+
+    if (error) throw error;
+    return data || [];
+}
+
+export async function getCompanyActivity(companyId: string) {
+    const { data, error } = await supabase
+        .from("audit_logs")
+        .select("id, entity_type, action_type, changes, created_at")
+        .eq("company_id", companyId)
+        .order("created_at", { ascending: false })
+        .limit(20);
+
+    if (error) throw error;
+    return data || [];
+}

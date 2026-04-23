@@ -4,6 +4,8 @@ import { getSupabaseAdmin, isServiceRoleConfigured } from "@/lib/supabaseAdmin";
 type Body = {
     companyName?: string;
     phone?: string;
+    planId?: string;
+    billingCycle?: string;
 };
 
 function extractBearerToken(req: NextApiRequest): string | null {
@@ -31,6 +33,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const body = (req.body ?? {}) as Body;
     const companyName = body.companyName?.trim();
     const phone = body.phone?.trim() || null;
+    const requestedPlanId = body.planId?.trim() || null;
+    const billingCycle = body.billingCycle === "annual" ? "annual" : "monthly";
 
     if (!companyName) {
         return res.status(400).json({ error: "Company name is required." });
@@ -139,11 +143,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             const trialDays = Number(trialSettings.trial_duration_days ?? 14);
             const defaultPlanName = String(signupSettings.default_plan ?? "free_trial");
 
-            const { data: trialPlan } = await admin
-                .from("subscription_plans")
-                .select("id, name")
-                .eq("name", defaultPlanName)
-                .maybeSingle();
+            let trialPlan: { id: string; name: string } | null = null;
+
+            if (requestedPlanId) {
+                const { data: selectedPlan } = await admin
+                    .from("subscription_plans")
+                    .select("id, name")
+                    .eq("id", requestedPlanId)
+                    .eq("is_active", true)
+                    .maybeSingle();
+                if (selectedPlan?.id) {
+                    trialPlan = selectedPlan;
+                }
+            }
+
+            if (!trialPlan) {
+                const { data: defaultPlan } = await admin
+                    .from("subscription_plans")
+                    .select("id, name")
+                    .eq("name", defaultPlanName)
+                    .maybeSingle();
+                trialPlan = defaultPlan || null;
+            }
 
             if (trialPlan?.id) {
                 const now = new Date();
@@ -155,7 +176,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                         company_id: company.id,
                         plan_id: trialPlan.id,
                         status: "trialing",
-                        billing_cycle: "monthly",
+                        billing_cycle: billingCycle,
                         current_period_start: now.toISOString(),
                         current_period_end: trialEnd.toISOString(),
                         trial_ends_at: trialEnd.toISOString(),
@@ -167,6 +188,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                     planName: trialPlan.name,
                     trialDays,
                 };
+
+                await admin.from("audit_logs").insert({
+                    company_id: company.id,
+                    user_id: userId,
+                    entity_type: "company_subscription",
+                    entity_id: company.id,
+                    action_type: "trial_created",
+                    changes: {
+                        plan_id: trialPlan.id,
+                        plan_name: trialPlan.name,
+                        billing_cycle: billingCycle,
+                        trial_days: trialDays,
+                    },
+                });
             }
         } catch (trialError) {
             console.warn("Free trial assignment skipped:", trialError);

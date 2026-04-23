@@ -336,3 +336,39 @@ export async function signUp(data: SignupData): Promise<SignupResult> {
         };
     }
 }
+
+export async function completeCompanyOnboarding(input: {
+    companyName: string;
+    phone?: string;
+    planId?: string;
+    billingCycle?: string;
+}) {
+    const { data } = await supabase.auth.getSession();
+    const accessToken = data.session?.access_token;
+
+    if (!accessToken) {
+        throw new Error("You must be signed in to complete company onboarding.");
+    }
+
+    const response = await fetch("/api/onboarding/complete-company", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+            companyName: input.companyName,
+            phone: input.phone,
+            planId: input.planId,
+            billingCycle: input.billingCycle || "monthly",
+        }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+        throw new Error(result.error || "Unable to complete company setup.");
+    }
+
+    return result;
+}
