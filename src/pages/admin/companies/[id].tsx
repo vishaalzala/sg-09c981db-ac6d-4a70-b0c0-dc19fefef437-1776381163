@@ -216,7 +216,7 @@ export default function CompanyDetailsPage() {
                             <AlertCircle className="h-4 w-4" />
                             <AlertDescription>Company not found</AlertDescription>
                         </Alert>
-                        <Link href="/admin">
+                        <Link href="/admin/companies">
                             <Button variant="outline" className="mt-4">
                                 <ArrowLeft className="w-4 h-4 mr-2" />
                                 Back to Admin
@@ -240,7 +240,7 @@ export default function CompanyDetailsPage() {
                     {/* Header */}
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
-                            <Link href="/admin">
+                            <Link href="/admin/companies">
                                 <Button variant="outline" size="icon">
                                     <ArrowLeft className="w-4 h-4" />
                                 </Button>
@@ -516,12 +516,27 @@ export default function CompanyDetailsPage() {
                                             </div>
                                         </>
                                     ) : (
-                                        <Alert>
-                                            <AlertCircle className="h-4 w-4" />
-                                            <AlertDescription>
-                                                No subscription found. Assign a plan to activate this company.
-                                            </AlertDescription>
-                                        </Alert>
+                                        <div className="space-y-4">
+                                            <Alert>
+                                                <AlertCircle className="h-4 w-4" />
+                                                <AlertDescription>No subscription found. Choose a plan below to activate this company.</AlertDescription>
+                                            </Alert>
+                                            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                                                {plans.map((plan) => (
+                                                    <Card key={plan.id}>
+                                                        <CardHeader className="pb-3">
+                                                            <CardTitle className="text-base">{plan.display_name || plan.name}</CardTitle>
+                                                            <CardDescription>${Number(plan.price_monthly || 0).toFixed(2)}/month · trial {plan.trial_days ?? 14} days</CardDescription>
+                                                        </CardHeader>
+                                                        <CardContent>
+                                                            <Button className="w-full" onClick={() => handleChangePlan(plan.id)} disabled={changingPlan}>
+                                                                Assign Plan
+                                                            </Button>
+                                                        </CardContent>
+                                                    </Card>
+                                                ))}
+                                            </div>
+                                        </div>
                                     )}
                                 </CardContent>
                             </Card>
