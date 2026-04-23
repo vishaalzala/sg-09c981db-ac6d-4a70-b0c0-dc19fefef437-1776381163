@@ -10,7 +10,7 @@ const legacyTabRedirects: Record<string, string> = {
     users: '/admin/companies',
     notifications: '/admin/communications',
     messaging: '/admin/communications',
-    leads: '/admin/support',
+    leads: '/admin/leads',
     plans: '/admin/plans',
     addons: '/admin/addons',
     roles: '/admin/security',
