@@ -50,20 +50,18 @@ export const companyService = {
 
   async validateUserCompanyAccess(userId: string, companyId: string): Promise<boolean> {
     try {
-      const { data } = await (supabase as any)
-        .from("users")
-        .select("company_id, profiles!inner(role)")
-        .eq("id", userId)
-        .single();
+      // Do not join profiles through users here. Some deployments do not have that FK relationship,
+      // and it can trigger bad generated queries like users.role.
+      const [{ data: userData }, { data: profile }] = await Promise.all([
+        (supabase as any).from("users").select("company_id, role_id").eq("id", userId).maybeSingle(),
+        (supabase as any).from("profiles").select("role").eq("id", userId).maybeSingle(),
+      ]);
 
-      if (!data) return false;
-
-      // Super admin can access all companies
-      if (data.profiles?.role === "super_admin") return true;
-
-      // User must belong to the company
-      return data.company_id === companyId;
+      if (profile?.role === "super_admin") return true;
+      if (!userData) return false;
+      return userData.company_id === companyId;
     } catch (error) {
+      console.error("validateUserCompanyAccess failed", error);
       return false;
     }
   },
