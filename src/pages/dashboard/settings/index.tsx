@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { companyService } from "@/services/companyService";
+import { billingService } from "@/services/billingService";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -50,7 +51,8 @@ type SettingsTab =
     | "payments"
     | "branding"
     | "advanced"
-    | "dataTools";
+    | "dataTools"
+    | "addons";
 
 type DocumentType = "invoice" | "quote" | "jobCard" | "courtesyVehicle";
 
@@ -277,6 +279,7 @@ const settingsNav: Array<{ key: SettingsTab; label: string; icon: any; descripti
     { key: "payments", label: "Payments", icon: CreditCard, description: "Accepted methods, fees and default terms" },
     { key: "branding", label: "Branding & Print", icon: Package, description: "Email/logo/barcode/label output settings" },
     { key: "advanced", label: "Advanced Rules", icon: Settings2, description: "Print logic, odometer units and workflow behavior" },
+    { key: "addons", label: "Add Ons", icon: Boxes, description: "Activate WOF and other paid modules for this workshop" },
     { key: "dataTools", label: "Data Tools", icon: Database, description: "Controlled export, import and bulk-delete requests" },
 ];
 
@@ -494,6 +497,9 @@ export default function DashboardSettingsPage() {
     const [settings, setSettings] = useState < SettingsShape > (defaultSettings());
     const [templateBodies, setTemplateBodies] = useState < Record < string, { subject: string; body: string; channel: string
 }>> ({});
+const [addonCatalog, setAddonCatalog] = useState < any[] > ([]);
+const [companyAddons, setCompanyAddons] = useState < any[] > ([]);
+const [addonSaving, setAddonSaving] = useState < string | null > (null);
 
 useEffect(() => {
     void loadSettings();
@@ -509,6 +515,13 @@ const loadSettings = async () => {
         }
         setCompanyId(company.id);
         setCompanyName(company.name);
+
+        const [catalog, enabled] = await Promise.all([
+            billingService.getAddonCatalog().catch(() => []),
+            companyService.getCompanyAddons(company.id).catch(() => []),
+        ]);
+        setAddonCatalog(catalog || []);
+        setCompanyAddons(enabled || []);
 
         const defaults = defaultSettings(company.name, company.email || "", company.phone || "", company.address || "");
         setSettings(defaults);
@@ -599,6 +612,31 @@ const saveSettings = async () => {
         toast({ title: "Save failed", description: error.message || "Could not save settings.", variant: "destructive" });
     } finally {
         setSaving(false);
+    }
+};
+
+const toggleAddon = async (addonId: string, enabled: boolean) => {
+    if (!companyId) return;
+    try {
+        setAddonSaving(addonId);
+        if (enabled) {
+            const existing = companyAddons.find((row: any) => row.addon_id === addonId);
+            if (existing) {
+                await supabase.from("company_addons").update({ is_enabled: true, enabled_at: new Date().toISOString(), disabled_at: null } as any).eq("id", existing.id);
+            } else {
+                await billingService.enableAddon(companyId, addonId, "company_settings");
+            }
+        } else {
+            const existing = companyAddons.find((row: any) => row.addon_id === addonId && row.is_enabled);
+            if (existing) await billingService.disableAddon(existing.id);
+        }
+        const refreshed = await companyService.getCompanyAddons(companyId).catch(() => []);
+        setCompanyAddons(refreshed || []);
+        toast({ title: enabled ? "Add-on activated" : "Add-on disabled", description: "Your company add-on settings were updated." });
+    } catch (error: any) {
+        toast({ title: "Add-on update failed", description: error.message || "Could not update add-on.", variant: "destructive" });
+    } finally {
+        setAddonSaving(null);
     }
 };
 
@@ -1068,6 +1106,46 @@ return (
                                                     }} />
                                                 ))}
                                             </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            )}
+
+
+                            {activeTab === "addons" && (
+                                <Card className={sectionCard}>
+                                    <CardHeader>
+                                        <CardTitle>Add Ons</CardTitle>
+                                        <CardDescription>Activate paid or plan-included modules for your workshop. WOF inspectors can only use WOF pages when the WOF add-on is active.</CardDescription>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                                            {addonCatalog.map((addon: any) => {
+                                                const enabled = companyAddons.some((row: any) => row.addon_id === addon.id && row.is_enabled);
+                                                const isWof = `${addon.name || ""} ${addon.display_name || ""}`.toLowerCase().includes("wof");
+                                                return (
+                                                    <Card key={addon.id} className="rounded-2xl border border-slate-200">
+                                                        <CardContent className="p-5 space-y-4">
+                                                            <div className="flex items-start justify-between gap-3">
+                                                                <div>
+                                                                    <div className="text-base font-semibold text-slate-900">{addon.display_name || addon.name}</div>
+                                                                    <p className="mt-1 text-sm text-slate-500">{addon.description || "Workshop add-on module"}</p>
+                                                                </div>
+                                                                <Badge variant={enabled ? "default" : "secondary"}>{enabled ? "Active" : "Inactive"}</Badge>
+                                                            </div>
+                                                            <div className="text-2xl font-bold text-slate-900">${addon.price_monthly || 0}<span className="text-sm font-normal text-slate-500">/month</span></div>
+                                                            {isWof && <div className="rounded-xl bg-sky-50 p-3 text-sm text-sky-800">Includes WOF Home, Process, History and inspector-only portal access once enabled.</div>}
+                                                            <div className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3">
+                                                                <div>
+                                                                    <div className="text-sm font-medium text-slate-900">Enable add-on</div>
+                                                                    <div className="text-xs text-slate-500">Visible immediately in company menus and permissions.</div>
+                                                                </div>
+                                                                <Switch checked={enabled} onCheckedChange={(next) => toggleAddon(addon.id, next)} disabled={addonSaving === addon.id} />
+                                                            </div>
+                                                        </CardContent>
+                                                    </Card>
+                                                );
+                                            })}
                                         </div>
                                     </CardContent>
                                 </Card>
