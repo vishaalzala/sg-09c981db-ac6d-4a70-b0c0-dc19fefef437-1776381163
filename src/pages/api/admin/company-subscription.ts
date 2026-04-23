@@ -33,6 +33,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       trial_ends_at,
       current_period_start: periodStart.toISOString(),
       current_period_end: periodEnd.toISOString(),
+      next_billing_date: periodEnd.toISOString(),
       updated_at: new Date().toISOString(),
     };
 
@@ -62,13 +63,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       result = data;
     }
 
+    const { data: includedAddons } = await supabase
+      .from("plan_addons")
+      .select("addon_id")
+      .eq("plan_id", planId)
+      .eq("is_included", true);
+
+    const addonRows = (includedAddons || []).map((row: any) => ({
+      company_id: companyId,
+      addon_id: row.addon_id,
+      is_enabled: true,
+      enabled_at: new Date().toISOString(),
+      disabled_at: null,
+      source: "plan",
+    }));
+
+    if (addonRows.length) await supabase.from("company_addons").upsert(addonRows, { onConflict: "company_id,addon_id" });
+
     await supabase.from("audit_logs").insert({
       user_id: user?.id,
       company_id: companyId,
       action_type: existing?.id ? "subscription_update" : "subscription_create",
       entity_type: "company_subscription",
       entity_id: result.id,
-      metadata: { planId, billing_cycle, status }
+      metadata: { planId, billing_cycle, status, included_addons: addonRows.map((row: any) => row.addon_id) }
     } as any);
 
     return res.status(200).json(result);

@@ -1365,3 +1365,46 @@ export async function getCompanyActivity(companyId: string) {
     if (error) throw error;
     return data || [];
 }
+
+export async function runCompanyAdminAction(companyId: string, action: string, options?: { reason?: string; days?: number }) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error("Not authenticated");
+    const response = await fetch("/api/admin/company-action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session.access_token}` },
+        body: JSON.stringify({ companyId, action, ...options })
+    });
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error || "Admin action failed");
+    }
+    return response.json();
+}
+
+export async function resetCompanyOwnerPassword(companyId: string, newPassword: string, reason: string) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error("Not authenticated");
+    const response = await fetch("/api/admin/owner-password-reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session.access_token}` },
+        body: JSON.stringify({ companyId, newPassword, reason })
+    });
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error || "Password reset failed");
+    }
+    return response.json();
+}
+
+export async function getPlanAddonMap() {
+    const { data, error } = await supabase
+        .from("plan_addons")
+        .select("plan_id, addon_id, is_included");
+    if (error) throw error;
+    return (data || []).reduce((acc: Record<string, string[]>, row: any) => {
+        if (row.is_included === false) return acc;
+        acc[row.plan_id] = acc[row.plan_id] || [];
+        acc[row.plan_id].push(row.addon_id);
+        return acc;
+    }, {});
+}
