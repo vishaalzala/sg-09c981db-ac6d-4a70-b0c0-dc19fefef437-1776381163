@@ -99,6 +99,9 @@ export default function LoginPage() {
             if (profile.role === "super_admin") {
                 console.log("Redirecting super admin to /admin");
                 router.push("/admin");
+            } else if (profile.role === "wof_inspector") {
+                console.log("Redirecting WOF inspector to /wof");
+                router.push("/wof");
             } else {
                 console.log("Redirecting user to /dashboard");
                 router.push("/dashboard");
