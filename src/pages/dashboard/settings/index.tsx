@@ -681,6 +681,56 @@ const requestExport = async () => {
     }
 };
 
+const updatePaymentMethod = (index: number, updatedMethod: SettingsShape["payments"]["methods"][number]) => {
+    setSettings((prev) => ({
+        ...prev,
+        payments: {
+            ...prev.payments,
+            methods: prev.payments.methods.map((method, methodIndex) =>
+                methodIndex === index ? updatedMethod : method
+            ),
+        },
+    }));
+};
+
+const addPaymentMethod = () => {
+    const nextNumber = settings.payments.methods.length + 1;
+    const newMethod: SettingsShape["payments"]["methods"][number] = {
+        key: `custom-${Date.now()}`,
+        name: `Custom Payment ${nextNumber}`,
+        type: "other",
+        active: true,
+        posEnabled: true,
+        hasFee: false,
+        feeAmount: 0,
+        feeType: "fixed",
+    };
+
+    setSection("payments", {
+        ...settings.payments,
+        methods: [...settings.payments.methods, newMethod],
+    });
+};
+
+const removePaymentMethod = (index: number) => {
+    const method = settings.payments.methods[index];
+    if (!method) return;
+
+    setSection("payments", {
+        ...settings.payments,
+        methods: settings.payments.methods.map((currentMethod, methodIndex) =>
+            methodIndex === index
+                ? { ...currentMethod, active: false, posEnabled: false }
+                : currentMethod
+        ),
+    });
+
+    toast({
+        title: "Payment method disabled",
+        description: `${method.name} has been disabled. Save settings to persist this change.`,
+    });
+};
+
 const setSection = <K extends keyof SettingsShape>(key: K, value: SettingsShape[K]) => setSettings((prev) => ({ ...prev, [key]: value }));
 
 const activeSection = useMemo(() => settingsNav.find((item) => item.key === activeTab), [activeTab]);
@@ -1037,19 +1087,74 @@ return (
                                         </div>
                                         <div className="space-y-3">
                                             {settings.payments.methods.map((method, index) => (
-                                                <div key={method.key} className="grid gap-4 rounded-xl border border-slate-200 p-4 lg:grid-cols-[1.2fr_120px_120px_120px_120px_120px]">
-                                                    <div>
-                                                        <div className="font-medium text-slate-900">{method.name}</div>
-                                                        <div className="text-xs text-slate-500">{method.type}</div>
+                                                <div key={method.key} className="grid gap-4 rounded-xl border border-slate-200 p-4 lg:grid-cols-[1.2fr_120px_120px_120px_120px_140px_110px]">
+                                                    <div className="space-y-2">
+                                                        <Field label="Method name" className="space-y-1">
+                                                            <Input
+                                                                value={method.name}
+                                                                onChange={(e) => updatePaymentMethod(index, { ...method, name: e.target.value })}
+                                                            />
+                                                        </Field>
+                                                        <Field label="Type" className="space-y-1">
+                                                            <Select
+                                                                value={method.type || "other"}
+                                                                onValueChange={(value) => updatePaymentMethod(index, { ...method, type: value })}
+                                                            >
+                                                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                                                <SelectContent>
+                                                                    <SelectItem value="cash">Cash</SelectItem>
+                                                                    <SelectItem value="eftpos">EFTPOS</SelectItem>
+                                                                    <SelectItem value="card">Card</SelectItem>
+                                                                    <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                                                                    <SelectItem value="credit_note">Credit Note</SelectItem>
+                                                                    <SelectItem value="other">Other</SelectItem>
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </Field>
                                                     </div>
                                                     <ToggleCompact label="Active" checked={method.active} onChange={(checked) => updatePaymentMethod(index, { ...method, active: checked })} />
                                                     <ToggleCompact label="POS" checked={method.posEnabled} onChange={(checked) => updatePaymentMethod(index, { ...method, posEnabled: checked })} />
                                                     <ToggleCompact label="Fee" checked={method.hasFee} onChange={(checked) => updatePaymentMethod(index, { ...method, hasFee: checked })} />
-                                                    <Field label="Amount" className="space-y-1"><Input type="number" value={method.feeAmount} onChange={(e) => updatePaymentMethod(index, { ...method, feeAmount: Number(e.target.value) })} /></Field>
-                                                    <Field label="Fee type" className="space-y-1"><Input value={method.feeType} onChange={(e) => updatePaymentMethod(index, { ...method, feeType: e.target.value })} /></Field>
+                                                    <Field label="Amount" className="space-y-1">
+                                                        <Input
+                                                            type="number"
+                                                            value={method.feeAmount}
+                                                            onChange={(e) => updatePaymentMethod(index, { ...method, feeAmount: Number(e.target.value) })}
+                                                        />
+                                                    </Field>
+                                                    <Field label="Fee type" className="space-y-1">
+                                                        <Select
+                                                            value={method.feeType || "percentage"}
+                                                            onValueChange={(value) =>
+                                                                updatePaymentMethod(index, {
+                                                                    ...method,
+                                                                    feeType: value,
+                                                                })
+                                                            }
+                                                        >
+                                                            <SelectTrigger><SelectValue /></SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="percentage">Percentage</SelectItem>
+                                                                <SelectItem value="fixed">Fixed</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </Field>
+                                                    <div className="flex items-end">
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            className="w-full border-rose-200 text-rose-700 hover:bg-rose-50"
+                                                            onClick={() => removePaymentMethod(index)}
+                                                        >
+                                                            Remove
+                                                        </Button>
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
+                                        <Button type="button" variant="outline" onClick={addPaymentMethod}>
+                                            <Plus className="mr-2 h-4 w-4" /> Add your own payment method
+                                        </Button>
                                     </CardContent>
                                 </Card>
                             )}
