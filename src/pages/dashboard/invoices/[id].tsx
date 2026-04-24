@@ -1,689 +1,528 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
+import {
+    ArrowLeft,
+    Mail,
+    Printer,
+    Loader2,
+    CreditCard,
+} from "lucide-react";
+
 import { AppLayout } from "@/components/AppLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { User, Car, Calendar, DollarSign, Plus, FileText, CreditCard } from "lucide-react";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+
 import { supabase } from "@/integrations/supabase/client";
-import { companyService } from "@/services/companyService";
-import { invoiceService } from "@/services/invoiceService";
-import { documentService } from "@/services/documentService";
 import { useToast } from "@/hooks/use-toast";
-import { LoadingSpinner } from "@/components/LoadingSpinner";
-import { StatusBadge } from "@/components/StatusBadge";
-import { PaymentModal } from "@/components/PaymentModal";
-import { JobFinishModal } from "@/components/JobFinishModal";
-import { cn } from "@/lib/utils";
+import { companyService } from "@/services/companyService";
+import { documentService } from "@/services/documentService";
 
-export default function InvoiceDetailPage() {
+type Invoice = {
+    id: string;
+    company_id: string;
+    customer_id?: string | null;
+    vehicle_id?: string | null;
+    invoice_number?: string | null;
+    invoice_date?: string | null;
+    due_date?: string | null;
+    status?: string | null;
+    subtotal?: number | null;
+    tax_amount?: number | null;
+    gst_amount?: number | null;
+    total?: number | null;
+    total_amount?: number | null;
+    amount?: number | null;
+    notes?: string | null;
+};
+
+type Customer = {
+    id: string;
+    name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    mobile?: string | null;
+};
+
+type Vehicle = {
+    id: string;
+    registration_number?: string | null;
+    make?: string | null;
+    model?: string | null;
+    year?: string | number | null;
+};
+
+type InvoiceItem = {
+    id: string;
+    description?: string | null;
+    quantity?: number | null;
+    unit_price?: number | null;
+    total?: number | null;
+    line_total?: number | null;
+};
+
+export default function DashboardInvoiceDetailPage() {
     const router = useRouter();
-    const { toast } = useToast();
     const { id } = router.query;
-    const [companyId, setCompanyId] = useState < string > ("");
-    const [loading, setLoading] = useState(true);
-    const [invoice, setInvoice] = useState < any > (null);
-    const [showCustomerDialog, setShowCustomerDialog] = useState(false);
-    const [showVehicleDialog, setShowVehicleDialog] = useState(false);
-    const [showChangeVehicleDialog, setShowChangeVehicleDialog] = useState(false);
-    const [showPaymentModal, setShowPaymentModal] = useState(false);
-    const [showFinishModal, setShowFinishModal] = useState(false);
-    const [showAddItemDialog, setShowAddItemDialog] = useState(false);
-    const [showJobTypeDialog, setShowJobTypeDialog] = useState(false);
-    const [showSendDialog, setShowSendDialog] = useState(false);
-    const [sendingInvoice, setSendingInvoice] = useState(false);
-    const [sendRecipient, setSendRecipient] = useState("");
-    const [sendSubject, setSendSubject] = useState("");
-    const [sendMessage, setSendMessage] = useState("");
+    const { toast } = useToast();
 
-    const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+    const [companyId, setCompanyId] = useState("");
+    const [companyName, setCompanyName] = useState("");
+
+    const [invoice, setInvoice] = useState < Invoice | null > (null);
+    const [customer, setCustomer] = useState < Customer | null > (null);
+    const [vehicle, setVehicle] = useState < Vehicle | null > (null);
+    const [items, setItems] = useState < InvoiceItem[] > ([]);
+
+    const [loading, setLoading] = useState(true);
+
+    const [showEmailDialog, setShowEmailDialog] = useState(false);
+    const [sendingEmail, setSendingEmail] = useState(false);
+    const [emailTo, setEmailTo] = useState("");
+    const [emailSubject, setEmailSubject] = useState("");
+    const [emailMessage, setEmailMessage] = useState("");
+
+    const invoiceId = typeof id === "string" ? id : "";
+
+    const invoiceNumber = useMemo(() => {
+        return invoice?.invoice_number || invoice?.id || "Invoice";
+    }, [invoice]);
+
+    const invoiceTotal = useMemo(() => {
+        return (
+            Number(invoice?.total || 0) ||
+            Number(invoice?.total_amount || 0) ||
+            Number(invoice?.amount || 0)
+        );
+    }, [invoice]);
 
     useEffect(() => {
-        if (id) {
-            loadInvoice();
-        }
-    }, [id]);
+        if (!router.isReady || !invoiceId) return;
+        void loadInvoice();
+    }, [router.isReady, invoiceId]);
 
     const loadInvoice = async () => {
         setLoading(true);
 
-        if (isDemoMode) {
-            setCompanyId("demo-company-id");
-            setInvoice({
-                id: id,
-                invoice_number: "INV4850",
-                invoice_date: "2026-04-16",
-                due_date: "2026-04-16",
-                status: "sent",
-                total_amount: 290.00,
-                customer: {
-                    id: "1",
-                    name: "Cash",
-                    email: "cash@example.com",
-                    mobile: "0274881739",
-                    payment_term: "COD"
-                },
-                vehicle: {
-                    id: "1",
-                    registration_number: "CAR/SU/4x4",
-                    make: "Puncture",
-                    model: "CAR/SU/4x4",
-                    year: "2020"
-                },
-                items: [
-                    {
-                        id: "1",
-                        description: "Puncture CAR/SU/4x4",
-                        qty: 1,
-                        rate: 290.00,
-                        total: 290.00
-                    }
-                ]
-            });
-            setLoading(false);
-            return;
-        }
+        try {
+            const company = await companyService.getCurrentCompany();
 
-        const company = await companyService.getCurrentCompany();
-        if (company) {
+            if (!company?.id) {
+                throw new Error("No company found for current user.");
+            }
+
             setCompanyId(company.id);
-            const data = await invoiceService.getInvoiceById(id as string);
-            setInvoice(data);
-        }
-        setLoading(false);
-    };
+            setCompanyName(company.name || "");
 
-    const openSendDialog = () => {
-        const currentCustomer = Array.isArray(invoice?.customer) ? invoice.customer[0] : invoice?.customer;
-        const invoiceNumber = invoice?.invoice_number || id || "";
-        const amount = Number(invoice?.total_amount || 0).toFixed(2);
+            const { data: invoiceRow, error: invoiceError } = await supabase
+                .from("invoices")
+                .select("*")
+                .eq("id", invoiceId)
+                .eq("company_id", company.id)
+                .single();
 
-        setSendRecipient(currentCustomer?.email || "");
-        setSendSubject(`Invoice ${invoiceNumber} from WorkshopPro`);
-        setSendMessage(
-            `Hi ${currentCustomer?.name || "there"},\n\nPlease find your invoice ${invoiceNumber} attached/available from our workshop.\n\nAmount due: $${amount}\n\nThank you.`
-        );
-        setShowSendDialog(true);
-    };
+            if (invoiceError) throw invoiceError;
 
-    const handleSendInvoice = async () => {
-        if (!invoice?.id || !companyId) {
+            const loadedInvoice = invoiceRow as Invoice;
+            setInvoice(loadedInvoice);
+
+            if (loadedInvoice.customer_id) {
+                const { data: customerRow } = await supabase
+                    .from("customers")
+                    .select("id, name, email, phone, mobile")
+                    .eq("id", loadedInvoice.customer_id)
+                    .eq("company_id", company.id)
+                    .maybeSingle();
+
+                setCustomer((customerRow || null) as Customer | null);
+            }
+
+            if (loadedInvoice.vehicle_id) {
+                const { data: vehicleRow } = await supabase
+                    .from("vehicles")
+                    .select("id, registration_number, make, model, year")
+                    .eq("id", loadedInvoice.vehicle_id)
+                    .eq("company_id", company.id)
+                    .maybeSingle();
+
+                setVehicle((vehicleRow || null) as Vehicle | null);
+            }
+
+            const { data: invoiceItems } = await supabase
+                .from("invoice_items")
+                .select("*")
+                .eq("invoice_id", invoiceId)
+                .order("created_at", { ascending: true });
+
+            setItems((invoiceItems || []) as InvoiceItem[]);
+        } catch (error: any) {
             toast({
-                title: "Cannot send invoice",
-                description: "Invoice or company details are missing.",
+                title: "Could not load invoice",
+                description: error?.message || "Please try again.",
+                variant: "destructive",
+            });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const openEmailDialog = () => {
+        setEmailTo(customer?.email || "");
+        setEmailSubject(`Invoice ${invoiceNumber}`);
+        setEmailMessage(
+            `Hi ${customer?.name || "there"},\n\nPlease find your invoice ${invoiceNumber}.\n\nThank you,\n${companyName || "WorkshopPro"}`
+        );
+        setShowEmailDialog(true);
+    };
+
+    const handleEmailInvoice = async () => {
+        if (!invoice || !companyId) {
+            toast({
+                title: "Invoice not ready",
+                description: "Missing invoice or company context.",
                 variant: "destructive",
             });
             return;
         }
 
-        if (!sendRecipient.trim()) {
+        if (!emailTo.trim()) {
             toast({
                 title: "Recipient required",
-                description: "Enter the customer email address.",
+                description: "Please enter an email address.",
                 variant: "destructive",
             });
             return;
         }
 
-        setSendingInvoice(true);
+        setSendingEmail(true);
 
         try {
             const { data: userData } = await supabase.auth.getUser();
-            const userId = userData?.user?.id || null;
+            const userId = userData?.user?.id;
+
+            if (!userId) {
+                throw new Error("You must be logged in to email this invoice.");
+            }
 
             await documentService.sendDocument(
                 companyId,
                 "invoice",
                 invoice.id,
                 "invoice",
-                sendRecipient.trim(),
-                userId || "system"
+                emailTo.trim(),
+                userId
             );
-
-            await supabase
-                .from("communications")
-                .insert({
-                    company_id: companyId,
-                    customer_id: invoice.customer_id || null,
-                    communication_type: "email",
-                    direction: "outbound",
-                    subject: sendSubject,
-                    content: sendMessage,
-                    recipient: sendRecipient.trim(),
-                    status: "queued",
-                    related_entity_type: "invoice",
-                    related_entity_id: invoice.id,
-                    created_by: userId,
-                    created_at: new Date().toISOString(),
-                } as any);
 
             toast({
                 title: "Invoice queued",
-                description: `Invoice will be sent to ${sendRecipient.trim()}.`,
+                description: `Invoice ${invoiceNumber} has been queued for ${emailTo.trim()}.`,
             });
 
-            setShowSendDialog(false);
+            setShowEmailDialog(false);
         } catch (error: any) {
             toast({
-                title: "Could not send invoice",
+                title: "Could not email invoice",
                 description: error?.message || "Please try again.",
                 variant: "destructive",
             });
         } finally {
-            setSendingInvoice(false);
+            setSendingEmail(false);
         }
     };
 
-    if (loading) {
-        return <LoadingSpinner />;
-    }
+    const handlePrint = () => {
+        window.print();
+    };
 
-    if (!invoice) {
-        return (
-            <AppLayout companyId={companyId}>
-                <div className="p-6">
-                    <Card>
-                        <CardContent className="py-12 text-center">
-                            <p className="text-muted-foreground">Invoice not found</p>
-                            <Button onClick={() => router.push("/invoices")} className="mt-4">
-                                Back to Invoices
-                            </Button>
-                        </CardContent>
-                    </Card>
-                </div>
-            </AppLayout>
-        );
-    }
+    const formatCurrency = (value: number | null | undefined) => {
+        return new Intl.NumberFormat("en-NZ", {
+            style: "currency",
+            currency: "NZD",
+        }).format(Number(value || 0));
+    };
 
-    const customer = Array.isArray(invoice.customer) ? invoice.customer[0] : invoice.customer;
-    const vehicle = Array.isArray(invoice.vehicle) ? invoice.vehicle[0] : invoice.vehicle;
+    const formatDate = (value?: string | null) => {
+        if (!value) return "-";
+        return new Date(value).toLocaleDateString("en-NZ");
+    };
 
     return (
-        <AppLayout companyId={companyId}>
+        <AppLayout companyId={companyId} companyName={companyName}>
+            <style jsx global>{`
+        @media print {
+          aside,
+          nav,
+          header,
+          .no-print {
+            display: none !important;
+          }
+
+          body {
+            background: white !important;
+          }
+
+          .print-area {
+            box-shadow: none !important;
+            border: none !important;
+          }
+        }
+      `}</style>
+
             <div className="p-6 space-y-6">
-                {/* Header */}
-                <div className="flex items-center justify-between">
+                <div className="no-print flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div>
-                        <div className="flex items-center gap-3">
-                            <h1 className="font-heading text-3xl font-bold">Invoice {invoice.invoice_number}</h1>
-                            <StatusBadge status={invoice.status} type="invoice" />
-                        </div>
-                        <p className="text-muted-foreground mt-1">
-                            Created: {new Date(invoice.invoice_date).toLocaleDateString()}
+                        <Button
+                            variant="ghost"
+                            onClick={() => router.push("/dashboard/invoices")}
+                            className="mb-2"
+                        >
+                            <ArrowLeft className="mr-2 h-4 w-4" />
+                            Back to Invoices
+                        </Button>
+
+                        <h1 className="text-3xl font-bold">
+                            Invoice {invoiceNumber}
+                        </h1>
+                        <p className="text-muted-foreground">
+                            View invoice details, email customer, or print.
                         </p>
                     </div>
-                    <div className="flex gap-2">
-                        <Button variant="outline">Create Job</Button>
-                        <Button variant="outline" onClick={openSendDialog}>Send</Button>
-                        <Button variant="outline">Print</Button>
-                        {invoice.status !== "paid" && (
-                            <>
-                                <Button onClick={() => setShowFinishModal(true)}>Finish</Button>
-                                <Button onClick={() => setShowPaymentModal(true)}>
-                                    <CreditCard className="h-4 w-4 mr-2" />
-                                    Pay
-                                </Button>
-                            </>
-                        )}
-                        <Button variant="outline">More...</Button>
+
+                    <div className="flex flex-wrap gap-2">
+                        <Button variant="outline" onClick={openEmailDialog} disabled={!invoice}>
+                            <Mail className="mr-2 h-4 w-4" />
+                            Email
+                        </Button>
+
+                        <Button variant="outline" onClick={handlePrint} disabled={!invoice}>
+                            <Printer className="mr-2 h-4 w-4" />
+                            Print
+                        </Button>
+
+                        <Button disabled={!invoice}>
+                            <CreditCard className="mr-2 h-4 w-4" />
+                            Record Payment
+                        </Button>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-6">
-                    {/* Left Column - Invoice Details */}
-                    <div className="col-span-2 space-y-6">
-                        {/* Bill To Section */}
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Bill To</CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-3">
-                                <div className="flex items-center gap-2">
-                                    <User className="h-4 w-4 text-muted-foreground" />
-                                    <button
-                                        onClick={() => setShowCustomerDialog(true)}
-                                        className="text-primary hover:underline font-medium"
-                                    >
-                                        {customer?.name}
-                                    </button>
-                                </div>
-                                {customer?.mobile && (
-                                    <p className="text-sm text-muted-foreground">Tel: {customer.mobile}</p>
-                                )}
-                                {customer?.payment_term && (
-                                    <p className="text-sm">Payment Term: {customer.payment_term}</p>
-                                )}
-                            </CardContent>
-                        </Card>
-
-                        {/* Vehicle Section */}
-                        {vehicle && (
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle>Vehicle</CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-3">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                            <Car className="h-4 w-4 text-muted-foreground" />
-                                            <button
-                                                onClick={() => setShowVehicleDialog(true)}
-                                                className="text-primary hover:underline font-medium"
-                                            >
-                                                {vehicle.registration_number} - {vehicle.make} {vehicle.model}
-                                            </button>
-                                        </div>
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => setShowChangeVehicleDialog(true)}
-                                        >
-                                            Change Vehicle
-                                        </Button>
-                                    </div>
-                                    <p className="text-sm text-muted-foreground">Year: {vehicle.year}</p>
-                                </CardContent>
-                            </Card>
-                        )}
-
-                        {/* Items Section */}
-                        <Card>
-                            <CardHeader>
-                                <div className="flex items-center justify-between">
-                                    <CardTitle>Description</CardTitle>
-                                    <div className="flex gap-2">
-                                        <Button variant="outline" size="sm" onClick={() => setShowAddItemDialog(true)}>
-                                            <Plus className="h-4 w-4 mr-1" />
-                                            Item
-                                        </Button>
-                                        <Button variant="outline" size="sm">
-                                            <Plus className="h-4 w-4 mr-1" />
-                                            Header
-                                        </Button>
-                                        <Button variant="outline" size="sm" onClick={() => setShowJobTypeDialog(true)}>
-                                            <Plus className="h-4 w-4 mr-1" />
-                                            Job Types
-                                        </Button>
-                                        <Button variant="outline" size="sm">
-                                            <Plus className="h-4 w-4 mr-1" />
-                                            Buy-in
-                                        </Button>
-                                    </div>
-                                </div>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="space-y-2">
-                                    <div className="grid grid-cols-12 gap-4 font-semibold text-sm border-b pb-2">
-                                        <div className="col-span-6">DESCRIPTION</div>
-                                        <div className="col-span-2 text-right">QTY</div>
-                                        <div className="col-span-2 text-right">RATE</div>
-                                        <div className="col-span-2 text-right">TOTAL</div>
-                                    </div>
-                                    {invoice.items?.map((item: any) => (
-                                        <div key={item.id} className="grid grid-cols-12 gap-4 text-sm py-2 border-b">
-                                            <div className="col-span-6">{item.description}</div>
-                                            <div className="col-span-2 text-right">{item.qty}</div>
-                                            <div className="col-span-2 text-right">${item.rate?.toFixed(2)}</div>
-                                            <div className="col-span-2 text-right font-semibold">${item.total?.toFixed(2)}</div>
-                                        </div>
-                                    ))}
+                {loading ? (
+                    <Card>
+                        <CardContent className="flex items-center gap-2 py-10 text-muted-foreground">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Loading invoice...
+                        </CardContent>
+                    </Card>
+                ) : !invoice ? (
+                    <Card>
+                        <CardContent className="py-10 text-center text-muted-foreground">
+                            Invoice not found.
+                        </CardContent>
+                    </Card>
+                ) : (
+                    <Card className="print-area">
+                        <CardHeader className="border-b">
+                            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                                <div>
+                                    <CardTitle className="text-2xl">
+                                        Invoice {invoiceNumber}
+                                    </CardTitle>
+                                    <p className="mt-1 text-sm text-muted-foreground">
+                                        {companyName || "WorkshopPro"}
+                                    </p>
                                 </div>
 
-                                {/* Discount Section */}
-                                <div className="mt-6 pt-4 border-t">
-                                    <div className="flex items-center justify-between text-sm mb-2">
-                                        <span>Total Excl. GST</span>
-                                        <span className="font-semibold">${((invoice.total_amount || 0) / 1.15).toFixed(2)}</span>
+                                <Badge className="w-fit capitalize">
+                                    {invoice.status || "draft"}
+                                </Badge>
+                            </div>
+                        </CardHeader>
+
+                        <CardContent className="space-y-8 p-6">
+                            <div className="grid gap-6 md:grid-cols-3">
+                                <div>
+                                    <h3 className="font-semibold">Customer</h3>
+                                    <p className="mt-2 text-sm">{customer?.name || "-"}</p>
+                                    <p className="text-sm text-muted-foreground">
+                                        {customer?.email || "-"}
+                                    </p>
+                                    <p className="text-sm text-muted-foreground">
+                                        {customer?.mobile || customer?.phone || "-"}
+                                    </p>
+                                </div>
+
+                                <div>
+                                    <h3 className="font-semibold">Vehicle</h3>
+                                    <p className="mt-2 text-sm">
+                                        {vehicle?.registration_number || "-"}
+                                    </p>
+                                    <p className="text-sm text-muted-foreground">
+                                        {[vehicle?.year, vehicle?.make, vehicle?.model]
+                                            .filter(Boolean)
+                                            .join(" ") || "-"}
+                                    </p>
+                                </div>
+
+                                <div>
+                                    <h3 className="font-semibold">Dates</h3>
+                                    <p className="mt-2 text-sm">
+                                        Invoice date: {formatDate(invoice.invoice_date)}
+                                    </p>
+                                    <p className="text-sm text-muted-foreground">
+                                        Due date: {formatDate(invoice.due_date)}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="overflow-hidden rounded-lg border">
+                                <table className="w-full text-sm">
+                                    <thead className="bg-muted">
+                                        <tr>
+                                            <th className="px-4 py-3 text-left font-semibold">
+                                                Description
+                                            </th>
+                                            <th className="px-4 py-3 text-right font-semibold">
+                                                Qty
+                                            </th>
+                                            <th className="px-4 py-3 text-right font-semibold">
+                                                Unit Price
+                                            </th>
+                                            <th className="px-4 py-3 text-right font-semibold">
+                                                Total
+                                            </th>
+                                        </tr>
+                                    </thead>
+
+                                    <tbody>
+                                        {items.length === 0 ? (
+                                            <tr>
+                                                <td
+                                                    colSpan={4}
+                                                    className="px-4 py-8 text-center text-muted-foreground"
+                                                >
+                                                    No invoice items found.
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            items.map((item) => (
+                                                <tr key={item.id} className="border-t">
+                                                    <td className="px-4 py-3">
+                                                        {item.description || "-"}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right">
+                                                        {Number(item.quantity || 1)}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right">
+                                                        {formatCurrency(item.unit_price)}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right">
+                                                        {formatCurrency(item.total || item.line_total)}
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div className="flex justify-end">
+                                <div className="w-full max-w-sm space-y-2">
+                                    <div className="flex justify-between text-sm">
+                                        <span>Subtotal</span>
+                                        <span>{formatCurrency(invoice.subtotal)}</span>
                                     </div>
-                                    <div className="flex items-center justify-between text-sm mb-2">
+
+                                    <div className="flex justify-between text-sm">
                                         <span>GST</span>
-                                        <span className="font-semibold">${((invoice.total_amount || 0) - (invoice.total_amount || 0) / 1.15).toFixed(2)}</span>
+                                        <span>
+                                            {formatCurrency(invoice.tax_amount || invoice.gst_amount)}
+                                        </span>
                                     </div>
-                                    <div className="flex items-center justify-between text-sm mb-2">
+
+                                    <div className="flex justify-between border-t pt-3 text-lg font-bold">
                                         <span>Total</span>
-                                        <span className="font-semibold">${(invoice.total_amount || 0).toFixed(2)}</span>
-                                    </div>
-                                    <div className="flex items-center justify-between text-lg font-bold mt-4 pt-4 border-t">
-                                        <span>Balance Due</span>
-                                        <span className="text-primary">${(invoice.balance || invoice.total_amount || 0).toFixed(2)}</span>
+                                        <span>{formatCurrency(invoiceTotal)}</span>
                                     </div>
                                 </div>
-                            </CardContent>
-                        </Card>
+                            </div>
 
-                        {/* Invoice Note */}
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Invoice Note</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <Textarea
-                                    placeholder="Add notes for this invoice..."
-                                    rows={3}
-                                    defaultValue={invoice.notes}
-                                />
-                            </CardContent>
-                        </Card>
-                    </div>
-
-                    {/* Right Column - Related Info */}
-                    <div className="space-y-6">
-                        {/* Payment Section */}
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Payment</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <Button
-                                    variant="outline"
-                                    className="w-full"
-                                    disabled={invoice.status === "paid"}
-                                >
-                                    No payment
-                                </Button>
-                            </CardContent>
-                        </Card>
-
-                        {/* COGS Section */}
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>COGS</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <Button variant="link" className="p-0 h-auto text-primary">
-                                    Close
-                                </Button>
-                            </CardContent>
-                        </Card>
-
-                        {/* Related Bills Section */}
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Related Bills</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <Button variant="link" className="p-0 h-auto text-primary">
-                                    Close
-                                </Button>
-                            </CardContent>
-                        </Card>
-
-                        {/* Related Credit Notes Section */}
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Related Credit Notes</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <p className="text-sm text-muted-foreground">No credit notes</p>
-                            </CardContent>
-                        </Card>
-                    </div>
-                </div>
+                            {invoice.notes && (
+                                <div>
+                                    <h3 className="font-semibold">Notes</h3>
+                                    <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">
+                                        {invoice.notes}
+                                    </p>
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+                )}
             </div>
 
-            {/* Customer Details Dialog */}
-            <Dialog open={showCustomerDialog} onOpenChange={setShowCustomerDialog}>
-                <DialogContent className="max-w-2xl">
-                    <DialogHeader>
-                        <DialogTitle>{customer?.name}</DialogTitle>
-                    </DialogHeader>
-                    <Tabs defaultValue="details">
-                        <TabsList>
-                            <TabsTrigger value="details">Customer Details</TabsTrigger>
-                            <TabsTrigger value="contacts">Contacts</TabsTrigger>
-                        </TabsList>
-                        <TabsContent value="details" className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <Label>Name</Label>
-                                    <p className="text-sm font-medium mt-1">{customer?.name}</p>
-                                </div>
-                                <div>
-                                    <Label>Email</Label>
-                                    <p className="text-sm font-medium mt-1">{customer?.email || "N/A"}</p>
-                                </div>
-                                <div>
-                                    <Label>Mobile</Label>
-                                    <p className="text-sm font-medium mt-1">{customer?.mobile || "N/A"}</p>
-                                </div>
-                                <div>
-                                    <Label>Payment Term</Label>
-                                    <p className="text-sm font-medium mt-1">{customer?.payment_term || "N/A"}</p>
-                                </div>
-                            </div>
-                            <div className="flex gap-2 pt-4">
-                                <Button variant="outline" onClick={() => setShowCustomerDialog(false)}>
-                                    Close
-                                </Button>
-                                <Button onClick={() => router.push(`/customers/${customer?.id}`)}>
-                                    Full Details
-                                </Button>
-                            </div>
-                        </TabsContent>
-                    </Tabs>
-                </DialogContent>
-            </Dialog>
-
-            {/* Vehicle Details Dialog */}
-            <Dialog open={showVehicleDialog} onOpenChange={setShowVehicleDialog}>
-                <DialogContent className="max-w-2xl">
-                    <DialogHeader>
-                        <DialogTitle>{vehicle?.registration_number} - {vehicle?.make} {vehicle?.model}</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <Label>Reg No#</Label>
-                                <p className="text-sm font-medium mt-1">{vehicle?.registration_number}</p>
-                            </div>
-                            <div>
-                                <Label>Make</Label>
-                                <p className="text-sm font-medium mt-1">{vehicle?.make}</p>
-                            </div>
-                            <div>
-                                <Label>Model</Label>
-                                <p className="text-sm font-medium mt-1">{vehicle?.model}</p>
-                            </div>
-                            <div>
-                                <Label>Year</Label>
-                                <p className="text-sm font-medium mt-1">{vehicle?.year}</p>
-                            </div>
-                        </div>
-                        <div className="flex gap-2 pt-4">
-                            <Button variant="outline" onClick={() => setShowVehicleDialog(false)}>
-                                Cancel
-                            </Button>
-                            <Button
-                                variant="outline"
-                                onClick={() => {
-                                    setShowVehicleDialog(false);
-                                    setShowChangeVehicleDialog(true);
-                                }}
-                            >
-                                Change To Different Vehicle
-                            </Button>
-                        </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
-
-            {/* Change Vehicle Dialog */}
-            <Dialog open={showChangeVehicleDialog} onOpenChange={setShowChangeVehicleDialog}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Change Vehicle</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                        <div>
-                            <Label>Search Vehicle</Label>
-                            <Input placeholder="Search by registration number..." className="mt-1" />
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                            Only vehicles connected to this customer will appear
-                        </p>
-                        <div className="flex gap-2">
-                            <Button variant="outline" onClick={() => setShowChangeVehicleDialog(false)}>
-                                Cancel
-                            </Button>
-                            <Button>Change</Button>
-                        </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
-
-            {/* Send Invoice Dialog */}
-            <Dialog open={showSendDialog} onOpenChange={setShowSendDialog}>
+            <Dialog open={showEmailDialog} onOpenChange={setShowEmailDialog}>
                 <DialogContent className="max-w-lg">
                     <DialogHeader>
-                        <DialogTitle>Send Invoice</DialogTitle>
+                        <DialogTitle>Email Invoice</DialogTitle>
                     </DialogHeader>
 
                     <div className="space-y-4">
                         <div>
-                            <Label>Recipient email</Label>
+                            <Label>To</Label>
                             <Input
                                 type="email"
-                                className="mt-1"
-                                value={sendRecipient}
-                                onChange={(event) => setSendRecipient(event.target.value)}
+                                value={emailTo}
+                                onChange={(event) => setEmailTo(event.target.value)}
                                 placeholder="customer@example.com"
-                                disabled={sendingInvoice}
+                                disabled={sendingEmail}
                             />
                         </div>
 
                         <div>
                             <Label>Subject</Label>
                             <Input
-                                className="mt-1"
-                                value={sendSubject}
-                                onChange={(event) => setSendSubject(event.target.value)}
-                                disabled={sendingInvoice}
+                                value={emailSubject}
+                                onChange={(event) => setEmailSubject(event.target.value)}
+                                disabled={sendingEmail}
                             />
                         </div>
 
                         <div>
                             <Label>Message</Label>
                             <Textarea
-                                className="mt-1"
-                                rows={6}
-                                value={sendMessage}
-                                onChange={(event) => setSendMessage(event.target.value)}
-                                disabled={sendingInvoice}
+                                rows={5}
+                                value={emailMessage}
+                                onChange={(event) => setEmailMessage(event.target.value)}
+                                disabled={sendingEmail}
                             />
                         </div>
 
-                        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                            This records the send request in document history and queues the
-                            communication. Real email delivery will use the email API when SMTP
-                            is configured.
-                        </div>
-
-                        <div className="flex justify-end gap-2 pt-2">
+                        <div className="flex justify-end gap-2">
                             <Button
                                 variant="outline"
-                                onClick={() => setShowSendDialog(false)}
-                                disabled={sendingInvoice}
+                                onClick={() => setShowEmailDialog(false)}
+                                disabled={sendingEmail}
                             >
                                 Cancel
                             </Button>
-                            <Button onClick={handleSendInvoice} disabled={sendingInvoice}>
-                                {sendingInvoice ? "Queuing..." : "Send Invoice"}
-                            </Button>
-                        </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
 
-            {/* Payment Modal */}
-            {showPaymentModal && (
-                <PaymentModal
-                    open={showPaymentModal}
-                    onClose={() => setShowPaymentModal(false)}
-                    invoice={invoice}
-                    onPaymentComplete={() => {
-                        setShowPaymentModal(false);
-                        loadInvoice();
-                    }}
-                />
-            )}
+                            <Button onClick={handleEmailInvoice} disabled={sendingEmail}>
+                                {sendingEmail ? "Queuing..." : "Email Invoice"}
+                            </Button>
+                        </div>
 
-            {/* Finish Modal */}
-            {showFinishModal && (
-                <JobFinishModal
-                    open={showFinishModal}
-                    onClose={() => setShowFinishModal(false)}
-                    job={invoice}
-                    onComplete={() => {
-                        setShowFinishModal(false);
-                        loadInvoice();
-                    }}
-                />
-            )}
-
-            {/* Add Item Dialog */}
-            <Dialog open={showAddItemDialog} onOpenChange={setShowAddItemDialog}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Add Item</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                        <div>
-                            <Label>Description</Label>
-                            <Input placeholder="Item description..." className="mt-1" />
-                        </div>
-                        <div className="grid grid-cols-3 gap-4">
-                            <div>
-                                <Label>Qty</Label>
-                                <Input type="number" defaultValue="1" className="mt-1" />
-                            </div>
-                            <div>
-                                <Label>Rate</Label>
-                                <Input type="number" step="0.01" className="mt-1" />
-                            </div>
-                            <div>
-                                <Label>Total</Label>
-                                <Input type="number" step="0.01" disabled className="mt-1" />
-                            </div>
-                        </div>
-                        <div className="flex gap-2">
-                            <Button variant="outline" onClick={() => setShowAddItemDialog(false)}>
-                                Cancel
-                            </Button>
-                            <Button>Add Item</Button>
-                        </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
-
-            {/* Job Type Dialog */}
-            <Dialog open={showJobTypeDialog} onOpenChange={setShowJobTypeDialog}>
-                <DialogContent className="max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>Add Job Types</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-2">
-                        <p className="text-sm text-muted-foreground">Select job type:</p>
-                        <div className="space-y-2">
-                            <Button variant="outline" className="w-full justify-start">
-                                Puncture Car
-                            </Button>
-                            <Button variant="outline" className="w-full justify-start">
-                                Puncture CAR/SU/4x4
-                            </Button>
-                            <Button variant="outline" className="w-full justify-start">
-                                Pre Purchase Inspection
-                            </Button>
-                        </div>
-                        <div className="flex gap-2 pt-4">
-                            <Button variant="outline" onClick={() => setShowJobTypeDialog(false)} className="flex-1">
-                                Cancel
-                            </Button>
-                        </div>
+                        <p className="text-xs text-muted-foreground">
+                            This records the invoice email action now. Real SMTP delivery comes
+                            later in Fix 14.
+                        </p>
                     </div>
                 </DialogContent>
             </Dialog>
