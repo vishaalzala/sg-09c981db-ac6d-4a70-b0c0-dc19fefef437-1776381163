@@ -1,3 +1,27 @@
+import {
+    Bell,
+    BookOpen,
+    Boxes,
+    Building2,
+    CreditCard,
+    FileText,
+    Hash,
+    Mail,
+    Package,
+    Settings2,
+    Shield,
+    Tags,
+    Truck,
+    Wrench,
+    Plus,
+    Save,
+    RefreshCcw,
+    Database,
+    PanelLeftOpen,
+    PanelTopOpen,
+    Upload,
+    Image as ImageIcon,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { companyService } from "@/services/companyService";
@@ -488,6 +512,7 @@ const defaultSettings = (companyName = "Workshop", companyEmail = "", companyPho
 const sectionCard = "rounded-2xl border border-slate-200 bg-white shadow-sm";
 
 export default function DashboardSettingsPage() {
+    const [logoUploading, setLogoUploading] = useState(false);
     const { toast } = useToast();
     const [companyId, setCompanyId] = useState("");
     const [companyName, setCompanyName] = useState("");
@@ -734,7 +759,79 @@ const removePaymentMethod = (index: number) => {
 const setSection = <K extends keyof SettingsShape>(key: K, value: SettingsShape[K]) => setSettings((prev) => ({ ...prev, [key]: value }));
 
 const activeSection = useMemo(() => settingsNav.find((item) => item.key === activeTab), [activeTab]);
+const handleLogoUpload = async (file: File) => {
+    if (!companyId) {
+        toast({
+            title: "No company found",
+            description: "Please refresh the page and try again.",
+            variant: "destructive",
+        });
+        return;
+    }
 
+    if (!file.type.startsWith("image/")) {
+        toast({
+            title: "Invalid file",
+            description: "Please upload a PNG, JPG, JPEG, or WebP image.",
+            variant: "destructive",
+        });
+        return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+        toast({
+            title: "File too large",
+            description: "Logo must be smaller than 2MB.",
+            variant: "destructive",
+        });
+        return;
+    }
+
+    try {
+        setLogoUploading(true);
+
+        const fileExt = file.name.split(".").pop()?.toLowerCase() || "png";
+        const fileName = `${companyId}/logo-${Date.now()}.${fileExt}`;
+
+        const { error: uploadError } = await supabase.storage
+            .from("company-assets")
+            .upload(fileName, file, {
+                cacheControl: "3600",
+                upsert: true,
+                contentType: file.type,
+            });
+
+        if (uploadError) {
+            throw uploadError;
+        }
+
+        const { data } = supabase.storage
+            .from("company-assets")
+            .getPublicUrl(fileName);
+
+        const logoUrl = data.publicUrl;
+
+        setSection("branding", {
+            ...settings.branding,
+            logoUrl,
+        });
+
+        toast({
+            title: "Logo uploaded",
+            description: "Logo uploaded successfully. Click Save settings to store it.",
+        });
+    } catch (error: any) {
+        toast({
+            title: "Logo upload failed",
+            description:
+                error?.message ||
+                "Could not upload logo. Check Supabase Storage bucket permissions.",
+            variant: "destructive",
+        });
+    } finally {
+        setLogoUploading(false);
+    }
+};
 return (
     <AppLayout companyId={companyId} companyName={companyName}>
         <div className="mx-auto w-full max-w-[1680px] space-y-6 p-6">
@@ -805,7 +902,73 @@ return (
                             {activeTab === "business" && (
                                 <Card className={sectionCard}>
                                     <CardHeader><CardTitle>Workshop profile</CardTitle><CardDescription>Drives GST behavior, print headers, booking communication, and contact identity.</CardDescription></CardHeader>
-                                    <CardContent className="space-y-6">
+                                        <CardContent className="space-y-6">
+                                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                                                <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="flex h-24 w-24 items-center justify-center rounded-2xl border border-slate-200 bg-white overflow-hidden">
+                                                            {settings.branding.logoUrl ? (
+                                                                <img
+                                                                    src={settings.branding.logoUrl}
+                                                                    alt="Company logo"
+                                                                    className="h-full w-full object-contain p-2"
+                                                                />
+                                                            ) : (
+                                                                <ImageIcon className="h-10 w-10 text-slate-400" />
+                                                            )}
+                                                        </div>
+
+                                                        <div>
+                                                            <h3 className="text-base font-semibold text-slate-900">
+                                                                Company logo
+                                                            </h3>
+                                                            <p className="mt-1 max-w-xl text-sm text-slate-500">
+                                                                Upload your workshop logo. This appears on invoices, quotes,
+                                                                print layouts, and customer emails.
+                                                            </p>
+                                                            {settings.branding.logoUrl && (
+                                                                <p className="mt-2 break-all text-xs text-slate-400">
+                                                                    {settings.branding.logoUrl}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex flex-col gap-2 sm:flex-row">
+                                                        <label className="inline-flex cursor-pointer items-center justify-center rounded-md bg-[#123E97] px-4 py-2 text-sm font-medium text-white hover:bg-[#0f327c]">
+                                                            <Upload className="mr-2 h-4 w-4" />
+                                                            {logoUploading ? "Uploading..." : "Upload logo"}
+                                                            <input
+                                                                type="file"
+                                                                accept="image/png,image/jpeg,image/jpg,image/webp"
+                                                                className="hidden"
+                                                                disabled={logoUploading}
+                                                                onChange={(event) => {
+                                                                    const file = event.target.files?.[0];
+                                                                    if (file) void handleLogoUpload(file);
+                                                                    event.currentTarget.value = "";
+                                                                }}
+                                                            />
+                                                        </label>
+
+                                                        {settings.branding.logoUrl && (
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                onClick={() =>
+                                                                    setSection("branding", {
+                                                                        ...settings.branding,
+                                                                        logoUrl: "",
+                                                                    })
+                                                                }
+                                                                disabled={logoUploading}
+                                                            >
+                                                                Remove
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
                                         <div className="grid gap-4 md:grid-cols-2">
                                             <Field label="Workshop name"><Input value={settings.business.workshopName} onChange={(e) => setSection("business", { ...settings.business, workshopName: e.target.value })} /></Field>
                                             <Field label="GST registration number"><Input value={settings.business.gstNumber} onChange={(e) => setSection("business", { ...settings.business, gstNumber: e.target.value })} /></Field>
