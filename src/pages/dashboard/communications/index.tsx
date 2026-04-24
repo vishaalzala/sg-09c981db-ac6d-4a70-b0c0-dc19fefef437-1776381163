@@ -1,95 +1,17 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { supabase } from "@/integrations/supabase/client";
 import { companyService } from "@/services/companyService";
 
-export default function Communications() {
-  const [companyId, setCompanyId] = useState<string>("");
-
-  useEffect(() => {
-    companyService.getCurrentCompany().then(c => {
-      if (c) setCompanyId(c.id);
-    });
-  }, []);
-
-  const emailData = [
-    { date: "16/04/26, 14:45 pm", sentTo: "info@thefreelancer.co.nz - North West Security - Mark Downs", status: "delivered" },
-    { date: "16/04/26, 14:43 pm", sentTo: "info@thefreelancer.co.nz - North West Security - Mark Downs", status: "delivered" }
-  ];
-
-  const smsData = [
-    { date: "16/04/26, 09:14 pm", sentTo: "+6421188826 - Shayla Nariman", status: "delivered" },
-    { date: "16/04/26, 09:21 am", sentTo: "+6427289711 - Sammy Mohllala", status: "pending" }
-  ];
-
-  return (
-    <AppLayout companyId={companyId}>
-      <div className="p-6">
-        <h1 className="font-heading text-3xl font-bold mb-6">Communications</h1>
-
-        <Tabs defaultValue="emails">
-          <TabsList>
-            <TabsTrigger value="emails">Emails</TabsTrigger>
-            <TabsTrigger value="sms">SMS</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="emails">
-            <Card>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>DATE</TableHead>
-                      <TableHead>SENT TO</TableHead>
-                      <TableHead>STATUS</TableHead>
-                      <TableHead>ACTIONS</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {emailData.map((email, idx) => (
-                      <TableRow key={idx}>
-                        <TableCell>{email.date}</TableCell>
-                        <TableCell>{email.sentTo}</TableCell>
-                        <TableCell><span className="text-green-600">{email.status}</span></TableCell>
-                        <TableCell><a href="#" className="text-blue-600 hover:underline">Resend</a></TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="sms">
-            <Card>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>DATE</TableHead>
-                      <TableHead>SENT TO</TableHead>
-                      <TableHead>STATUS</TableHead>
-                      <TableHead>BALANCE STATUS</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {smsData.map((sms, idx) => (
-                      <TableRow key={idx}>
-                        <TableCell>{sms.date}</TableCell>
-                        <TableCell>{sms.sentTo}</TableCell>
-                        <TableCell><span className={sms.status === "delivered" ? "text-green-600" : "text-yellow-600"}>{sms.status}</span></TableCell>
-                        <TableCell>$0.50</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-      </div>
-    </AppLayout>
-  );
+export default function CommunicationsPage() {
+  const [companyId, setCompanyId] = useState("");
+  const [rows, setRows] = useState<any[]>([]);
+  useEffect(() => { void load(); }, []);
+  const load = async () => { const company = await companyService.getCurrentCompany(); if (!company?.id) return; setCompanyId(company.id); const { data } = await (supabase as any).from("communications").select("*").eq("company_id", company.id).order("created_at", { ascending: false }).limit(100); setRows(data || []); };
+  const table = (channel: string) => { const filtered = rows.filter((r) => r.channel === channel); return <Card><CardContent className="p-0"><Table><TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Recipient</TableHead><TableHead>Subject/Event</TableHead><TableHead>Status</TableHead></TableRow></TableHeader><TableBody>{filtered.length === 0 ? <TableRow><TableCell colSpan={4} className="py-8 text-center text-muted-foreground">No {channel} records yet.</TableCell></TableRow> : filtered.map((row) => <TableRow key={row.id}><TableCell>{new Date(row.created_at).toLocaleString()}</TableCell><TableCell>{row.recipient}</TableCell><TableCell>{row.subject || row.event_type}</TableCell><TableCell><Badge>{row.status}</Badge></TableCell></TableRow>)}</TableBody></Table></CardContent></Card>; };
+  return <AppLayout companyId={companyId}><div className="p-6 space-y-6"><div><h1 className="text-3xl font-bold">Communications</h1><p className="text-muted-foreground">Real email/SMS log from the communications table.</p></div><Tabs defaultValue="email"><TabsList><TabsTrigger value="email">Emails</TabsTrigger><TabsTrigger value="sms">SMS</TabsTrigger></TabsList><TabsContent value="email">{table("email")}</TabsContent><TabsContent value="sms">{table("sms")}</TabsContent></Tabs></div></AppLayout>;
 }
