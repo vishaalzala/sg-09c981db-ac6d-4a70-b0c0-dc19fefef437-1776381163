@@ -47,10 +47,29 @@ export default async function handler(
     const rego = normalizeRego(body.rego);
     const service = typeof body.service === "string" ? body.service.trim() : "";
     const issue = typeof body.issue === "string" ? body.issue.trim() : null;
-    const pickupTime =
-        typeof body.pickupTime === "string" && body.pickupTime
-            ? body.pickupTime
-            : null;
+    let pickupTime: string | null = null;
+
+    if (typeof body.pickupTime === "string" && body.pickupTime) {
+        const timeParts = body.pickupTime.split(":");
+
+        if (timeParts.length === 2) {
+            const now = new Date();
+
+            const hours = parseInt(timeParts[0], 10);
+            const minutes = parseInt(timeParts[1], 10);
+
+            const date = new Date(
+                now.getFullYear(),
+                now.getMonth(),
+                now.getDate(),
+                hours,
+                minutes,
+                0
+            );
+
+            pickupTime = date.toISOString(); // ✅ FIX
+        }
+    }
     const approvalLimit =
         typeof body.approvalLimit === "number" && !Number.isNaN(body.approvalLimit)
             ? body.approvalLimit
