@@ -42,6 +42,9 @@ type Invoice = {
     total?: number | null;
     total_amount?: number | null;
     amount?: number | null;
+    paid_amount?: number | null;
+    balance_due?: number | null;
+    paid_at?: string | null;
     notes?: string | null;
 };
 
@@ -96,6 +99,13 @@ export default function DashboardInvoiceDetailPage() {
     const [emailSubject, setEmailSubject] = useState("");
     const [emailMessage, setEmailMessage] = useState("");
 
+    const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+    const [recordingPayment, setRecordingPayment] = useState(false);
+    const [paymentAmount, setPaymentAmount] = useState("");
+    const [paymentMethod, setPaymentMethod] = useState("Cash");
+    const [paymentReference, setPaymentReference] = useState("");
+    const [paymentNotes, setPaymentNotes] = useState("");
+
     const invoiceId = typeof id === "string" ? id : "";
 
     const invoiceNumber = useMemo(() => {
@@ -109,6 +119,18 @@ export default function DashboardInvoiceDetailPage() {
             Number(invoice?.amount || 0)
         );
     }, [invoice]);
+
+    const paidAmount = useMemo(() => {
+        return Number(invoice?.paid_amount || 0);
+    }, [invoice]);
+
+    const balanceDue = useMemo(() => {
+        if (invoice?.balance_due !== null && invoice?.balance_due !== undefined) {
+            return Number(invoice.balance_due || 0);
+        }
+
+        return Math.max(invoiceTotal - paidAmount, 0);
+    }, [invoice, invoiceTotal, paidAmount]);
 
     useEffect(() => {
         if (!router.isReady || !invoiceId) return;
@@ -146,7 +168,7 @@ export default function DashboardInvoiceDetailPage() {
             setCompanyPhone(payload?.business?.phone || company.phone || "");
             setCompanyEmail(payload?.business?.email || company.email || "");
 
-            const { data: invoiceRow, error: invoiceError } = await supabase
+            const { data: invoiceRow, error: invoiceError } = await (supabase as any)
                 .from("invoices")
                 .select("*")
                 .eq("id", invoiceId)
@@ -159,7 +181,7 @@ export default function DashboardInvoiceDetailPage() {
             setInvoice(loadedInvoice);
 
             if (loadedInvoice.customer_id) {
-                const { data: customerRow } = await supabase
+                const { data: customerRow } = await (supabase as any)
                     .from("customers")
                     .select("id, name, email, phone, mobile")
                     .eq("id", loadedInvoice.customer_id)
@@ -170,7 +192,7 @@ export default function DashboardInvoiceDetailPage() {
             }
 
             if (loadedInvoice.vehicle_id) {
-                const { data: vehicleRow } = await supabase
+                const { data: vehicleRow } = await (supabase as any)
                     .from("vehicles")
                     .select("id, registration_number, make, model, year")
                     .eq("id", loadedInvoice.vehicle_id)
@@ -180,11 +202,10 @@ export default function DashboardInvoiceDetailPage() {
                 setVehicle((vehicleRow || null) as Vehicle | null);
             }
 
-            const { data: invoiceItems } = await supabase
+            const { data: invoiceItems } = await (supabase as any)
                 .from("invoice_items")
                 .select("*")
-                .eq("invoice_id", invoiceId)
-                .order("created_at", { ascending: true });
+                .eq("invoice_id", invoiceId);
 
             setItems((invoiceItems || []) as InvoiceItem[]);
         } catch (error: any) {
@@ -262,6 +283,85 @@ export default function DashboardInvoiceDetailPage() {
         }
     };
 
+    const openPaymentDialog = () => {
+        setPaymentAmount(String(balanceDue || invoiceTotal || ""));
+        setPaymentMethod("Cash");
+        setPaymentReference("");
+        setPaymentNotes("");
+        setShowPaymentDialog(true);
+    };
+
+    const handleRecordPayment = async () => {
+        if (!invoice?.id) {
+            toast({
+                title: "Invoice not ready",
+                description: "Missing invoice details.",
+                variant: "destructive",
+            });
+            return;
+        }
+
+        const amount = Number(paymentAmount);
+
+        if (!amount || amount <= 0) {
+            toast({
+                title: "Invalid amount",
+                description: "Enter a valid payment amount.",
+                variant: "destructive",
+            });
+            return;
+        }
+
+        setRecordingPayment(true);
+
+        try {
+            const { data } = await supabase.auth.getSession();
+            const token = data.session?.access_token;
+
+            if (!token) {
+                throw new Error("You must be logged in to record payment.");
+            }
+
+            const response = await fetch("/api/invoices/record-payment", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    invoiceId: invoice.id,
+                    amount,
+                    paymentMethod,
+                    paymentDate: new Date().toISOString(),
+                    reference: paymentReference || null,
+                    notes: paymentNotes || null,
+                }),
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result?.error || "Could not record payment.");
+            }
+
+            toast({
+                title: "Payment recorded",
+                description: `Payment of ${formatCurrency(amount)} was recorded.`,
+            });
+
+            setShowPaymentDialog(false);
+            await loadInvoice();
+        } catch (error: any) {
+            toast({
+                title: "Payment failed",
+                description: error?.message || "Please try again.",
+                variant: "destructive",
+            });
+        } finally {
+            setRecordingPayment(false);
+        }
+    };
+
     const handlePrint = () => {
         window.print();
     };
@@ -321,7 +421,7 @@ export default function DashboardInvoiceDetailPage() {
 
                         <h1 className="text-3xl font-bold">Invoice {invoiceNumber}</h1>
                         <p className="text-muted-foreground">
-                            View invoice details, email customer, or print.
+                            View invoice details, email customer, print, or record payment.
                         </p>
                     </div>
 
@@ -336,7 +436,7 @@ export default function DashboardInvoiceDetailPage() {
                             Print
                         </Button>
 
-                        <Button disabled={!invoice}>
+                        <Button onClick={openPaymentDialog} disabled={!invoice || balanceDue <= 0}>
                             <CreditCard className="mr-2 h-4 w-4" />
                             Record Payment
                         </Button>
@@ -431,6 +531,11 @@ export default function DashboardInvoiceDetailPage() {
                                     <p className="text-sm text-muted-foreground">
                                         Due date: {formatDate(invoice.due_date)}
                                     </p>
+                                    {invoice.paid_at && (
+                                        <p className="text-sm text-emerald-700">
+                                            Paid: {formatDate(invoice.paid_at)}
+                                        </p>
+                                    )}
                                 </div>
                             </div>
 
@@ -503,6 +608,16 @@ export default function DashboardInvoiceDetailPage() {
                                         <span>Total</span>
                                         <span>{formatCurrency(invoiceTotal)}</span>
                                     </div>
+
+                                    <div className="flex justify-between text-sm text-emerald-700">
+                                        <span>Paid</span>
+                                        <span>{formatCurrency(paidAmount)}</span>
+                                    </div>
+
+                                    <div className="flex justify-between text-sm font-semibold text-rose-700">
+                                        <span>Balance Due</span>
+                                        <span>{formatCurrency(balanceDue)}</span>
+                                    </div>
                                 </div>
                             </div>
 
@@ -569,11 +684,96 @@ export default function DashboardInvoiceDetailPage() {
                                 {sendingEmail ? "Queuing..." : "Email Invoice"}
                             </Button>
                         </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
 
-                        <p className="text-xs text-muted-foreground">
-                            This records the invoice email action now. Real SMTP delivery comes
-                            later in Fix 14.
-                        </p>
+            <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+                <DialogContent className="max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle>Record Payment</DialogTitle>
+                    </DialogHeader>
+
+                    <div className="space-y-4">
+                        <div className="rounded-lg border bg-slate-50 p-3 text-sm">
+                            <div className="flex justify-between">
+                                <span>Invoice Total</span>
+                                <strong>{formatCurrency(invoiceTotal)}</strong>
+                            </div>
+                            <div className="flex justify-between">
+                                <span>Already Paid</span>
+                                <strong>{formatCurrency(paidAmount)}</strong>
+                            </div>
+                            <div className="flex justify-between text-rose-700">
+                                <span>Balance Due</span>
+                                <strong>{formatCurrency(balanceDue)}</strong>
+                            </div>
+                        </div>
+
+                        <div>
+                            <Label>Amount</Label>
+                            <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={paymentAmount}
+                                onChange={(event) => setPaymentAmount(event.target.value)}
+                                disabled={recordingPayment}
+                            />
+                        </div>
+
+                        <div>
+                            <Label>Payment Method</Label>
+                            <select
+                                value={paymentMethod}
+                                onChange={(event) => setPaymentMethod(event.target.value)}
+                                disabled={recordingPayment}
+                                className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm"
+                            >
+                                <option value="Cash">Cash</option>
+                                <option value="EFTPOS">EFTPOS</option>
+                                <option value="Credit Card">Credit Card</option>
+                                <option value="Bank Transfer">Bank Transfer</option>
+                                <option value="ZIP">ZIP</option>
+                                <option value="Afterpay">Afterpay</option>
+                                <option value="Credit Note">Credit Note</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <Label>Reference</Label>
+                            <Input
+                                value={paymentReference}
+                                onChange={(event) => setPaymentReference(event.target.value)}
+                                placeholder="Receipt number, bank reference, terminal ID..."
+                                disabled={recordingPayment}
+                            />
+                        </div>
+
+                        <div>
+                            <Label>Notes</Label>
+                            <Textarea
+                                rows={3}
+                                value={paymentNotes}
+                                onChange={(event) => setPaymentNotes(event.target.value)}
+                                disabled={recordingPayment}
+                            />
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-2">
+                            <Button
+                                variant="outline"
+                                onClick={() => setShowPaymentDialog(false)}
+                                disabled={recordingPayment}
+                            >
+                                Cancel
+                            </Button>
+
+                            <Button onClick={handleRecordPayment} disabled={recordingPayment}>
+                                {recordingPayment ? "Recording..." : "Record Payment"}
+                            </Button>
+                        </div>
                     </div>
                 </DialogContent>
             </Dialog>
