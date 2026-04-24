@@ -41,28 +41,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
-import {
-    Bell,
-    BookOpen,
-    Boxes,
-    Building2,
-    CreditCard,
-    FileText,
-    Hash,
-    Mail,
-    Package,
-    Settings2,
-    Shield,
-    Tags,
-    Truck,
-    Wrench,
-    Plus,
-    Save,
-    RefreshCcw,
-    Database,
-    PanelLeftOpen,
-    PanelTopOpen,
-} from "lucide-react";
+
 
 type SettingsTab =
     | "business"
