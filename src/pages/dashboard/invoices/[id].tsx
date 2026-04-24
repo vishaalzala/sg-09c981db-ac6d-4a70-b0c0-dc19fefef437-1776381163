@@ -78,6 +78,11 @@ export default function DashboardInvoiceDetailPage() {
     const [companyId, setCompanyId] = useState("");
     const [companyName, setCompanyName] = useState("");
 
+    const [companyLogoUrl, setCompanyLogoUrl] = useState("");
+    const [companyAddress, setCompanyAddress] = useState("");
+    const [companyPhone, setCompanyPhone] = useState("");
+    const [companyEmail, setCompanyEmail] = useState("");
+
     const [invoice, setInvoice] = useState < Invoice | null > (null);
     const [customer, setCustomer] = useState < Customer | null > (null);
     const [vehicle, setVehicle] = useState < Vehicle | null > (null);
@@ -122,6 +127,24 @@ export default function DashboardInvoiceDetailPage() {
 
             setCompanyId(company.id);
             setCompanyName(company.name || "");
+
+            const { data: settingsRow } = await (supabase as any)
+                .from("company_settings")
+                .select("settings_payload")
+                .eq("company_id", company.id)
+                .maybeSingle();
+
+            const payload = settingsRow?.settings_payload || {};
+
+            setCompanyLogoUrl(
+                payload?.branding?.logoUrl ||
+                payload?.business?.advertisingImageUrl ||
+                ""
+            );
+
+            setCompanyAddress(payload?.business?.address || company.address || "");
+            setCompanyPhone(payload?.business?.phone || company.phone || "");
+            setCompanyEmail(payload?.business?.email || company.email || "");
 
             const { data: invoiceRow, error: invoiceError } = await supabase
                 .from("invoices")
@@ -273,6 +296,13 @@ export default function DashboardInvoiceDetailPage() {
           .print-area {
             box-shadow: none !important;
             border: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+
+          @page {
+            size: A4;
+            margin: 14mm;
           }
         }
       `}</style>
@@ -289,9 +319,7 @@ export default function DashboardInvoiceDetailPage() {
                             Back to Invoices
                         </Button>
 
-                        <h1 className="text-3xl font-bold">
-                            Invoice {invoiceNumber}
-                        </h1>
+                        <h1 className="text-3xl font-bold">Invoice {invoiceNumber}</h1>
                         <p className="text-muted-foreground">
                             View invoice details, email customer, or print.
                         </p>
@@ -332,13 +360,36 @@ export default function DashboardInvoiceDetailPage() {
                     <Card className="print-area">
                         <CardHeader className="border-b">
                             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                                <div>
-                                    <CardTitle className="text-2xl">
-                                        Invoice {invoiceNumber}
-                                    </CardTitle>
-                                    <p className="mt-1 text-sm text-muted-foreground">
-                                        {companyName || "WorkshopPro"}
-                                    </p>
+                                <div className="flex items-start gap-4">
+                                    {companyLogoUrl && (
+                                        <img
+                                            src={companyLogoUrl}
+                                            alt={companyName || "Company logo"}
+                                            className="h-16 w-auto max-w-[180px] object-contain"
+                                        />
+                                    )}
+
+                                    <div>
+                                        <CardTitle className="text-2xl">
+                                            Invoice {invoiceNumber}
+                                        </CardTitle>
+
+                                        <p className="mt-1 text-sm font-medium">
+                                            {companyName || "WorkshopPro"}
+                                        </p>
+
+                                        {companyAddress && (
+                                            <p className="text-xs text-muted-foreground whitespace-pre-line">
+                                                {companyAddress}
+                                            </p>
+                                        )}
+
+                                        {(companyPhone || companyEmail) && (
+                                            <p className="text-xs text-muted-foreground">
+                                                {[companyPhone, companyEmail].filter(Boolean).join(" · ")}
+                                            </p>
+                                        )}
+                                    </div>
                                 </div>
 
                                 <Badge className="w-fit capitalize">
