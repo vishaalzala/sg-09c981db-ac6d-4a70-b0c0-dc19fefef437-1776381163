@@ -1,33 +1,154 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { AppLayout } from "@/components/AppLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
-import { supabase } from "@/integrations/supabase/client";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { LoadingSpinner } from "@/components/LoadingSpinner";
-import { Car, FileText, Mail, NotebookPen, Phone, Plus, RefreshCcw, UserRound } from "lucide-react";
-const currency = (value: number | null | undefined) => `$${Number(value || 0).toFixed(2)}`;
-export default function CustomerDetail() {
-    const router = useRouter(); const { id } = router.query; const { toast } = useToast(); const [loading, setLoading] = useState(true); const [customer, setCustomer] = useState < any > (null); const [vehicles, setVehicles] = useState < any[] > ([]); const [contacts, setContacts] = useState < any[] > ([]); const [notes, setNotes] = useState < any[] > ([]); const [invoices, setInvoices] = useState < any[] > ([]); const [payments, setPayments] = useState < any[] > ([]); const [quotes, setQuotes] = useState < any[] > ([]); const [jobs, setJobs] = useState < any[] > ([]); const [allCustomers, setAllCustomers] = useState < any[] > ([]); const [companyId, setCompanyId] = useState(""); const [selectedVehicleId, setSelectedVehicleId] = useState < string > ("all"); const [showAllRecords, setShowAllRecords] = useState(true); const [showTransferDialog, setShowTransferDialog] = useState(false); const [transferVehicleId, setTransferVehicleId] = useState(""); const [transferCustomerId, setTransferCustomerId] = useState(""); const [newNote, setNewNote] = useState("");
-    useEffect(() => { if (id && typeof id === "string") void loadCustomerData(id); }, [id]);
-    const loadCustomerData = async (customerId: string) => { setLoading(true); try { const { data: customerData, error } = await supabase.from("customers").select("*").eq("id", customerId).single(); if (error) throw error; setCustomer(customerData); setCompanyId(customerData.company_id); const [vehiclesRes, contactsRes, notesRes, invoicesRes, paymentsRes, quotesRes, jobsRes, customersRes] = await Promise.all([supabase.from("vehicles").select("*").eq("customer_id", customerId).is("deleted_at", null).order("registration_number"), supabase.from("customer_contacts").select("*").eq("customer_id", customerId).order("name"), supabase.from("customer_notes").select("*").eq("customer_id", customerId).order("created_at", { ascending: false }), supabase.from("invoices").select("*").eq("customer_id", customerId).order("invoice_date", { ascending: false }), supabase.from("payments").select("*").eq("customer_id", customerId).order("payment_date", { ascending: false }), supabase.from("quotes").select("*").eq("customer_id", customerId).order("quote_date", { ascending: false }), supabase.from("jobs").select("*").eq("customer_id", customerId).order("created_at", { ascending: false }), supabase.from("customers").select("id, name").eq("company_id", customerData.company_id).neq("id", customerId).order("name")]); setVehicles(vehiclesRes.data || []); setContacts(contactsRes.data || []); setNotes(notesRes.data || []); setInvoices(invoicesRes.data || []); setPayments(paymentsRes.data || []); setQuotes(quotesRes.data || []); setJobs(jobsRes.data || []); setAllCustomers(customersRes.data || []); setSelectedVehicleId(vehiclesRes.data?.[0]?.id || "all"); setShowAllRecords(!(vehiclesRes.data?.length)); } catch (error: any) { toast({ title: "Error", description: error.message || "Failed to load customer", variant: "destructive" }); } finally { setLoading(false); } };
-    const selectedVehicle = useMemo(() => vehicles.find((vehicle) => vehicle.id === selectedVehicleId) || null, [vehicles, selectedVehicleId]);
-    const recordFilter = (row: any) => showAllRecords || selectedVehicleId === "all" ? true : row.vehicle_id === selectedVehicleId;
-    const filteredInvoices = invoices.filter(recordFilter); const filteredPayments = payments.filter(recordFilter); const filteredQuotes = quotes.filter(recordFilter);
-    const vehicleHistory = [...jobs.filter(recordFilter), ...invoices.filter(recordFilter), ...quotes.filter(recordFilter)].sort((a: any, b: any) => new Date(b.created_at || b.invoice_date || b.quote_date || 0).getTime() - new Date(a.created_at || a.invoice_date || a.quote_date || 0).getTime());
-    const balances = useMemo(() => { const invoiceTotal = filteredInvoices.reduce((sum, invoice) => sum + Number(invoice.total_amount || 0), 0); const paymentTotal = filteredPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0); const finalized = filteredInvoices.filter((invoice) => ["paid", "finished", "sent"].includes(invoice.status)).reduce((sum, invoice) => sum + Number(invoice.total_amount || 0), 0); return { running: invoiceTotal - paymentTotal, finalized, invoiceTotal, paymentTotal }; }, [filteredInvoices, filteredPayments]);
-    const handleTransferVehicle = async () => { if (!transferVehicleId || !transferCustomerId) return; const { error } = await supabase.from("vehicles").update({ customer_id: transferCustomerId } as any).eq("id", transferVehicleId); if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; } toast({ title: "Success", description: "Vehicle transferred successfully." }); setShowTransferDialog(false); setTransferVehicleId(""); setTransferCustomerId(""); if (id && typeof id === "string") await loadCustomerData(id); };
-    const handleAddNote = async () => { if (!newNote.trim() || !id || typeof id !== "string") return; const { error } = await supabase.from("customer_notes").insert({ customer_id: id, note: newNote.trim() } as any); if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; } setNewNote(""); await loadCustomerData(id); };
-    if (loading) return <LoadingSpinner />; if (!customer) return <div>Customer not found</div>;
-    return <AppLayout companyId={companyId}><div className="space-y-6"><div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between"><div><p className="text-sm text-slate-500">Customer #{customer.customer_number || "—"}</p><h1 className="mt-1 text-3xl font-bold text-slate-900">{customer.name}</h1><div className="mt-3 flex flex-wrap gap-3 text-sm text-slate-600"><span className="inline-flex items-center gap-2"><Mail className="h-4 w-4" />{customer.email || "No email"}</span><span className="inline-flex items-center gap-2"><Phone className="h-4 w-4" />{customer.mobile || customer.phone || "No phone"}</span><span className="inline-flex items-center gap-2"><UserRound className="h-4 w-4" />{customer.company_name || "Retail customer"}</span></div></div><div className="flex flex-wrap gap-2"><Button variant="outline" className="rounded-2xl">Statement</Button><Button variant="outline" className="rounded-2xl">Send</Button><Button className="rounded-2xl" onClick={() => router.push(`/dashboard/invoices/new?customerId=${customer.id}`)}>New</Button><Button variant="outline" className="rounded-2xl">Payment Instruction</Button><Button variant="outline" className="rounded-2xl">Merge/Delete</Button></div></div></div><div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]"><div className="space-y-6"><Card className="rounded-3xl border-slate-200 shadow-sm"><CardHeader><CardTitle>Customer details</CardTitle></CardHeader><CardContent className="grid gap-4 md:grid-cols-2"><div><Label>Phone</Label><p className="mt-2 text-sm text-slate-700">{customer.phone || "—"}</p></div><div><Label>Mobile</Label><p className="mt-2 text-sm text-slate-700">{customer.mobile || "—"}</p></div><div><Label>Email</Label><p className="mt-2 text-sm text-slate-700">{customer.email || "—"}</p></div><div><Label>Source</Label><p className="mt-2 text-sm text-slate-700">{customer.source_of_business || "—"}</p></div><div className="md:col-span-2"><Label>Address</Label><p className="mt-2 text-sm text-slate-700">{[customer.physical_address, customer.physical_city, customer.physical_postal_code].filter(Boolean).join(", ") || "—"}</p></div><div><Label>Payment term</Label><p className="mt-2 text-sm text-slate-700">30 Days</p></div><div><Label>Default discount</Label><p className="mt-2 text-sm text-slate-700">0.00%</p></div><div><Label>Credit limit</Label><p className="mt-2 text-sm text-slate-700">No limit</p></div><div><Label>Fleet billing</Label><p className="mt-2 text-sm text-slate-700">{customer.fleet_billing_contact || "—"}</p></div><div className="md:col-span-2"><Label>Notes</Label><p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{customer.notes || "No customer note added."}</p></div></CardContent></Card><div className="grid gap-4 md:grid-cols-4"><Card className="rounded-3xl border-slate-200 shadow-sm"><CardContent className="p-5"><p className="text-sm text-slate-500">Running Balance</p><p className="mt-2 text-2xl font-bold">{currency(balances.running)}</p></CardContent></Card><Card className="rounded-3xl border-slate-200 shadow-sm"><CardContent className="p-5"><p className="text-sm text-slate-500">Finalized Balance</p><p className="mt-2 text-2xl font-bold">{currency(balances.finalized)}</p></CardContent></Card><Card className="rounded-3xl border-slate-200 shadow-sm"><CardContent className="p-5"><p className="text-sm text-slate-500">Invoice</p><p className="mt-2 text-2xl font-bold">{currency(balances.invoiceTotal)}</p></CardContent></Card><Card className="rounded-3xl border-slate-200 shadow-sm"><CardContent className="p-5"><p className="text-sm text-slate-500">Credit</p><p className="mt-2 text-2xl font-bold">{currency(balances.paymentTotal)}</p></CardContent></Card></div><Card className="rounded-3xl border-slate-200 shadow-sm"><CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between"><div><CardTitle>Records</CardTitle><p className="text-sm text-slate-500">Customer financial history with optional vehicle filter.</p></div><div className="flex flex-wrap gap-4 text-sm"><label className="flex items-center gap-2"><Checkbox checked={showAllRecords} onCheckedChange={(v) => setShowAllRecords(!!v)} />Show all customer records</label><label className="flex items-center gap-2"><Checkbox checked={!showAllRecords} onCheckedChange={(v) => setShowAllRecords(!v)} />Selected vehicle only</label></div></CardHeader><CardContent><Tabs defaultValue="invoices"><TabsList className="mb-4 grid w-full grid-cols-3"><TabsTrigger value="invoices">Invoices</TabsTrigger><TabsTrigger value="payments">Payments</TabsTrigger><TabsTrigger value="quotes">Quotes</TabsTrigger></TabsList><TabsContent value="invoices"><Table><TableHeader><TableRow><TableHead>No.</TableHead><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead>Amount</TableHead><TableHead>Remain</TableHead></TableRow></TableHeader><TableBody>{filteredInvoices.length === 0 ? <TableRow><TableCell colSpan={5} className="py-8 text-center text-slate-500">No invoices found</TableCell></TableRow> : filteredInvoices.map((invoice) => <TableRow key={invoice.id} className="cursor-pointer hover:bg-slate-50" onClick={() => router.push(`/invoices/${invoice.id}`)}><TableCell className="font-medium">{invoice.invoice_number || "Draft"}</TableCell><TableCell>{invoice.invoice_date ? new Date(invoice.invoice_date).toLocaleDateString() : "—"}</TableCell><TableCell>{invoice.notes || invoice.invoice_note || customer.name}</TableCell><TableCell>{currency(invoice.total_amount)}</TableCell><TableCell>{currency(invoice.total_amount)}</TableCell></TableRow>)}</TableBody></Table></TabsContent><TabsContent value="payments"><Table><TableHeader><TableRow><TableHead>No.</TableHead><TableHead>Date</TableHead><TableHead>Method</TableHead><TableHead>Reference</TableHead><TableHead>Amount</TableHead></TableRow></TableHeader><TableBody>{filteredPayments.length === 0 ? <TableRow><TableCell colSpan={5} className="py-8 text-center text-slate-500">No payments found</TableCell></TableRow> : filteredPayments.map((payment) => <TableRow key={payment.id}><TableCell>{payment.payment_number || payment.id.slice(0, 8)}</TableCell><TableCell>{new Date(payment.payment_date).toLocaleDateString()}</TableCell><TableCell>{payment.payment_method || "Not specified"}</TableCell><TableCell>{payment.reference || "—"}</TableCell><TableCell>{currency(payment.amount)}</TableCell></TableRow>)}</TableBody></Table></TabsContent><TabsContent value="quotes"><Table><TableHeader><TableRow><TableHead>No.</TableHead><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead>Status</TableHead><TableHead>Total</TableHead></TableRow></TableHeader><TableBody>{filteredQuotes.length === 0 ? <TableRow><TableCell colSpan={5} className="py-8 text-center text-slate-500">No quotes found</TableCell></TableRow> : filteredQuotes.map((quote) => <TableRow key={quote.id} className="cursor-pointer hover:bg-slate-50" onClick={() => router.push(`/dashboard/quotes/${quote.id}`)}><TableCell>{quote.quote_number || "Draft"}</TableCell><TableCell>{quote.quote_date ? new Date(quote.quote_date).toLocaleDateString() : "—"}</TableCell><TableCell>{quote.notes || quote.quote_note || customer.name}</TableCell><TableCell><Badge variant="secondary">{quote.status || "draft"}</Badge></TableCell><TableCell>{currency(quote.total_amount)}</TableCell></TableRow>)}</TableBody></Table></TabsContent></Tabs></CardContent></Card><div className="grid gap-6 lg:grid-cols-2"><Card className="rounded-3xl border-slate-200 shadow-sm"><CardHeader className="flex flex-row items-center justify-between"><CardTitle>Contacts</CardTitle><Button variant="outline" size="sm" className="rounded-2xl"><Plus className="mr-2 h-4 w-4" />Add contact</Button></CardHeader><CardContent className="space-y-3">{contacts.length === 0 ? <p className="text-sm text-slate-500">No contacts added.</p> : contacts.map((contact) => <div key={contact.id} className="rounded-2xl border border-slate-200 p-4"><p className="font-medium text-slate-900">{contact.name}</p><p className="text-sm text-slate-500">{contact.role || "Contact"}</p><p className="mt-2 text-sm text-slate-600">{contact.email || contact.mobile || contact.phone || "—"}</p></div>)}</CardContent></Card><Card className="rounded-3xl border-slate-200 shadow-sm"><CardHeader className="flex flex-row items-center justify-between"><CardTitle>Notes</CardTitle><NotebookPen className="h-4 w-4 text-slate-400" /></CardHeader><CardContent className="space-y-4"><div className="space-y-2"><Textarea rows={3} value={newNote} onChange={(e) => setNewNote(e.target.value)} placeholder="Add a note for this customer" /><Button onClick={handleAddNote} className="rounded-2xl">Add note</Button></div><div className="space-y-3">{notes.length === 0 ? <p className="text-sm text-slate-500">No notes added.</p> : notes.map((note) => <div key={note.id} className="rounded-2xl border border-slate-200 p-4"><p className="whitespace-pre-wrap text-sm text-slate-700">{note.note}</p><p className="mt-2 text-xs text-slate-400">{note.created_at ? new Date(note.created_at).toLocaleString() : ""}</p></div>)}</div></CardContent></Card></div></div><div className="space-y-6"><Card className="rounded-3xl border-slate-200 shadow-sm"><CardHeader className="flex flex-row items-center justify-between"><div><CardTitle>Vehicle list</CardTitle><p className="text-sm text-slate-500">One customer can have multiple vehicles.</p></div><Button className="rounded-2xl" onClick={() => router.push(`/dashboard/vehicles/new?customerId=${customer.id}`)}><Plus className="mr-2 h-4 w-4" />Add Vehicle</Button></CardHeader><CardContent className="space-y-3">{vehicles.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-200 p-10 text-center text-slate-500"><Car className="mx-auto mb-3 h-10 w-10 text-slate-300" />No vehicle linked yet. Customer invoices still show on the left.</div> : vehicles.map((vehicle) => <button key={vehicle.id} onClick={() => { setSelectedVehicleId(vehicle.id); setShowAllRecords(false); }} className={`w-full rounded-2xl border p-4 text-left transition ${selectedVehicleId === vehicle.id && !showAllRecords ? "border-slate-900 bg-slate-50" : "border-slate-200 hover:bg-slate-50"}`}><div className="flex items-start justify-between gap-4"><div><p className="font-semibold text-slate-900">{vehicle.registration_number}</p><p className="text-sm text-slate-500">{[vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") || "Vehicle details"}</p></div><Badge variant="outline">{vehicle.odometer ? `${vehicle.odometer} ${vehicle.odometer_unit || "km"}` : "No odometer"}</Badge></div></button>)}</CardContent></Card>{selectedVehicle && <Card className="rounded-3xl border-slate-200 shadow-sm"><CardHeader className="flex flex-row items-center justify-between"><div><CardTitle>{selectedVehicle.registration_number}</CardTitle><p className="text-sm text-slate-500">Vehicle details and related history</p></div><div className="flex gap-2"><Button variant="outline" size="sm" className="rounded-2xl" onClick={() => { setShowAllRecords(true); setSelectedVehicleId("all"); }}><RefreshCcw className="mr-2 h-4 w-4" />Back to list</Button><Button variant="outline" size="sm" className="rounded-2xl" onClick={() => { setTransferVehicleId(selectedVehicle.id); setShowTransferDialog(true); }}>Transfer</Button></div></CardHeader><CardContent className="space-y-5"><div className="grid gap-4 md:grid-cols-2"><div><Label>Make / Model</Label><p className="mt-2 text-sm text-slate-700">{[selectedVehicle.make, selectedVehicle.model].filter(Boolean).join(" ") || "—"}</p></div><div><Label>Year</Label><p className="mt-2 text-sm text-slate-700">{selectedVehicle.year || "—"}</p></div><div><Label>Color</Label><p className="mt-2 text-sm text-slate-700">{selectedVehicle.colour || "—"}</p></div><div><Label>Body</Label><p className="mt-2 text-sm text-slate-700">{selectedVehicle.body_type || "—"}</p></div><div><Label>WOF Due</Label><p className="mt-2 text-sm text-slate-700">{selectedVehicle.wof_expiry ? new Date(selectedVehicle.wof_expiry).toLocaleDateString() : "—"}</p></div><div><Label>Registration Due</Label><p className="mt-2 text-sm text-slate-700">{selectedVehicle.rego_expiry ? new Date(selectedVehicle.rego_expiry).toLocaleDateString() : "—"}</p></div><div><Label>Next Service</Label><p className="mt-2 text-sm text-slate-700">{selectedVehicle.service_due_date ? new Date(selectedVehicle.service_due_date).toLocaleDateString() : "—"}</p></div><div><Label>Next Service Odometer</Label><p className="mt-2 text-sm text-slate-700">{selectedVehicle.service_due_odometer || "—"}</p></div></div><div><Label>Notes</Label><p className="mt-2 whitespace-pre-wrap rounded-2xl bg-slate-50 p-4 text-sm text-slate-700">{selectedVehicle.notes || "No vehicle note added."}</p></div><div><div className="mb-3 flex items-center justify-between"><h3 className="font-semibold text-slate-900">Vehicle history</h3><FileText className="h-4 w-4 text-slate-400" /></div><Table><TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead>More info</TableHead><TableHead>Total</TableHead></TableRow></TableHeader><TableBody>{vehicleHistory.length === 0 ? <TableRow><TableCell colSpan={4} className="py-8 text-center text-slate-500">No vehicle history yet</TableCell></TableRow> : vehicleHistory.map((item) => <TableRow key={`${item.id}-${item.created_at || item.invoice_date || item.quote_date}`}><TableCell>{new Date(item.created_at || item.invoice_date || item.quote_date).toLocaleDateString()}</TableCell><TableCell>{item.job_number || item.invoice_number || item.quote_number || item.registration_number || "Record"}</TableCell><TableCell>{item.description || item.notes || item.status || "—"}</TableCell><TableCell>{currency(item.total_amount)}</TableCell></TableRow>)}</TableBody></Table></div></CardContent></Card>}</div></div></div><Dialog open={showTransferDialog} onOpenChange={setShowTransferDialog}><DialogContent><DialogHeader><DialogTitle>Transfer vehicle to another customer</DialogTitle></DialogHeader><div className="space-y-4"><div><Label>Vehicle</Label><Input value={vehicles.find((vehicle) => vehicle.id === transferVehicleId)?.registration_number || ""} disabled className="mt-2" /></div><div><Label>Transfer to customer</Label><Select value={transferCustomerId} onValueChange={setTransferCustomerId}><SelectTrigger className="mt-2"><SelectValue placeholder="Select customer" /></SelectTrigger><SelectContent>{allCustomers.map((option) => <SelectItem key={option.id} value={option.id}>{option.name}</SelectItem>)}</SelectContent></Select></div><div className="flex gap-2"><Button onClick={handleTransferVehicle}>Confirm transfer</Button><Button variant="outline" onClick={() => setShowTransferDialog(false)}>Cancel</Button></div></div></DialogContent></Dialog></AppLayout>;
+import { supabase } from "@/integrations/supabase/client";
+import { companyService } from "@/services/companyService";
+
+export default function DashboardCustomerDetailPage() {
+    const router = useRouter();
+    const { id } = router.query;
+    const { toast } = useToast();
+    const [companyId, setCompanyId] = useState("");
+    const [companyName, setCompanyName] = useState("");
+    const [customer, setCustomer] = useState < any > (null);
+    const [loading, setLoading] = useState(true);
+    const [showStatement, setShowStatement] = useState(false);
+    const [showMerge, setShowMerge] = useState(false);
+    const [recipientEmail, setRecipientEmail] = useState("");
+    const [statementMessage, setStatementMessage] = useState("");
+    const [targetCustomerId, setTargetCustomerId] = useState("");
+    const [saving, setSaving] = useState(false);
+
+    const customerId = typeof id === "string" ? id : "";
+
+    useEffect(() => {
+        if (router.isReady && customerId) void loadCustomer();
+    }, [router.isReady, customerId]);
+
+    const loadCustomer = async () => {
+        setLoading(true);
+        try {
+            const company = await companyService.getCurrentCompany();
+            if (!company?.id) throw new Error("No company found");
+            setCompanyId(company.id);
+            setCompanyName(company.name || "");
+            const { data, error } = await (supabase as any)
+                .from("customers")
+                .select("*")
+                .eq("id", customerId)
+                .eq("company_id", company.id)
+                .maybeSingle();
+            if (error) throw error;
+            setCustomer(data);
+            setRecipientEmail(data?.email || "");
+            setStatementMessage(`Hi ${data?.name || "there"},\n\nYour customer statement is attached/queued.\n\nThank you.`);
+        } catch (error: any) {
+            toast({ title: "Could not load customer", description: error.message, variant: "destructive" });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const sendStatement = async () => {
+        setSaving(true);
+        try {
+            const { data } = await supabase.auth.getSession();
+            const token = data.session?.access_token;
+            if (!token) throw new Error("You must be logged in");
+            const response = await fetch("/api/customers/send-statement", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ customerId, recipientEmail, message: statementMessage }),
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result?.error || "Could not queue statement");
+            toast({ title: "Statement queued", description: `Statement queued for ${recipientEmail}` });
+            setShowStatement(false);
+        } catch (error: any) {
+            toast({ title: "Statement failed", description: error.message, variant: "destructive" });
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const mergeCustomer = async () => {
+        if (!targetCustomerId.trim()) {
+            toast({ title: "Target customer required", description: "Enter the customer ID to merge into.", variant: "destructive" });
+            return;
+        }
+        setSaving(true);
+        try {
+            const { data } = await supabase.auth.getSession();
+            const token = data.session?.access_token;
+            if (!token) throw new Error("You must be logged in");
+            const response = await fetch("/api/customers/merge", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ sourceCustomerId: customerId, targetCustomerId: targetCustomerId.trim() }),
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result?.error || "Could not merge customers");
+            toast({ title: "Customer merged", description: "Records moved to the target customer." });
+            router.replace(`/dashboard/customers/${targetCustomerId.trim()}`);
+        } catch (error: any) {
+            toast({ title: "Merge failed", description: error.message, variant: "destructive" });
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <AppLayout companyId={companyId} companyName={companyName}>
+            <div className="p-6 space-y-6">
+                <Button variant="outline" onClick={() => router.push("/dashboard/customers")}>Back to Customers</Button>
+                <Card>
+                    <CardHeader><CardTitle>{loading ? "Loading..." : customer?.name || "Customer"}</CardTitle></CardHeader>
+                    <CardContent className="space-y-4">
+                        {!loading && !customer ? <p>Customer not found.</p> : null}
+                        {customer && (
+                            <>
+                                <div className="grid gap-3 md:grid-cols-2">
+                                    <div><Label>Email</Label><p>{customer.email || "-"}</p></div>
+                                    <div><Label>Phone</Label><p>{customer.mobile || customer.phone || "-"}</p></div>
+                                </div>
+                                <div className="flex gap-2">
+                                    <Button onClick={() => setShowStatement(true)}>Send Statement</Button>
+                                    <Button variant="outline" onClick={() => setShowMerge(true)}>Merge Customer</Button>
+                                </div>
+                            </>
+                        )}
+                    </CardContent>
+                </Card>
+            </div>
+
+            <Dialog open={showStatement} onOpenChange={setShowStatement}>
+                <DialogContent>
+                    <DialogHeader><DialogTitle>Send Customer Statement</DialogTitle></DialogHeader>
+                    <div className="space-y-4">
+                        <div><Label>Recipient email</Label><Input value={recipientEmail} onChange={(e) => setRecipientEmail(e.target.value)} /></div>
+                        <div><Label>Message</Label><Textarea rows={5} value={statementMessage} onChange={(e) => setStatementMessage(e.target.value)} /></div>
+                        <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setShowStatement(false)}>Cancel</Button><Button onClick={sendStatement} disabled={saving}>{saving ? "Queuing..." : "Queue Statement"}</Button></div>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={showMerge} onOpenChange={setShowMerge}>
+                <DialogContent>
+                    <DialogHeader><DialogTitle>Merge Customer</DialogTitle></DialogHeader>
+                    <div className="space-y-4">
+                        <p className="text-sm text-muted-foreground">Enter the customer ID to keep. All vehicles/jobs/invoices/quotes/payments will move to that customer. This customer will be soft-deleted.</p>
+                        <div><Label>Target customer ID</Label><Input value={targetCustomerId} onChange={(e) => setTargetCustomerId(e.target.value)} /></div>
+                        <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setShowMerge(false)}>Cancel</Button><Button onClick={mergeCustomer} disabled={saving}>{saving ? "Merging..." : "Merge"}</Button></div>
+                    </div>
+                </DialogContent>
+            </Dialog>
+        </AppLayout>
+    );
 }
