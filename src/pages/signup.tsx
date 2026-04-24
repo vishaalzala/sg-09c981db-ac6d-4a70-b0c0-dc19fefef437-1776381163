@@ -98,6 +98,17 @@ export default function SignupPage() {
         return;
       }
 
+      await fetch("/api/email/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: form.email.trim(),
+          subject: "Welcome to WorkshopPro — Your trial has started",
+          html: `<h1>Welcome to WorkshopPro!</h1><p>Your trial has started on the ${selectedPlan?.display_name || "selected"} plan.</p><p><a href="${typeof window !== "undefined" ? window.location.origin : process.env.NEXT_PUBLIC_APP_URL}/dashboard">Get started now</a></p>`,
+          eventType: "welcome_signup",
+        }),
+      }).catch(() => null);
+
       const onboardingUrl = `/onboarding/company?companyName=${encodeURIComponent(form.companyName.trim())}&phone=${encodeURIComponent(form.phone.trim())}&planId=${encodeURIComponent(form.selectedPlanId)}&billingCycle=${encodeURIComponent(form.billingCycle)}`;
 
       if (result.requiresEmailConfirmation) {
